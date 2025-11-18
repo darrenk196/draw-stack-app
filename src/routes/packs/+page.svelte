@@ -30,7 +30,8 @@
   let folderCountCache = new Map<string, number>();
   let expandedFolders = $state<Set<string>>(new Set());
 
-  const IMAGES_PER_LOAD = 100;
+  const IMAGES_PER_LOAD = 50; // Reduced for faster initial load
+  const EAGER_LOAD_COUNT = 20; // First 20 images load immediately
 
   // Build hierarchical folder tree from current path
   function getFolderTree(): Array<{
@@ -42,7 +43,7 @@
     if (!currentPath || !rootPath) return [];
 
     const tree = [];
-    
+
     // Add root
     tree.push({
       name: rootPath.split(/[/\\]/).pop() || "Root",
@@ -63,9 +64,9 @@
           (accumulatedPath.endsWith("\\") || accumulatedPath.endsWith("/")
             ? ""
             : "\\") + segment;
-        
+
         expandedFolders.add(accumulatedPath);
-        
+
         tree.push({
           name: segment,
           path: accumulatedPath,
@@ -353,11 +354,12 @@
             </span>
           </div>
 
-          <div class="grid grid-cols-10 gap-2">
-            {#each displayedImages as image (image.path)}
+          <div class="grid grid-cols-12 gap-1.5">
+            {#each displayedImages as image, index (image.path)}
               {@const isSelected = selectedImages.has(image.path)}
+              {@const shouldEagerLoad = index < EAGER_LOAD_COUNT}
               <button
-                class="relative aspect-square bg-base-300 rounded overflow-hidden cursor-pointer border-2 transition-colors"
+                class="relative aspect-square bg-base-300 rounded overflow-hidden cursor-pointer border-2 transition-colors will-change-transform"
                 class:border-base-300={!isSelected}
                 class:border-primary={isSelected}
                 onclick={() => toggleImageSelection(image.path)}
@@ -366,8 +368,9 @@
                   src={convertFileSrc(image.path)}
                   alt={image.filename}
                   class="w-full h-full object-cover"
-                  loading="lazy"
+                  loading={shouldEagerLoad ? "eager" : "lazy"}
                   decoding="async"
+                  fetchpriority={shouldEagerLoad ? "high" : "auto"}
                 />
 
                 {#if isSelected}
@@ -451,5 +454,18 @@
 <style>
   button.border-base-300:hover {
     border-color: rgb(148 163 184 / 0.5);
+  }
+
+  /* Optimize image rendering performance */
+  img {
+    content-visibility: auto;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+
+  /* GPU acceleration for grid items */
+  .grid > button {
+    transform: translateZ(0);
+    backface-visibility: hidden;
   }
 </style>
