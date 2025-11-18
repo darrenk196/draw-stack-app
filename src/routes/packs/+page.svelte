@@ -21,13 +21,14 @@
   }
 
   let currentPath = $state<string | null>(null);
-  let rootPath = $state<string | null>(null); // Track the original root folder
+  let rootPath = $state<string | null>(null);
   let folders = $state<FolderInfo[]>([]);
   let images = $state<ImageInfo[]>([]);
   let displayedImages = $state<ImageInfo[]>([]);
   let selectedImages = $state<Set<string>>(new Set());
   let scrollContainer = $state<HTMLDivElement | undefined>();
   let isLoading = $state(false);
+  let folderCountCache = new Map<string, number>();
 
   const IMAGES_PER_LOAD = 100;
 
@@ -70,26 +71,59 @@
   }
 
   async function browseFolder(folderPath: string) {
+    // Instant UI update - clear old data immediately
+    currentPath = folderPath;
+    folders = [];
+    images = [];
+    displayedImages = [];
+    selectedImages.clear();
     isLoading = true;
+
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 0;
+    }
+
     try {
       const contents = await invoke<FolderContents>("browse_folder", {
         folderPath,
       });
 
-      currentPath = contents.path;
+      // Update with real data
       folders = contents.folders;
       images = contents.images;
       displayedImages = images.slice(0, IMAGES_PER_LOAD);
-      selectedImages.clear();
 
-      if (scrollContainer) {
-        scrollContainer.scrollTop = 0;
-      }
+      // Lazy load folder counts in background
+      loadFolderCounts();
     } catch (error) {
       console.error("Failed to browse folder:", error);
       alert(`Failed to browse folder: ${error}`);
+      currentPath = null;
     } finally {
       isLoading = false;
+    }
+  }
+
+  async function loadFolderCounts() {
+    // Load counts for visible folders in batches
+    for (const folder of folders) {
+      if (folderCountCache.has(folder.path)) {
+        folder.image_count = folderCountCache.get(folder.path)!;
+        folders = [...folders]; // Trigger reactivity
+      } else {
+        // Load count asynchronously
+        invoke<number>("count_folder_images", {
+          folderPath: folder.path,
+        })
+          .then((count) => {
+            folderCountCache.set(folder.path, count);
+            folder.image_count = count;
+            folders = [...folders]; // Trigger reactivity
+          })
+          .catch(() => {
+            folder.image_count = 0;
+          });
+      }
     }
   }
 
@@ -178,7 +212,7 @@
     {/if}
 
     <div class="flex-1 overflow-auto">
-      {#each folders as folder}
+      {#each folders as folder (folder.path)}
         <button
           class="w-full flex items-center gap-3 p-3 hover:bg-base-300 transition-colors text-left border-b border-base-300"
           onclick={() => browseFolder(folder.path)}
@@ -200,7 +234,11 @@
           <div class="flex-1 min-w-0">
             <div class="font-medium truncate">{folder.name}</div>
             <div class="text-xs text-base-content/60">
-              {folder.image_count} images
+              {#if folder.image_count > 0}
+                {folder.image_count} images
+              {:else}
+                <span class="opacity-50">counting...</span>
+              {/if}
             </div>
           </div>
         </button>
@@ -258,14 +296,17 @@
           <div class="grid grid-cols-10 gap-2">
             {#each displayedImages as image (image.path)}
               <button
-                class="relative aspect-square bg-base-300 rounded overflow-hidden cursor-pointer border-2 border-base-300 hover:border-primary/50"
-                class:!border-primary={selectedImages.has(image.path)}
+                class="relative aspect-square bg-base-300 rounded overflow-hidden cursor-pointer border-2 transition-colors"
+                class:border-base-300={!selectedImages.has(image.path)}
+                class:border-primary={selectedImages.has(image.path)}
                 onclick={() => toggleImageSelection(image.path)}
               >
                 <img
                   src={convertFileSrc(image.path)}
                   alt={image.filename}
                   class="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
                 />
 
                 {#if selectedImages.has(image.path)}
@@ -345,3 +386,9 @@
     {/if}
   </main>
 </div>
+
+<style>
+  button.border-base-300:hover {
+    border-color: rgb(148 163 184 / 0.5);
+  }
+</style>

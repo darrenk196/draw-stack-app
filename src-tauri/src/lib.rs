@@ -180,15 +180,11 @@ async fn browse_folder(folder_path: String) -> Result<FolderContents, String> {
                 .unwrap_or("Unknown")
                 .to_string();
             
-            // Count images in subfolder
-            let image_count = scan_for_images(&entry_path)
-                .unwrap_or_default()
-                .len();
-            
+            // Use 0 as placeholder - will be counted lazily by frontend
             folders.push(FolderInfo {
                 path: entry_path.to_string_lossy().to_string(),
                 name,
-                image_count,
+                image_count: 0,
             });
         } else if entry_path.is_file() {
             if let Some(ext) = entry_path.extension() {
@@ -219,6 +215,13 @@ async fn browse_folder(folder_path: String) -> Result<FolderContents, String> {
         images,
         path: folder_path,
     })
+}
+
+#[tauri::command]
+async fn count_folder_images(folder_path: String) -> Result<usize, String> {
+    let path = Path::new(&folder_path);
+    let count = scan_for_images(path).unwrap_or_default().len();
+    Ok(count)
 }
 
 #[tauri::command]
@@ -367,6 +370,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             browse_folder,
+            count_folder_images,
             quick_scan,
             import_pack_progressive,
             get_app_data_dir,
