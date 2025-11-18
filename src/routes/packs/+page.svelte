@@ -27,7 +27,6 @@
   let displayedImages = $state<ImageInfo[]>([]);
   let selectedImages = $state<Set<string>>(new Set());
   let scrollContainer = $state<HTMLDivElement | undefined>();
-  let isLoading = $state(false);
   let folderCountCache = new Map<string, number>();
 
   const IMAGES_PER_LOAD = 100;
@@ -77,7 +76,6 @@
     images = [];
     displayedImages = [];
     selectedImages.clear();
-    isLoading = true;
 
     if (scrollContainer) {
       scrollContainer.scrollTop = 0;
@@ -93,38 +91,39 @@
       images = contents.images;
       displayedImages = images.slice(0, IMAGES_PER_LOAD);
 
-      // Lazy load folder counts in background
-      loadFolderCounts();
+      // Lazy load folder counts in background (don't wait)
+      setTimeout(() => loadFolderCounts(), 0);
     } catch (error) {
       console.error("Failed to browse folder:", error);
       alert(`Failed to browse folder: ${error}`);
       currentPath = null;
-    } finally {
-      isLoading = false;
     }
   }
 
   async function loadFolderCounts() {
-    // Load counts for visible folders in batches
-    for (const folder of folders) {
+    // Batch process: load all counts, then update once
+    const countPromises = folders.map(async (folder) => {
       if (folderCountCache.has(folder.path)) {
-        folder.image_count = folderCountCache.get(folder.path)!;
-        folders = [...folders]; // Trigger reactivity
+        return { folder, count: folderCountCache.get(folder.path)! };
       } else {
-        // Load count asynchronously
-        invoke<number>("count_folder_images", {
-          folderPath: folder.path,
-        })
-          .then((count) => {
-            folderCountCache.set(folder.path, count);
-            folder.image_count = count;
-            folders = [...folders]; // Trigger reactivity
-          })
-          .catch(() => {
-            folder.image_count = 0;
+        try {
+          const count = await invoke<number>("count_folder_images", {
+            folderPath: folder.path,
           });
+          folderCountCache.set(folder.path, count);
+          return { folder, count };
+        } catch {
+          return { folder, count: 0 };
+        }
       }
-    }
+    });
+
+    // Update all at once when done
+    const results = await Promise.all(countPromises);
+    results.forEach(({ folder, count }) => {
+      folder.image_count = count;
+    });
+    folders = [...folders]; // Single reactivity trigger
   }
 
   async function selectFolder() {
@@ -280,11 +279,7 @@
 
       <!-- Image Grid -->
       <div class="flex-1 overflow-auto p-6" bind:this={scrollContainer}>
-        {#if isLoading}
-          <div class="flex items-center justify-center h-full">
-            <span class="loading loading-spinner loading-lg"></span>
-          </div>
-        {:else if displayedImages.length > 0}
+        {#if displayedImages.length > 0}
           <div
             class="mb-4 flex items-center justify-between text-sm text-base-content/70"
           >
@@ -295,10 +290,11 @@
 
           <div class="grid grid-cols-10 gap-2">
             {#each displayedImages as image (image.path)}
+              {@const isSelected = selectedImages.has(image.path)}
               <button
                 class="relative aspect-square bg-base-300 rounded overflow-hidden cursor-pointer border-2 transition-colors"
-                class:border-base-300={!selectedImages.has(image.path)}
-                class:border-primary={selectedImages.has(image.path)}
+                class:border-base-300={!isSelected}
+                class:border-primary={isSelected}
                 onclick={() => toggleImageSelection(image.path)}
               >
                 <img
@@ -309,7 +305,7 @@
                   decoding="async"
                 />
 
-                {#if selectedImages.has(image.path)}
+                {#if isSelected}
                   <div
                     class="absolute top-1 left-1 bg-primary rounded-full p-1"
                   >

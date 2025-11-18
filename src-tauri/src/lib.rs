@@ -180,7 +180,6 @@ async fn browse_folder(folder_path: String) -> Result<FolderContents, String> {
                 .unwrap_or("Unknown")
                 .to_string();
             
-            // Use 0 as placeholder - will be counted lazily by frontend
             folders.push(FolderInfo {
                 path: entry_path.to_string_lossy().to_string(),
                 name,
@@ -206,9 +205,9 @@ async fn browse_folder(folder_path: String) -> Result<FolderContents, String> {
         }
     }
     
-    // Sort folders and images by name
-    folders.sort_by(|a, b| a.name.cmp(&b.name));
-    images.sort_by(|a, b| a.filename.cmp(&b.filename));
+    // Natural sort (case-insensitive)
+    folders.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    images.sort_by(|a, b| a.filename.to_lowercase().cmp(&b.filename.to_lowercase()));
     
     Ok(FolderContents {
         folders,

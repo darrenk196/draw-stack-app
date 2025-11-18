@@ -127,24 +127,29 @@ const OVERSCAN = 2; // Extra rows rendered above/below
 ## Pack Navigation Optimizations (Nov 18, 2025)
 
 ### Problem
+
 Navigation between folders in the pack browser was extremely slow (2-10+ seconds) because the `browse_folder` command was recursively scanning all subfolders to count images before returning the folder list. This created a poor UX where users had to wait several seconds every time they clicked on a folder.
 
 ### Solution
+
 Implemented a lazy loading and caching strategy to provide instant navigation:
 
 1. **Instant UI Updates**
+
    - Clear old data immediately when user clicks a folder
    - Show folder list right away with "counting..." placeholders
    - Load folder image counts asynchronously in the background
    - User can navigate while counts are still loading
 
 2. **Rust Backend Optimization**
+
    - `browse_folder` now only lists immediate children (instant response)
    - Removed expensive recursive `scan_for_images` calls from navigation path
    - New `count_folder_images` command for on-demand background counting
    - Folders show with 0 count initially, filled in progressively
 
 3. **Frontend Caching**
+
    - Cache folder counts in memory using `Map<string, number>`
    - Subsequent visits to same folder are instant (no re-counting)
    - Cache persists during entire session
@@ -157,6 +162,7 @@ Implemented a lazy loading and caching strategy to provide instant navigation:
    - Smooth scrolling performance even with 1000+ images
 
 ### Results
+
 - **Before**: 2-10+ seconds per folder navigation (blocking)
 - **After**: <100ms instant folder switching
 - Folder counts load progressively in background (1-2 seconds)
@@ -166,6 +172,7 @@ Implemented a lazy loading and caching strategy to provide instant navigation:
 ### Technical Implementation
 
 **Rust Changes:**
+
 ```rust
 // browse_folder returns instantly with 0 counts
 folders.push(FolderInfo {
@@ -184,41 +191,44 @@ async fn count_folder_images(folder_path: String) -> Result<usize, String> {
 ```
 
 **Frontend Changes:**
+
 ```typescript
 // Optimistic/instant UI update
 async function browseFolder(folderPath: string) {
-    currentPath = folderPath;
-    folders = [];
-    images = [];
-    displayedImages = [];
-    isLoading = true;
-    
-    // Fast folder list load
-    const contents = await invoke("browse_folder", { folderPath });
-    folders = contents.folders;
-    
-    // Background count loading
-    loadFolderCounts();
+  currentPath = folderPath;
+  folders = [];
+  images = [];
+  displayedImages = [];
+  isLoading = true;
+
+  // Fast folder list load
+  const contents = await invoke("browse_folder", { folderPath });
+  folders = contents.folders;
+
+  // Background count loading
+  loadFolderCounts();
 }
 
 // Lazy load with caching
 async function loadFolderCounts() {
-    for (const folder of folders) {
-        if (folderCountCache.has(folder.path)) {
-            folder.image_count = folderCountCache.get(folder.path)!;
-        } else {
-            invoke("count_folder_images", { folderPath: folder.path })
-                .then(count => {
-                    folderCountCache.set(folder.path, count);
-                    folder.image_count = count;
-                    folders = [...folders]; // Trigger reactivity
-                });
+  for (const folder of folders) {
+    if (folderCountCache.has(folder.path)) {
+      folder.image_count = folderCountCache.get(folder.path)!;
+    } else {
+      invoke("count_folder_images", { folderPath: folder.path }).then(
+        (count) => {
+          folderCountCache.set(folder.path, count);
+          folder.image_count = count;
+          folders = [...folders]; // Trigger reactivity
         }
+      );
     }
+  }
 }
 ```
 
 **UI Improvements:**
+
 ```svelte
 <!-- Show loading state while counting -->
 {#if folder.image_count > 0}
@@ -230,22 +240,24 @@ async function loadFolderCounts() {
 
 ### Performance Impact
 
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Navigation click → UI update | 2-10s | <100ms | **20-100x faster** |
-| Folder list appearance | After scan | Instant | **Instant** |
-| Revisit cached folder | 2-10s | <50ms | **Instant** |
-| User can navigate during load | No | Yes | **Better UX** |
-| Memory overhead | None | ~1KB/folder | **Negligible** |
+| Metric                        | Before     | After       | Improvement        |
+| ----------------------------- | ---------- | ----------- | ------------------ |
+| Navigation click → UI update  | 2-10s      | <100ms      | **20-100x faster** |
+| Folder list appearance        | After scan | Instant     | **Instant**        |
+| Revisit cached folder         | 2-10s      | <50ms       | **Instant**        |
+| User can navigate during load | No         | Yes         | **Better UX**      |
+| Memory overhead               | None       | ~1KB/folder | **Negligible**     |
 
 ### User Experience
 
 **Before:**
+
 1. Click folder → Wait 5 seconds → See folder contents
 2. Every navigation blocks for several seconds
 3. Can't browse quickly through structure
 
 **After:**
+
 1. Click folder → Instant folder list → Counts appear progressively
 2. Navigate freely while counts load in background
 3. Smooth, responsive browsing experience
