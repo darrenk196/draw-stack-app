@@ -28,45 +28,62 @@
   let selectedImages = $state<Set<string>>(new Set());
   let scrollContainer = $state<HTMLDivElement | undefined>();
   let folderCountCache = new Map<string, number>();
+  let expandedFolders = $state<Set<string>>(new Set());
 
   const IMAGES_PER_LOAD = 100;
 
-  // Get breadcrumb path segments
-  function getBreadcrumbs(): Array<{
+  // Build hierarchical folder tree from current path
+  function getFolderTree(): Array<{
     name: string;
     path: string;
-    indent: string;
+    depth: number;
+    isCurrentPath: boolean;
   }> {
     if (!currentPath || !rootPath) return [];
 
-    const breadcrumbs = [
-      {
-        name: rootPath.split(/[/\\]/).pop() || "Root",
-        path: rootPath,
-        indent: "",
-      },
-    ];
+    const tree = [];
+    
+    // Add root
+    tree.push({
+      name: rootPath.split(/[/\\]/).pop() || "Root",
+      path: rootPath,
+      depth: 0,
+      isCurrentPath: currentPath === rootPath,
+    });
 
-    if (currentPath === rootPath) return breadcrumbs;
+    // Add path to current folder
+    if (currentPath !== rootPath) {
+      const relative = currentPath.substring(rootPath.length);
+      const segments = relative.split(/[/\\]/).filter(Boolean);
 
-    const relative = currentPath.substring(rootPath.length);
-    const segments = relative.split(/[/\\]/).filter(Boolean);
-
-    let accumulatedPath = rootPath;
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
-      accumulatedPath +=
-        (accumulatedPath.endsWith("\\") || accumulatedPath.endsWith("/")
-          ? ""
-          : "\\") + segment;
-      breadcrumbs.push({
-        name: segment,
-        path: accumulatedPath,
-        indent: "  ".repeat(i + 1) + "↳ ",
-      });
+      let accumulatedPath = rootPath;
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i];
+        accumulatedPath +=
+          (accumulatedPath.endsWith("\\") || accumulatedPath.endsWith("/")
+            ? ""
+            : "\\") + segment;
+        
+        expandedFolders.add(accumulatedPath);
+        
+        tree.push({
+          name: segment,
+          path: accumulatedPath,
+          depth: i + 1,
+          isCurrentPath: currentPath === accumulatedPath,
+        });
+      }
     }
 
-    return breadcrumbs;
+    return tree;
+  }
+
+  function toggleFolder(folderPath: string) {
+    if (expandedFolders.has(folderPath)) {
+      expandedFolders.delete(folderPath);
+    } else {
+      expandedFolders.add(folderPath);
+    }
   }
 
   async function browseFolder(folderPath: string) {
@@ -195,53 +212,101 @@
     </div>
 
     {#if currentPath}
-      <div class="p-3 bg-base-300">
-        <select
-          class="select select-sm w-full bg-base-100"
-          value={currentPath}
-          onchange={(e) => browseFolder(e.currentTarget.value)}
-        >
-          {#each getBreadcrumbs() as crumb}
-            <option value={crumb.path}>
-              {crumb.indent}{crumb.name}
-            </option>
-          {/each}
-        </select>
+      <div class="p-3 bg-base-300 border-b border-base-300">
+        <div class="text-xs font-semibold text-base-content/70 mb-2">
+          FOLDER TREE
+        </div>
+        {#each getFolderTree() as treeItem (treeItem.path)}
+          <button
+            class="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-base-100 rounded text-left transition-colors mb-0.5"
+            class:bg-primary={treeItem.isCurrentPath}
+            class:text-primary-content={treeItem.isCurrentPath}
+            class:font-semibold={treeItem.isCurrentPath}
+            style="padding-left: {treeItem.depth * 20 + 8}px"
+            onclick={() => browseFolder(treeItem.path)}
+          >
+            {#if treeItem.depth > 0}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3 flex-shrink-0 opacity-50"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="3"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            {/if}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4 flex-shrink-0"
+              class:opacity-100={treeItem.isCurrentPath}
+              class:opacity-70={!treeItem.isCurrentPath}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+              />
+            </svg>
+            <span class="text-sm truncate">{treeItem.name}</span>
+          </button>
+        {/each}
+      </div>
+
+      <div class="p-3 bg-base-200 border-b border-base-300">
+        <div class="text-xs font-semibold text-base-content/70 mb-2">
+          SUBFOLDERS
+        </div>
       </div>
     {/if}
 
     <div class="flex-1 overflow-auto">
-      {#each folders as folder (folder.path)}
-        <button
-          class="w-full flex items-center gap-3 p-3 hover:bg-base-300 transition-colors text-left border-b border-base-300"
-          onclick={() => browseFolder(folder.path)}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5 flex-shrink-0 text-primary"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+      {#if folders.length > 0}
+        {#each folders as folder (folder.path)}
+          <button
+            class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-300 transition-colors text-left border-b border-base-300"
+            onclick={() => browseFolder(folder.path)}
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-            />
-          </svg>
-          <div class="flex-1 min-w-0">
-            <div class="font-medium truncate">{folder.name}</div>
-            <div class="text-xs text-base-content/60">
-              {#if folder.image_count > 0}
-                {folder.image_count} images
-              {:else}
-                <span class="opacity-50">counting...</span>
-              {/if}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 flex-shrink-0 text-primary"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+              />
+            </svg>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium truncate text-sm">{folder.name}</div>
+              <div class="text-xs text-base-content/60">
+                {#if folder.image_count > 0}
+                  {folder.image_count} images
+                {:else}
+                  <span class="opacity-50">counting...</span>
+                {/if}
+              </div>
             </div>
-          </div>
-        </button>
-      {/each}
+          </button>
+        {/each}
+      {:else if currentPath}
+        <div class="p-4 text-center text-sm text-base-content/60">
+          No subfolders
+        </div>
+      {/if}
     </div>
   </aside>
 
