@@ -195,7 +195,7 @@
 
     try {
       console.log(`Adding ${selectedPaths.length} images to library...`);
-      
+
       // Generate UUIDs and copy images to library
       for (const imagePath of selectedPaths) {
         const imageInfo = images.find((img) => img.path === imagePath);
@@ -219,7 +219,7 @@
           isInLibrary: true,
           addedToLibraryAt: Date.now(),
         };
-        
+
         console.log("Adding image to library:", imageData);
         imagesToAdd.push(imageData);
       }

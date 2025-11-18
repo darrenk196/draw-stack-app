@@ -9,6 +9,7 @@
   let selectedImages = $state<Set<string>>(new Set());
   let libraryImages = $state<Image[]>([]);
   let isLoading = $state(true);
+  let viewingImage = $state<Image | null>(null);
 
   let quickFilters = [
     "Human/Female",
@@ -44,6 +45,14 @@
     if (!isSelectMode) {
       selectedImages.clear();
     }
+  }
+
+  function openImageViewer(image: Image) {
+    viewingImage = image;
+  }
+
+  function closeImageViewer() {
+    viewingImage = null;
   }
 
   function startPractice() {
@@ -241,8 +250,9 @@
       <!-- Image Grid -->
       <div class="grid grid-cols-8 gap-2">
         {#each libraryImages as image (image.id)}
-          <div
+          <button
             class="relative aspect-square bg-base-300 rounded overflow-hidden group cursor-pointer hover:ring-2 hover:ring-primary"
+            onclick={() => openImageViewer(image)}
           >
             <img
               src={convertFileSrc(image.fullPath)}
@@ -259,11 +269,55 @@
             <div
               class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
             >
-              <p class="text-xs text-white truncate">{image.id}</p>
+              <p class="text-xs text-white truncate">{image.filename}</p>
             </div>
-          </div>
+          </button>
         {/each}
       </div>
     {/if}
   </div>
 </div>
+
+<!-- Full Screen Image Viewer Modal -->
+{#if viewingImage}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+    onclick={closeImageViewer}
+  >
+    <button
+      class="absolute top-4 right-4 btn btn-circle btn-ghost text-white"
+      onclick={closeImageViewer}
+      aria-label="Close image viewer"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M6 18L18 6M6 6l12 12"
+        />
+      </svg>
+    </button>
+    
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="max-w-[90vw] max-h-[90vh] flex flex-col items-center gap-4" onclick={(e) => e.stopPropagation()}>
+      <img
+        src={convertFileSrc(viewingImage.fullPath)}
+        alt={viewingImage.filename}
+        class="max-w-full max-h-[85vh] object-contain"
+      />
+      <div class="text-white text-center">
+        <p class="font-medium">{viewingImage.filename}</p>
+      </div>
+    </div>
+  </div>
+{/if}
