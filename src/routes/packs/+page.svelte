@@ -194,6 +194,8 @@
     const imagesToAdd: Image[] = [];
 
     try {
+      console.log(`Adding ${selectedPaths.length} images to library...`);
+      
       // Generate UUIDs and copy images to library
       for (const imagePath of selectedPaths) {
         const imageInfo = images.find((img) => img.path === imagePath);
@@ -207,7 +209,7 @@
           imageId: imageId,
         });
 
-        imagesToAdd.push({
+        const imageData: Image = {
           id: imageId,
           packId: null,
           filename: imageInfo.filename,
@@ -216,11 +218,16 @@
           fullPath: libraryPath,
           isInLibrary: true,
           addedToLibraryAt: Date.now(),
-        });
+        };
+        
+        console.log("Adding image to library:", imageData);
+        imagesToAdd.push(imageData);
       }
 
       // Add to IndexedDB
+      console.log("Saving to IndexedDB:", imagesToAdd.length, "images");
       await addImages(imagesToAdd);
+      console.log("Successfully saved to IndexedDB");
 
       // Clear selection and show success
       selectedImages = new Set();

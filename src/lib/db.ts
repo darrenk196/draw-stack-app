@@ -164,7 +164,9 @@ export async function getImagesByPack(packId: string): Promise<Image[]> {
 
 export async function getLibraryImages(): Promise<Image[]> {
   const db = await getDB();
-  return db.getAllFromIndex('images', 'by-library', 1);
+  // Get all images and filter by isInLibrary boolean
+  const allImages = await db.getAll('images');
+  return allImages.filter(img => img.isInLibrary === true);
 }
 
 export async function updateImage(image: Image): Promise<void> {

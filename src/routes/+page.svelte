@@ -24,7 +24,10 @@
   async function loadLibraryImages() {
     isLoading = true;
     try {
+      console.log("Loading library images...");
       libraryImages = await getLibraryImages();
+      console.log("Loaded library images:", libraryImages.length);
+      console.log("Library images:", libraryImages);
     } catch (error) {
       console.error("Failed to load library images:", error);
     } finally {
