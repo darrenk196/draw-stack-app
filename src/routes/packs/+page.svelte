@@ -94,7 +94,7 @@
     folders = [];
     images = [];
     displayedImages = [];
-    selectedImages.clear();
+    selectedImages = new Set();
 
     if (scrollContainer) {
       scrollContainer.scrollTop = 0;
@@ -172,15 +172,19 @@
   }
 
   function toggleImageSelection(imagePath: string) {
-    if (selectedImages.has(imagePath)) {
-      selectedImages.delete(imagePath);
+    const newSelection = new Set(selectedImages);
+    if (newSelection.has(imagePath)) {
+      newSelection.delete(imagePath);
     } else {
-      selectedImages.add(imagePath);
+      newSelection.add(imagePath);
     }
+    selectedImages = newSelection;
   }
 
   function selectAll() {
-    displayedImages.forEach((img) => selectedImages.add(img.path));
+    const newSelection = new Set<string>();
+    displayedImages.forEach((img) => newSelection.add(img.path));
+    selectedImages = newSelection;
   }
 
   async function addToLibrary() {
@@ -196,7 +200,7 @@
         if (!imageInfo) continue;
 
         const imageId = await invoke<string>("generate_uuid");
-        
+
         // Copy image to library directory
         const libraryPath = await invoke<string>("copy_to_library", {
           sourcePath: imagePath,
@@ -219,7 +223,7 @@
       await addImages(imagesToAdd);
 
       // Clear selection and show success
-      selectedImages.clear();
+      selectedImages = new Set();
       alert(`Successfully added ${imagesToAdd.length} images to library!`);
     } catch (error) {
       console.error("Failed to add images to library:", error);
