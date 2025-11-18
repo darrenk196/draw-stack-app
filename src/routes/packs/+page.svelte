@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import { convertFileSrc } from "@tauri-apps/api/core";
+  import { addImages, type Image } from "$lib/db";
 
   interface FolderInfo {
     path: string;
@@ -182,9 +183,48 @@
     displayedImages.forEach((img) => selectedImages.add(img.path));
   }
 
-  function addToLibrary() {
-    console.log(`Adding ${selectedImages.size} images to library`);
-    // TODO: Implement add to library functionality
+  async function addToLibrary() {
+    if (selectedImages.size === 0) return;
+
+    const selectedPaths = Array.from(selectedImages);
+    const imagesToAdd: Image[] = [];
+
+    try {
+      // Generate UUIDs and copy images to library
+      for (const imagePath of selectedPaths) {
+        const imageInfo = images.find((img) => img.path === imagePath);
+        if (!imageInfo) continue;
+
+        const imageId = await invoke<string>("generate_uuid");
+        
+        // Copy image to library directory
+        const libraryPath = await invoke<string>("copy_to_library", {
+          sourcePath: imagePath,
+          imageId: imageId,
+        });
+
+        imagesToAdd.push({
+          id: imageId,
+          packId: null,
+          filename: imageInfo.filename,
+          originalPath: imagePath,
+          thumbnailPath: libraryPath,
+          fullPath: libraryPath,
+          isInLibrary: true,
+          addedToLibraryAt: Date.now(),
+        });
+      }
+
+      // Add to IndexedDB
+      await addImages(imagesToAdd);
+
+      // Clear selection and show success
+      selectedImages.clear();
+      alert(`Successfully added ${imagesToAdd.length} images to library!`);
+    } catch (error) {
+      console.error("Failed to add images to library:", error);
+      alert(`Failed to add images to library: ${error}`);
+    }
   }
 </script>
 

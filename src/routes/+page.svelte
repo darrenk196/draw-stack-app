@@ -1,19 +1,36 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { getLibraryImages, type Image } from "$lib/db";
+  import { convertFileSrc } from "@tauri-apps/api/core";
+
   let searchQuery = $state("");
   let viewMode: "grid" | "list" = $state("grid");
   let isSelectMode = $state(false);
   let selectedImages = $state<Set<string>>(new Set());
+  let libraryImages = $state<Image[]>([]);
+  let isLoading = $state(true);
 
-  // Mock data for now - will be replaced with IndexedDB
-  let images = $state<Array<{ id: string; thumbnail: string; tags: string[] }>>(
-    []
-  );
   let quickFilters = [
     "Human/Female",
     "Human/Male/Standing",
     "Landscape/Mountains",
     "Animals/Mammals",
   ];
+
+  onMount(async () => {
+    await loadLibraryImages();
+  });
+
+  async function loadLibraryImages() {
+    isLoading = true;
+    try {
+      libraryImages = await getLibraryImages();
+    } catch (error) {
+      console.error("Failed to load library images:", error);
+    } finally {
+      isLoading = false;
+    }
+  }
 
   function toggleViewMode(mode: "grid" | "list") {
     viewMode = mode;
@@ -189,7 +206,11 @@
 
   <!-- Content Area -->
   <div class="flex-1 overflow-auto p-6">
-    {#if images.length === 0}
+    {#if isLoading}
+      <div class="flex items-center justify-center h-full">
+        <span class="loading loading-spinner loading-lg"></span>
+      </div>
+    {:else if libraryImages.length === 0}
       <div class="flex flex-col items-center justify-center h-full text-center">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -209,21 +230,23 @@
           Your library is empty
         </h2>
         <p class="text-base-content/70 mb-4">
-          Import a pack and add images to get started
+          Go to Packs and add images to your library
         </p>
         <a href="/packs" class="btn btn-primary"> Go to Packs </a>
       </div>
     {:else}
       <!-- Image Grid -->
-      <div class="grid grid-cols-6 gap-4">
-        {#each images as image}
+      <div class="grid grid-cols-8 gap-2">
+        {#each libraryImages as image (image.id)}
           <div
-            class="relative aspect-square bg-base-300 rounded-lg overflow-hidden group cursor-pointer hover:ring-2 hover:ring-primary"
+            class="relative aspect-square bg-base-300 rounded overflow-hidden group cursor-pointer hover:ring-2 hover:ring-primary"
           >
             <img
-              src={image.thumbnail}
-              alt=""
+              src={convertFileSrc(image.fullPath)}
+              alt={image.filename}
               class="w-full h-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
             {#if isSelectMode}
               <div class="absolute top-2 left-2">
