@@ -33,6 +33,12 @@ export interface ImageTag {
   tagId: string;
 }
 
+export interface TagUsage {
+  tagId: string;
+  lastUsed: number;
+  usageCount: number;
+}
+
 interface DrawStackDB extends DBSchema {
   packs: {
     key: string;
@@ -65,10 +71,17 @@ interface DrawStackDB extends DBSchema {
       'by-tag': string;
     };
   };
+  tagUsage: {
+    key: string;
+    value: TagUsage;
+    indexes: {
+      'by-last-used': number;
+    };
+  };
 }
 
 const DB_NAME = 'drawstack-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance: IDBPDatabase<DrawStackDB> | null = null;
 
@@ -76,25 +89,34 @@ export async function getDB(): Promise<IDBPDatabase<DrawStackDB>> {
   if (dbInstance) return dbInstance;
 
   dbInstance = await openDB<DrawStackDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      // Packs store
-      const packsStore = db.createObjectStore('packs', { keyPath: 'id' });
-      packsStore.createIndex('by-imported', 'importedAt');
+    upgrade(db, oldVersion, newVersion, transaction) {
+      // Version 1: Create initial stores
+      if (oldVersion < 1) {
+        // Packs store
+        const packsStore = db.createObjectStore('packs', { keyPath: 'id' });
+        packsStore.createIndex('by-imported', 'importedAt');
 
-      // Images store
-      const imagesStore = db.createObjectStore('images', { keyPath: 'id' });
-      imagesStore.createIndex('by-pack', 'packId');
-      imagesStore.createIndex('by-library', 'isInLibrary');
+        // Images store
+        const imagesStore = db.createObjectStore('images', { keyPath: 'id' });
+        imagesStore.createIndex('by-pack', 'packId');
+        imagesStore.createIndex('by-library', 'isInLibrary');
 
-      // Tags store
-      const tagsStore = db.createObjectStore('tags', { keyPath: 'id' });
-      tagsStore.createIndex('by-parent', 'parentId');
-      tagsStore.createIndex('by-name', 'name');
+        // Tags store
+        const tagsStore = db.createObjectStore('tags', { keyPath: 'id' });
+        tagsStore.createIndex('by-parent', 'parentId');
+        tagsStore.createIndex('by-name', 'name');
 
-      // ImageTags junction store
-      const imageTagsStore = db.createObjectStore('imageTags', { keyPath: ['imageId', 'tagId'] });
-      imageTagsStore.createIndex('by-image', 'imageId');
-      imageTagsStore.createIndex('by-tag', 'tagId');
+        // ImageTags junction store
+        const imageTagsStore = db.createObjectStore('imageTags', { keyPath: ['imageId', 'tagId'] });
+        imageTagsStore.createIndex('by-image', 'imageId');
+        imageTagsStore.createIndex('by-tag', 'tagId');
+      }
+
+      // Version 2: Add TagUsage store
+      if (oldVersion < 2) {
+        const tagUsageStore = db.createObjectStore('tagUsage', { keyPath: 'tagId' });
+        tagUsageStore.createIndex('by-last-used', 'lastUsed');
+      }
     },
   });
 
@@ -237,14 +259,16 @@ export async function deleteTag(id: string): Promise<void> {
 
 export async function addImageTag(imageId: string, tagId: string): Promise<void> {
   const db = await getDB();
-  await db.add('imageTags', { imageId, tagId });
+  // Use put() instead of add() to avoid ConstraintError if the tag already exists
+  await db.put('imageTags', { imageId, tagId });
 }
 
 export async function addImageTags(imageId: string, tagIds: string[]): Promise<void> {
   const db = await getDB();
   const tx = db.transaction('imageTags', 'readwrite');
   await Promise.all([
-    ...tagIds.map(tagId => tx.store.add({ imageId, tagId })),
+    // Use put() instead of add() to avoid ConstraintError if tags already exist
+    ...tagIds.map(tagId => tx.store.put({ imageId, tagId })),
     tx.done
   ]);
 }
@@ -310,15 +334,69 @@ export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+// ============= Tag Usage Operations =============
+
+export async function updateTagUsage(tagId: string): Promise<void> {
+  try {
+    const db = await getDB();
+    const existing = await db.get('tagUsage', tagId);
+    
+    if (existing) {
+      await db.put('tagUsage', {
+        tagId,
+        lastUsed: Date.now(),
+        usageCount: existing.usageCount + 1,
+      });
+      console.log('Updated tag usage:', tagId, 'count:', existing.usageCount + 1);
+    } else {
+      await db.put('tagUsage', {
+        tagId,
+        lastUsed: Date.now(),
+        usageCount: 1,
+      });
+      console.log('Created tag usage:', tagId);
+    }
+  } catch (error) {
+    console.error('Failed to update tag usage:', error);
+    // Don't throw - tag usage tracking is not critical
+  }
+}
+
+export async function getRecentlyUsedTags(limit: number = 10): Promise<Tag[]> {
+  try {
+    const db = await getDB();
+    
+    // Get all tag usage records
+    const allUsage = await db.getAll('tagUsage');
+    
+    // Sort by lastUsed descending
+    const sortedUsage = allUsage.sort((a, b) => b.lastUsed - a.lastUsed);
+    
+    // Take top N
+    const topUsage = sortedUsage.slice(0, limit);
+    
+    // Get the actual tag objects
+    const tags = await Promise.all(
+      topUsage.map(usage => getTag(usage.tagId))
+    );
+    
+    return tags.filter((tag): tag is Tag => tag !== undefined);
+  } catch (error) {
+    console.error('Failed to get recently used tags:', error);
+    return [];
+  }
+}
+
 export async function clearAllData(): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['packs', 'images', 'tags', 'imageTags'], 'readwrite');
+  const tx = db.transaction(['packs', 'images', 'tags', 'imageTags', 'tagUsage'], 'readwrite');
   
   await Promise.all([
     tx.objectStore('packs').clear(),
     tx.objectStore('images').clear(),
     tx.objectStore('tags').clear(),
     tx.objectStore('imageTags').clear(),
+    tx.objectStore('tagUsage').clear(),
   ]);
   
   await tx.done;
