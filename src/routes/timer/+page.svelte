@@ -59,7 +59,7 @@
   let showUI = $state(true);
   let uiHideTimer: number | null = null;
   const uiHideDelay = 2000; // ms
-  let uiLocked = $state(false);
+  let uiLocked = $state(true);
   let showCompletion = $state(false);
 
   // Plumb line and angle measurement tool state
@@ -72,6 +72,7 @@
     id: string;
     pointA: Point;
     pointB: Point;
+    color: string;
   }
 
   let showPlumbTool = $state(false);
@@ -84,10 +85,31 @@
   let angleLines = $state<AngleLine[]>([]);
   let plumbLocked = $state(false);
   let plumbColor = $state("#FF0000");
+  let randomColors = $state(true);
   let snapToAngle = $state(true);
   let dragTarget = $state<string | null>(null);
-  let showAlignmentCheck = $state(false);
   let imageContainerRef = $state<HTMLDivElement | null>(null);
+  let imageElementRef = $state<HTMLImageElement | null>(null);
+
+  // Grid overlay state
+  let gridMode = $state<0 | 1 | 2 | 3>(0); // 0=off, 1=fine(32x32), 2=medium(16x16), 3=coarse(8x8)
+  let showDiagonals = $state(false);
+  let gridLocked = $state(false);
+  let gridLineWidth = $state(1); // px, range 1-5
+
+  // Image bounds for grid overlay
+  let imageBounds = $state({
+    left: 0,
+    top: 0,
+    width: 0,
+    height: 0,
+  });
+
+  const gridSizes = {
+    1: { cells: 32, label: "32×32" },
+    2: { cells: 16, label: "16×16" },
+    3: { cells: 8, label: "8×8" },
+  } as const;
 
   // Default timer durations
   const presetDurations = [30, 60, 120, 300, 600]; // 30s, 1m, 2m, 5m, 10m
@@ -309,6 +331,9 @@
   function goToPrevious() {
     if (currentIndex > 0) {
       currentIndex--;
+      // Clear angle measurements when changing images
+      angleLines = [];
+      currentAngleLine = null;
       startTimer();
     }
   }
@@ -316,12 +341,18 @@
   function goToNext() {
     if (currentIndex < practiceImages.length - 1) {
       currentIndex++;
+      // Clear angle measurements when changing images
+      angleLines = [];
+      currentAngleLine = null;
       startTimer();
     }
   }
 
   function goToImage(index: number) {
     currentIndex = index;
+    // Clear angle measurements when changing images
+    angleLines = [];
+    currentAngleLine = null;
     startTimer();
   }
 
@@ -338,6 +369,22 @@
   }
 
   // Plumb Tool Interaction Handlers
+  function getRandomColor(): string {
+    const colors = [
+      "#FF0000", // Red
+      "#00FF00", // Green
+      "#0000FF", // Blue
+      "#FFFF00", // Yellow
+      "#FF00FF", // Magenta
+      "#00FFFF", // Cyan
+      "#FF8800", // Orange
+      "#8800FF", // Purple
+      "#00FF88", // Spring Green
+      "#FF0088", // Hot Pink
+    ];
+    return colors[Math.floor(Math.random() * colors.length)];
+  }
+
   function getRelativeCoords(e: PointerEvent): Point {
     if (!imageContainerRef) return { x: 0.5, y: 0.5 };
     const rect = imageContainerRef.getBoundingClientRect();
@@ -358,10 +405,12 @@
 
       if (!currentAngleLine) {
         // Start new angle line with point A
+        const lineColor = randomColors ? getRandomColor() : plumbColor;
         currentAngleLine = {
           id: Date.now().toString(),
           pointA: coords,
           pointB: coords,
+          color: lineColor,
         };
       } else if (
         !currentAngleLine.pointB ||
@@ -436,6 +485,13 @@
       }
     }
     if (e.key === "a" || e.key === "A") {
+      if (e.altKey) {
+        // Alt+A - Clear all angles
+        e.preventDefault();
+        angleLines = [];
+        currentAngleLine = null;
+        return;
+      }
       if (!e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         angleMode = !angleMode;
@@ -474,18 +530,36 @@
         return;
       }
     }
-    // Ctrl+Shift+A - Show alignment check
-    if (
-      (e.ctrlKey || e.metaKey) &&
-      e.shiftKey &&
-      (e.key === "a" || e.key === "A")
-    ) {
-      e.preventDefault();
-      showAlignmentCheck = true;
-      setTimeout(() => {
-        showAlignmentCheck = false;
-      }, 15000);
-      return;
+
+    // Grid tool shortcuts
+    if (e.key === "g" || e.key === "G") {
+      if (!e.ctrlKey && !e.metaKey && !gridLocked) {
+        e.preventDefault();
+        // Cycle through grid modes: 0 -> 1 -> 2 -> 3 -> 0
+        gridMode = ((gridMode + 1) % 4) as 0 | 1 | 2 | 3;
+        return;
+      }
+    }
+    if (e.key === "d" || e.key === "D") {
+      if (!e.ctrlKey && !e.metaKey && gridMode > 0) {
+        e.preventDefault();
+        showDiagonals = !showDiagonals;
+        return;
+      }
+    }
+    if (e.key === "=" || e.key === "+") {
+      if (!e.ctrlKey && !e.metaKey && gridMode > 0) {
+        e.preventDefault();
+        gridLineWidth = Math.min(5, gridLineWidth + 1);
+        return;
+      }
+    }
+    if (e.key === "-" || e.key === "_") {
+      if (!e.ctrlKey && !e.metaKey && gridMode > 0) {
+        e.preventDefault();
+        gridLineWidth = Math.max(1, gridLineWidth - 1);
+        return;
+      }
     }
 
     switch (e.key) {
@@ -553,6 +627,35 @@
     } else {
       document.documentElement.classList.remove("immersive-practice");
     }
+  });
+
+  // Calculate image bounds for grid overlay
+  $effect(() => {
+    const updateImageBounds = () => {
+      if (!imageElementRef || !imageContainerRef) {
+        imageBounds = { left: 0, top: 0, width: 0, height: 0 };
+        return;
+      }
+
+      const containerRect = imageContainerRef.getBoundingClientRect();
+      const imgRect = imageElementRef.getBoundingClientRect();
+
+      imageBounds = {
+        left: imgRect.left - containerRect.left,
+        top: imgRect.top - containerRect.top,
+        width: imgRect.width,
+        height: imgRect.height,
+      };
+    };
+
+    // Update on dependencies change
+    updateImageBounds();
+
+    // Also update on window resize
+    const handleResize = () => updateImageBounds();
+    window.addEventListener("resize", handleResize);
+
+    return () => window.removeEventListener("resize", handleResize);
   });
 
   function formatTime(seconds: number): string {
@@ -1583,6 +1686,17 @@
 
                 <div class="form-control">
                   <label class="label cursor-pointer">
+                    <span class="label-text">Random Angle Colors</span>
+                    <input
+                      type="checkbox"
+                      bind:checked={randomColors}
+                      class="checkbox checkbox-sm"
+                    />
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer">
                     <span class="label-text">Lock Tools (Ctrl+Shift+L)</span>
                     <input
                       type="checkbox"
@@ -1594,7 +1708,11 @@
 
                 <div class="form-control">
                   <label class="label" for="plumb-color-picker">
-                    <span class="label-text">Line Color</span>
+                    <span class="label-text"
+                      >Line Color{randomColors
+                        ? " (Plumb Lines Only)"
+                        : ""}</span
+                    >
                   </label>
                   <input
                     id="plumb-color-picker"
@@ -1615,27 +1733,82 @@
                   Clear All Angles
                 </button>
 
-                {#if showPlumbTool}
-                  <button
-                    class="btn btn-sm btn-primary"
-                    onclick={() => {
-                      showAlignmentCheck = true;
-                      setTimeout(() => {
-                        showAlignmentCheck = false;
-                      }, 15000);
-                    }}
+                <div class="divider my-0"></div>
+                <div class="text-xs font-bold opacity-60">GRID OVERLAY</div>
+
+                <div class="form-control">
+                  <label class="label" for="grid-size-select">
+                    <span class="label-text">Grid Size (G)</span>
+                  </label>
+                  <select
+                    id="grid-size-select"
+                    class="select select-sm select-bordered w-full"
+                    bind:value={gridMode}
+                    disabled={gridLocked}
                   >
-                    CHECK ALIGNMENT (15s)
-                  </button>
-                {/if}
+                    <option value={0}>Off</option>
+                    <option value={1}>Fine (32×32)</option>
+                    <option value={2}>Medium (16×16)</option>
+                    <option value={3}>Coarse (8×8)</option>
+                  </select>
+                </div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Show Diagonals (D)</span>
+                    <input
+                      type="checkbox"
+                      bind:checked={showDiagonals}
+                      disabled={gridMode === 0}
+                      class="checkbox checkbox-sm"
+                    />
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="label" for="grid-line-width">
+                    <span class="label-text">Line Width: {gridLineWidth}px</span
+                    >
+                  </label>
+                  <input
+                    id="grid-line-width"
+                    type="range"
+                    min="1"
+                    max="5"
+                    bind:value={gridLineWidth}
+                    disabled={gridMode === 0}
+                    class="range range-sm"
+                  />
+                  <div class="flex justify-between text-xs opacity-60 px-2">
+                    <span>1</span>
+                    <span>2</span>
+                    <span>3</span>
+                    <span>4</span>
+                    <span>5</span>
+                  </div>
+                </div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Lock Grid</span>
+                    <input
+                      type="checkbox"
+                      bind:checked={gridLocked}
+                      class="checkbox checkbox-sm"
+                    />
+                  </label>
+                </div>
 
                 <div class="text-xs opacity-60 mt-2">
                   <div><strong>V</strong> - Toggle vertical lines</div>
                   <div><strong>H</strong> - Toggle horizontal lines</div>
                   <div><strong>A</strong> - Toggle angle mode</div>
+                  <div><strong>Alt+A</strong> - Clear all angles</div>
+                  <div><strong>G</strong> - Cycle grid (off → 32 → 16 → 8)</div>
+                  <div><strong>D</strong> - Toggle diagonals</div>
+                  <div><strong>+/-</strong> - Grid line width</div>
                   <div><strong>Ctrl+L</strong> - Toggle all tools</div>
                   <div><strong>Ctrl+Shift+L</strong> - Lock/unlock</div>
-                  <div><strong>Ctrl+Shift+A</strong> - Check alignment</div>
                   <div><strong>Delete</strong> - Remove last angle</div>
                 </div>
               </div>
@@ -1680,6 +1853,7 @@
         {#if practiceImages[currentIndex]}
           {@const currentImage = practiceImages[currentIndex]}
           <img
+            bind:this={imageElementRef}
             src={convertFileSrc(currentImage.fullPath)}
             alt={currentImage.filename}
             class="max-w-full max-h-full object-contain"
@@ -1796,7 +1970,7 @@
                   y1="{angleLine.pointA.y * 100}%"
                   x2="{angleLine.pointB.x * 100}%"
                   y2="{angleLine.pointB.y * 100}%"
-                  stroke={plumbColor}
+                  stroke={angleLine.color}
                   stroke-width="3"
                   opacity="0.9"
                 />
@@ -1806,7 +1980,7 @@
                   cx="{angleLine.pointA.x * 100}%"
                   cy="{angleLine.pointA.y * 100}%"
                   r="6"
-                  fill={plumbColor}
+                  fill={angleLine.color}
                   opacity="0.9"
                   style="cursor: {plumbLocked ? 'default' : 'move'};"
                   data-drag-target="angle-point-a-{angleLine.id}"
@@ -1816,7 +1990,7 @@
                   y="{angleLine.pointA.y * 100}%"
                   dx="10"
                   dy="-10"
-                  fill={plumbColor}
+                  fill={angleLine.color}
                   font-size="14"
                   font-weight="bold"
                 >
@@ -1828,7 +2002,7 @@
                   cx="{angleLine.pointB.x * 100}%"
                   cy="{angleLine.pointB.y * 100}%"
                   r="6"
-                  fill={plumbColor}
+                  fill={angleLine.color}
                   opacity="0.9"
                   style="cursor: {plumbLocked ? 'default' : 'move'};"
                   data-drag-target="angle-point-b-{angleLine.id}"
@@ -1838,7 +2012,7 @@
                   y="{angleLine.pointB.y * 100}%"
                   dx="10"
                   dy="-10"
-                  fill={plumbColor}
+                  fill={angleLine.color}
                   font-size="14"
                   font-weight="bold"
                 >
@@ -1851,7 +2025,7 @@
                   y="{((angleLine.pointA.y + angleLine.pointB.y) / 2) * 100}%"
                   dx="10"
                   dy="5"
-                  fill={plumbColor}
+                  fill={angleLine.color}
                   font-size="16"
                   font-weight="bold"
                   style="background: rgba(0,0,0,0.5); padding: 2px 4px;"
@@ -1870,7 +2044,7 @@
                     cx="{currentAngleLine.pointA.x * 100}%"
                     cy="{currentAngleLine.pointA.y * 100}%"
                     r="6"
-                    fill={plumbColor}
+                    fill={currentAngleLine.color}
                     opacity="0.9"
                   />
                   <text
@@ -1878,7 +2052,7 @@
                     y="{currentAngleLine.pointA.y * 100}%"
                     dx="10"
                     dy="-10"
-                    fill={plumbColor}
+                    fill={currentAngleLine.color}
                     font-size="14"
                     font-weight="bold"
                   >
@@ -1888,20 +2062,262 @@
               {/if}
             </svg>
           {/if}
+
+          <!-- Grid Overlay -->
+          {#if gridMode > 0 && imageContainerRef && imageBounds.width > 0 && imageBounds.height > 0}
+            {@const cellCount = gridSizes[gridMode as 1 | 2 | 3].cells}
+            {@const cellSize =
+              Math.max(imageBounds.width, imageBounds.height) / cellCount}
+            <svg
+              class="absolute pointer-events-none"
+              style="z-index: 4; left: {imageBounds.left}px; top: {imageBounds.top}px; width: {imageBounds.width}px; height: {imageBounds.height}px;"
+            >
+              <!-- Vertical grid lines -->
+              {#each Array(Math.ceil(imageBounds.width / cellSize)) as _, i}
+                {@const x = (i + 1) * cellSize}
+                {#if x < imageBounds.width}
+                  <line
+                    x1={x}
+                    y1="0"
+                    x2={x}
+                    y2={imageBounds.height}
+                    stroke={plumbColor}
+                    stroke-width={gridLineWidth}
+                    opacity="0.4"
+                  />
+                {/if}
+              {/each}
+
+              <!-- Horizontal grid lines -->
+              {#each Array(Math.ceil(imageBounds.height / cellSize)) as _, i}
+                {@const y = (i + 1) * cellSize}
+                {#if y < imageBounds.height}
+                  <line
+                    x1="0"
+                    y1={y}
+                    x2={imageBounds.width}
+                    y2={y}
+                    stroke={plumbColor}
+                    stroke-width={gridLineWidth}
+                    opacity="0.4"
+                  />
+                {/if}
+              {/each}
+
+              <!-- Diagonal lines -->
+              {#if showDiagonals}
+                <!-- Top-left to bottom-right -->
+                <line
+                  x1="0"
+                  y1="0"
+                  x2="100%"
+                  y2="100%"
+                  stroke={plumbColor}
+                  stroke-width={gridLineWidth}
+                  opacity="0.5"
+                  stroke-dasharray="5 5"
+                />
+                <!-- Top-right to bottom-left -->
+                <line
+                  x1="100%"
+                  y1="0"
+                  x2="0"
+                  y2="100%"
+                  stroke={plumbColor}
+                  stroke-width={gridLineWidth}
+                  opacity="0.5"
+                  stroke-dasharray="5 5"
+                />
+              {/if}
+            </svg>
+          {/if}
         {/if}
       </div>
 
-      <!-- Alignment Check Freeze Overlay -->
-      {#if showAlignmentCheck}
+      <!-- Tool Status Indicators (Bottom Right Corner) -->
+      {#if showPlumbTool || gridMode > 0}
         <div
-          class="absolute inset-0 z-20 bg-black/80 flex items-center justify-center"
+          class="absolute z-20 flex flex-col gap-2 items-end pointer-events-none"
+          class:bottom-[220px]={uiLocked}
+          class:bottom-4={!uiLocked}
+          class:right-4={true}
         >
-          <div class="text-center">
-            <div class="text-6xl font-bold text-red-500 mb-4 animate-pulse">
-              CHECK ALIGNMENT
+          {#if showVerticalLines}
+            <div
+              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line
+                  x1="12"
+                  y1="0"
+                  x2="12"
+                  y2="24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                />
+              </svg>
+              Vertical
             </div>
-            <div class="text-2xl text-white">Timer paused for inspection</div>
-          </div>
+          {/if}
+          {#if showHorizontalLines}
+            <div
+              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line
+                  x1="0"
+                  y1="12"
+                  x2="24"
+                  y2="12"
+                  stroke="currentColor"
+                  stroke-width="2"
+                />
+              </svg>
+              Horizontal
+            </div>
+          {/if}
+          {#if angleMode}
+            <div
+              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3 21l7-7m0 0l7-7m-7 7V3m0 11h11"
+                />
+              </svg>
+              Angle Mode
+            </div>
+          {/if}
+          {#if angleLines.length > 0}
+            <div
+              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
+                />
+              </svg>
+              {angleLines.length} Angle{angleLines.length === 1 ? "" : "s"}
+            </div>
+          {/if}
+          {#if plumbLocked}
+            <div
+              class="badge badge-sm gap-1 bg-warning/90 text-warning-content border-warning shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+              Locked
+            </div>
+          {/if}
+
+          <!-- Grid indicators -->
+          {#if gridMode > 0}
+            <div
+              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                />
+              </svg>
+              Grid: {gridSizes[gridMode as 1 | 2 | 3].label}
+            </div>
+          {/if}
+          {#if showDiagonals && gridMode > 0}
+            <div
+              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+              Diagonals
+            </div>
+          {/if}
+          {#if gridLocked && gridMode > 0}
+            <div
+              class="badge badge-sm gap-1 bg-warning/90 text-warning-content border-warning shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+              Grid Locked
+            </div>
+          {/if}
         </div>
       {/if}
 

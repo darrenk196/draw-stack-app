@@ -21,13 +21,7 @@ A professional desktop-only alignment and measurement overlay tool for the Timer
 - **Draggable points**: Move points A and B to adjust measurements
 - **Visual labels**: Clear A/B labels on each point
 
-### 3. **Teaching Mode**
-
-- **CHECK ALIGNMENT**: Freezes display with prominent overlay for 15 seconds
-- **Perfect for instruction**: Teacher can pause and point out alignment issues
-- **Auto-dismisses**: Returns to practice after 15 seconds
-
-### 4. **Customization**
+### 3. **Customization**
 
 - **Color picker**: Choose any color for overlay lines (default: red #FF0000)
 - **Lock mode**: Prevent accidental line movement during measurement
@@ -40,9 +34,9 @@ A professional desktop-only alignment and measurement overlay tool for the Timer
 | `V`            | Toggle vertical plumb lines on/off   |
 | `H`            | Toggle horizontal plumb lines on/off |
 | `A`            | Toggle angle measurement mode on/off |
+| `Alt+A`        | Clear all angle measurements         |
 | `Ctrl+L`       | Toggle all plumb tools on/off        |
 | `Ctrl+Shift+L` | Lock/unlock tool editing             |
-| `Ctrl+Shift+A` | Show "CHECK ALIGNMENT" overlay (15s) |
 | `Delete`       | Remove last angle measurement        |
 | `Backspace`    | Remove last angle measurement        |
 | `Esc`          | Exit angle mode (when in angle mode) |
@@ -59,8 +53,7 @@ Located in the practice session top bar, next to the UI lock button:
 4. **Lock Tools** - Prevent dragging/editing (Ctrl+Shift+L)
 5. **Line Color** - Color picker for all overlay elements
 6. **Clear All Angles** - Remove all angle measurements at once
-7. **CHECK ALIGNMENT** - Trigger 15-second freeze overlay
-8. **Keyboard Reference** - Quick guide to all shortcuts
+7. **Keyboard Reference** - Quick guide to all shortcuts
 
 ## Usage Guide
 
@@ -87,14 +80,6 @@ Located in the practice session top bar, next to the UI lock button:
    - **Third number**: Absolute angle
 5. Drag points A or B to adjust measurement
 6. Press `Delete` to remove last angle, or use "Clear All Angles" button
-
-### Teaching with Alignment Check
-
-1. Set up plumb lines or angle measurements
-2. Press `Ctrl+Shift+A` or click "CHECK ALIGNMENT" button
-3. Large red "CHECK ALIGNMENT" text appears with dark overlay
-4. Timer automatically pauses
-5. Overlay dismisses after 15 seconds
 
 ### Locking Tools
 
@@ -125,7 +110,6 @@ currentAngleLine: AngleLine     // Angle being drawn
 angleLines: AngleLine[]         // Completed angle measurements
 plumbLocked: boolean            // Prevent editing
 plumbColor: string              // Hex color for all lines
-showAlignmentCheck: boolean     // 15s freeze overlay
 ```
 
 ### Angle Calculation
