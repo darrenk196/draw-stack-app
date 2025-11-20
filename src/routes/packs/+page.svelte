@@ -999,16 +999,20 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="flex flex-col items-center gap-4 max-w-[90vw] max-h-[90vh]"
+      class="flex flex-col items-center gap-4 w-full h-full px-4 pb-4"
       onclick={(e) => e.stopPropagation()}
     >
-      <img
-        src={convertFileSrc(viewingImage.path)}
-        alt={viewingImage.filename}
-        class="max-w-full max-h-[80vh] object-contain"
-      />
+      <div
+        class="flex-1 flex items-center justify-center w-full overflow-hidden"
+      >
+        <img
+          src={convertFileSrc(viewingImage.path)}
+          alt={viewingImage.filename}
+          class="w-full h-full object-contain"
+        />
+      </div>
 
-      <div class="flex items-center gap-4 text-white">
+      <div class="flex items-center gap-4 text-white flex-shrink-0">
         <div class="text-center">
           <p class="font-medium text-lg">{viewingImage.filename}</p>
           <p class="text-sm text-white/70">

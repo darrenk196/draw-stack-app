@@ -1,0 +1,92 @@
+// Add after line 22 (after timerInterval declaration)
+  let isFullscreen = $state(false);
+
+// Replace $effect cleanup (around line 33)
+  $effect(() => {
+    // Cleanup timer on unmount
+    return () => {
+      if (timerInterval !== null) {
+        clearInterval(timerInterval);
+      }
+      // Exit fullscreen on unmount
+      if (isFullscreen && document.fullscreenElement) {
+        document.exitFullscreen();
+      }
+    };
+  });
+
+// Replace exitPractice function (around line 163)
+  function exitPractice() {
+    if (timerInterval !== null) {
+      clearInterval(timerInterval);
+    }
+    if (isFullscreen && document.fullscreenElement) {
+      document.exitFullscreen();
+    }
+    showSetup = true;
+  }
+
+// Add new functions before formatTime (around line 200)
+  async function toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        isFullscreen = true;
+      } else {
+        await document.exitFullscreen();
+        isFullscreen = false;
+      }
+    } catch (error) {
+      console.error("Failed to toggle fullscreen:", error);
+    }
+  }
+
+  // Listen for fullscreen changes from browser UI
+  $effect(() => {
+    const handleFullscreenChange = () => {
+      isFullscreen = !!document.fullscreenElement;
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  });
+
+// Update handleKeydown to add F key and change Escape behavior (around line 168)
+  function handleKeydown(e: KeyboardEvent) {
+    if (showSetup) return;
+
+    switch (e.key) {
+      case "ArrowLeft":
+        goToPrevious();
+        break;
+      case "ArrowRight":
+        goToNext();
+        break;
+      case " ":
+      case "Spacebar":
+        e.preventDefault();
+        if (isPaused) {
+          resumeTimer();
+        } else {
+          pauseTimer();
+        }
+        break;
+      case "r":
+      case "R":
+        resetCurrentTimer();
+        break;
+      case "f":
+      case "F":
+        toggleFullscreen();
+        break;
+      case "Escape":
+        if (isFullscreen) {
+          toggleFullscreen();
+        } else {
+          exitPractice();
+        }
+        break;
+    }
+  }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import "../app.css";
   import { page } from "$app/stores";
+  let { children } = $props();
 
   let libraryCount = $state(0);
   let packCount = $state(0);
@@ -10,7 +11,9 @@
 
 <div class="flex h-screen bg-base-100">
   <!-- Sidebar -->
-  <aside class="w-60 bg-base-200 flex flex-col border-r border-base-300">
+  <aside
+    class="app-sidebar w-60 bg-base-200 flex flex-col border-r border-base-300"
+  >
     <!-- Navigation Header -->
     <div class="p-4 text-xs text-base-content/60 font-medium tracking-wider">
       NAVIGATION
@@ -106,6 +109,12 @@
 
   <!-- Main Content -->
   <main class="flex-1 overflow-hidden">
-    <slot />
+    {@render children()}
   </main>
 </div>
+
+<style>
+  :global(html.immersive-practice) .app-sidebar {
+    display: none;
+  }
+</style>

@@ -484,8 +484,22 @@
     }
   }
   function startPractice() {
-    // TODO: Navigate to timer mode with filtered images
-    console.log("Starting practice mode...");
+    // Get selected or filtered images
+    const imagesToPractice =
+      selectedImages.size > 0
+        ? Array.from(selectedImages)
+            .map((id) => libraryImages.find((img) => img.id === id)!)
+            .filter(Boolean)
+        : filteredImages;
+
+    if (imagesToPractice.length === 0) {
+      alert("No images to practice with. Select images or apply filters.");
+      return;
+    }
+
+    // Navigate to timer mode with image IDs
+    const imageIds = imagesToPractice.map((img) => img.id).join(",");
+    window.location.href = `/timer?images=${encodeURIComponent(imageIds)}`;
   }
 </script>
 
@@ -982,15 +996,12 @@
           </p>
         </div>
       {:else if viewingImage}
-        <div class="flex flex-col items-center gap-4 max-w-full max-h-full">
+        <div class="w-full h-full flex items-center justify-center">
           <img
             src={convertFileSrc(viewingImage.fullPath)}
             alt={viewingImage.filename}
-            class="max-w-full max-h-[85vh] object-contain"
+            class="w-full h-full object-contain"
           />
-          <div class="text-white text-center">
-            <p class="font-medium">{viewingImage.filename}</p>
-          </div>
         </div>
       {/if}
     </div>

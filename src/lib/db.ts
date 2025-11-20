@@ -304,6 +304,31 @@ export async function getImagesForTag(tagId: string): Promise<Image[]> {
   return images.filter((img): img is Image => img !== undefined);
 }
 
+export async function getImagesByTags(tagIds: string[]): Promise<Image[]> {
+  if (tagIds.length === 0) {
+    return getLibraryImages();
+  }
+  
+  const db = await getDB();
+  const allImages = await getLibraryImages();
+  
+  // Filter images that have ALL of the specified tags
+  const filteredImages: Image[] = [];
+  
+  for (const image of allImages) {
+    const imageTags = await getImageTagsByImage(image.id);
+    const imageTagIds = imageTags.map(it => it.tagId);
+    
+    // Check if image has all required tags
+    const hasAllTags = tagIds.every(tagId => imageTagIds.includes(tagId));
+    if (hasAllTags) {
+      filteredImages.push(image);
+    }
+  }
+  
+  return filteredImages;
+}
+
 // ============= Utility Functions =============
 
 export async function getLibraryCount(): Promise<number> {
