@@ -62,6 +62,33 @@
   let uiLocked = $state(false);
   let showCompletion = $state(false);
 
+  // Plumb line and angle measurement tool state
+  interface Point {
+    x: number;
+    y: number;
+  }
+
+  interface AngleLine {
+    id: string;
+    pointA: Point;
+    pointB: Point;
+  }
+
+  let showPlumbTool = $state(false);
+  let showVerticalLines = $state(false);
+  let showHorizontalLines = $state(false);
+  let verticalLine2X = $state(0.3); // as percentage of image width
+  let horizontalLine2Y = $state(0.3); // as percentage of image height
+  let angleMode = $state(false);
+  let currentAngleLine = $state<AngleLine | null>(null);
+  let angleLines = $state<AngleLine[]>([]);
+  let plumbLocked = $state(false);
+  let plumbColor = $state("#FF0000");
+  let snapToAngle = $state(true);
+  let dragTarget = $state<string | null>(null);
+  let showAlignmentCheck = $state(false);
+  let imageContainerRef = $state<HTMLDivElement | null>(null);
+
   // Default timer durations
   const presetDurations = [30, 60, 120, 300, 600]; // 30s, 1m, 2m, 5m, 10m
 
@@ -310,10 +337,156 @@
     document.documentElement.classList.remove("immersive-practice");
   }
 
+  // Plumb Tool Interaction Handlers
+  function getRelativeCoords(e: PointerEvent): Point {
+    if (!imageContainerRef) return { x: 0.5, y: 0.5 };
+    const rect = imageContainerRef.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
+    };
+  }
+
+  function handlePlumbPointerDown(e: PointerEvent) {
+    if (plumbLocked) return;
+
+    const target = (e.target as HTMLElement).getAttribute("data-drag-target");
+
+    // Handle angle mode clicks
+    if (angleMode && !target) {
+      const coords = getRelativeCoords(e);
+
+      if (!currentAngleLine) {
+        // Start new angle line with point A
+        currentAngleLine = {
+          id: Date.now().toString(),
+          pointA: coords,
+          pointB: coords,
+        };
+      } else if (
+        !currentAngleLine.pointB ||
+        (currentAngleLine.pointA.x === currentAngleLine.pointB.x &&
+          currentAngleLine.pointA.y === currentAngleLine.pointB.y)
+      ) {
+        // Set point B and complete the line
+        currentAngleLine.pointB = coords;
+        angleLines = [...angleLines, currentAngleLine];
+        currentAngleLine = null;
+      }
+      return;
+    }
+
+    // Handle drag targets
+    if (target) {
+      dragTarget = target;
+      e.preventDefault();
+    }
+  }
+
+  function handlePlumbPointerMove(e: PointerEvent) {
+    if (!dragTarget || plumbLocked) return;
+
+    const coords = getRelativeCoords(e);
+
+    if (dragTarget === "vertical-line") {
+      verticalLine2X = Math.max(0, Math.min(1, coords.x));
+    } else if (dragTarget === "horizontal-line") {
+      horizontalLine2Y = Math.max(0, Math.min(1, coords.y));
+    } else if (dragTarget.startsWith("angle-point-")) {
+      const parts = dragTarget.split("-");
+      const pointType = parts[2]; // 'a' or 'b'
+      const lineId = parts.slice(3).join("-");
+
+      const lineIndex = angleLines.findIndex((l) => l.id === lineId);
+      if (lineIndex !== -1) {
+        if (pointType === "a") {
+          angleLines[lineIndex].pointA = coords;
+        } else {
+          angleLines[lineIndex].pointB = coords;
+        }
+        angleLines = [...angleLines];
+      }
+    }
+  }
+
+  function handlePlumbPointerUp() {
+    dragTarget = null;
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (showSetup) return;
     // Any key interaction reveals UI briefly
     revealUI();
+
+    // Plumb tool shortcuts
+    if (e.key === "v" || e.key === "V") {
+      if (!e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        showVerticalLines = !showVerticalLines;
+        if (showVerticalLines) showPlumbTool = true;
+        return;
+      }
+    }
+    if (e.key === "h" || e.key === "H") {
+      if (!e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        showHorizontalLines = !showHorizontalLines;
+        if (showHorizontalLines) showPlumbTool = true;
+        return;
+      }
+    }
+    if (e.key === "a" || e.key === "A") {
+      if (!e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        angleMode = !angleMode;
+        if (angleMode) showPlumbTool = true;
+        return;
+      }
+    }
+    if (e.key === "l" || e.key === "L") {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          plumbLocked = !plumbLocked;
+        } else {
+          showPlumbTool = !showPlumbTool;
+        }
+        return;
+      }
+    }
+    if (e.key === "Delete" || e.key === "Backspace") {
+      if (currentAngleLine) {
+        e.preventDefault();
+        currentAngleLine = null;
+        return;
+      }
+      if (angleLines.length > 0) {
+        e.preventDefault();
+        angleLines = angleLines.slice(0, -1);
+        return;
+      }
+    }
+    if (e.key === "Escape") {
+      if (angleMode) {
+        e.preventDefault();
+        angleMode = false;
+        currentAngleLine = null;
+        return;
+      }
+    }
+    // Ctrl+Shift+A - Show alignment check
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      e.shiftKey &&
+      (e.key === "a" || e.key === "A")
+    ) {
+      e.preventDefault();
+      showAlignmentCheck = true;
+      setTimeout(() => {
+        showAlignmentCheck = false;
+      }, 15000);
+      return;
+    }
 
     switch (e.key) {
       case "ArrowLeft":
@@ -1334,6 +1507,141 @@
             {/if}
           </button>
 
+          <!-- Plumb Tool Controls -->
+          <div class="dropdown dropdown-end">
+            <button
+              tabindex="0"
+              class="btn btn-sm"
+              class:btn-active={showPlumbTool}
+              title="Alignment tools (Ctrl+L)"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                />
+              </svg>
+              Tools
+            </button>
+            <div
+              class="dropdown-content z-[1] menu p-3 shadow bg-base-100 rounded-box w-72"
+            >
+              <div class="flex flex-col gap-3">
+                <div class="text-xs font-bold opacity-60">ALIGNMENT TOOLS</div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Vertical Lines (V)</span>
+                    <input
+                      type="checkbox"
+                      bind:checked={showVerticalLines}
+                      onchange={() => {
+                        if (showVerticalLines) showPlumbTool = true;
+                      }}
+                      class="checkbox checkbox-sm"
+                    />
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Horizontal Lines (H)</span>
+                    <input
+                      type="checkbox"
+                      bind:checked={showHorizontalLines}
+                      onchange={() => {
+                        if (showHorizontalLines) showPlumbTool = true;
+                      }}
+                      class="checkbox checkbox-sm"
+                    />
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Angle Mode (A)</span>
+                    <input
+                      type="checkbox"
+                      bind:checked={angleMode}
+                      onchange={() => {
+                        if (angleMode) showPlumbTool = true;
+                      }}
+                      class="checkbox checkbox-sm"
+                    />
+                  </label>
+                </div>
+
+                <div class="divider my-0"></div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Lock Tools (Ctrl+Shift+L)</span>
+                    <input
+                      type="checkbox"
+                      bind:checked={plumbLocked}
+                      class="checkbox checkbox-sm"
+                    />
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="label" for="plumb-color-picker">
+                    <span class="label-text">Line Color</span>
+                  </label>
+                  <input
+                    id="plumb-color-picker"
+                    type="color"
+                    bind:value={plumbColor}
+                    class="w-full h-8"
+                  />
+                </div>
+
+                <button
+                  class="btn btn-sm btn-error"
+                  onclick={() => {
+                    angleLines = [];
+                    currentAngleLine = null;
+                  }}
+                  disabled={angleLines.length === 0 && !currentAngleLine}
+                >
+                  Clear All Angles
+                </button>
+
+                {#if showPlumbTool}
+                  <button
+                    class="btn btn-sm btn-primary"
+                    onclick={() => {
+                      showAlignmentCheck = true;
+                      setTimeout(() => {
+                        showAlignmentCheck = false;
+                      }, 15000);
+                    }}
+                  >
+                    CHECK ALIGNMENT (15s)
+                  </button>
+                {/if}
+
+                <div class="text-xs opacity-60 mt-2">
+                  <div><strong>V</strong> - Toggle vertical lines</div>
+                  <div><strong>H</strong> - Toggle horizontal lines</div>
+                  <div><strong>A</strong> - Toggle angle mode</div>
+                  <div><strong>Ctrl+L</strong> - Toggle all tools</div>
+                  <div><strong>Ctrl+Shift+L</strong> - Lock/unlock</div>
+                  <div><strong>Ctrl+Shift+A</strong> - Check alignment</div>
+                  <div><strong>Delete</strong> - Remove last angle</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Exit Button -->
           <button
             class="btn btn-sm btn-ghost"
@@ -1367,6 +1675,7 @@
         class:bottom-[205px]={uiLocked}
         class:left-0={uiLocked}
         class:right-0={uiLocked}
+        bind:this={imageContainerRef}
       >
         {#if practiceImages[currentIndex]}
           {@const currentImage = practiceImages[currentIndex]}
@@ -1375,8 +1684,226 @@
             alt={currentImage.filename}
             class="max-w-full max-h-full object-contain"
           />
+
+          <!-- Plumb Line & Angle Overlay -->
+          {#if showPlumbTool && imageContainerRef}
+            <svg
+              class="absolute inset-0 w-full h-full pointer-events-auto"
+              style="z-index: 5;"
+              onpointermove={handlePlumbPointerMove}
+              onpointerdown={handlePlumbPointerDown}
+              onpointerup={handlePlumbPointerUp}
+            >
+              <!-- Vertical Lines -->
+              {#if showVerticalLines}
+                <!-- Center vertical line -->
+                <line
+                  x1="50%"
+                  y1="0"
+                  x2="50%"
+                  y2="100%"
+                  stroke={plumbColor}
+                  stroke-width="2"
+                  stroke-dasharray="10 5"
+                  opacity="0.8"
+                />
+
+                <!-- Draggable vertical line -->
+                <line
+                  x1="{verticalLine2X * 100}%"
+                  y1="0"
+                  x2="{verticalLine2X * 100}%"
+                  y2="100%"
+                  stroke={plumbColor}
+                  stroke-width="2"
+                  opacity="0.9"
+                  style="cursor: {plumbLocked ? 'default' : 'ew-resize'};"
+                  data-drag-target="vertical-line"
+                />
+
+                <!-- Drag handle for vertical line -->
+                {#if !plumbLocked}
+                  <circle
+                    cx="{verticalLine2X * 100}%"
+                    cy="50%"
+                    r="8"
+                    fill={plumbColor}
+                    opacity="0.7"
+                    style="cursor: ew-resize;"
+                    data-drag-target="vertical-line"
+                  />
+                {/if}
+              {/if}
+
+              <!-- Horizontal Lines -->
+              {#if showHorizontalLines}
+                <!-- Center horizontal line -->
+                <line
+                  x1="0"
+                  y1="50%"
+                  x2="100%"
+                  y2="50%"
+                  stroke={plumbColor}
+                  stroke-width="2"
+                  stroke-dasharray="10 5"
+                  opacity="0.8"
+                />
+
+                <!-- Draggable horizontal line -->
+                <line
+                  x1="0"
+                  y1="{horizontalLine2Y * 100}%"
+                  x2="100%"
+                  y2="{horizontalLine2Y * 100}%"
+                  stroke={plumbColor}
+                  stroke-width="2"
+                  opacity="0.9"
+                  style="cursor: {plumbLocked ? 'default' : 'ns-resize'};"
+                  data-drag-target="horizontal-line"
+                />
+
+                <!-- Drag handle for horizontal line -->
+                {#if !plumbLocked}
+                  <circle
+                    cx="50%"
+                    cy="{horizontalLine2Y * 100}%"
+                    r="8"
+                    fill={plumbColor}
+                    opacity="0.7"
+                    style="cursor: ns-resize;"
+                    data-drag-target="horizontal-line"
+                  />
+                {/if}
+              {/if}
+
+              <!-- Angle Lines -->
+              {#each angleLines as angleLine, i (angleLine.id)}
+                {@const dx = angleLine.pointB.x - angleLine.pointA.x}
+                {@const dy = angleLine.pointB.y - angleLine.pointA.y}
+                {@const angleFromVertical = Math.abs(
+                  (Math.atan2(dx, -dy) * 180) / Math.PI
+                )}
+                {@const angleFromHorizontal = Math.abs(
+                  (Math.atan2(dy, dx) * 180) / Math.PI
+                )}
+                {@const absoluteAngle = Math.abs(
+                  (Math.atan2(dy, dx) * 180) / Math.PI
+                )}
+
+                <!-- Line connecting points -->
+                <line
+                  x1="{angleLine.pointA.x * 100}%"
+                  y1="{angleLine.pointA.y * 100}%"
+                  x2="{angleLine.pointB.x * 100}%"
+                  y2="{angleLine.pointB.y * 100}%"
+                  stroke={plumbColor}
+                  stroke-width="3"
+                  opacity="0.9"
+                />
+
+                <!-- Point A -->
+                <circle
+                  cx="{angleLine.pointA.x * 100}%"
+                  cy="{angleLine.pointA.y * 100}%"
+                  r="6"
+                  fill={plumbColor}
+                  opacity="0.9"
+                  style="cursor: {plumbLocked ? 'default' : 'move'};"
+                  data-drag-target="angle-point-a-{angleLine.id}"
+                />
+                <text
+                  x="{angleLine.pointA.x * 100}%"
+                  y="{angleLine.pointA.y * 100}%"
+                  dx="10"
+                  dy="-10"
+                  fill={plumbColor}
+                  font-size="14"
+                  font-weight="bold"
+                >
+                  A
+                </text>
+
+                <!-- Point B -->
+                <circle
+                  cx="{angleLine.pointB.x * 100}%"
+                  cy="{angleLine.pointB.y * 100}%"
+                  r="6"
+                  fill={plumbColor}
+                  opacity="0.9"
+                  style="cursor: {plumbLocked ? 'default' : 'move'};"
+                  data-drag-target="angle-point-b-{angleLine.id}"
+                />
+                <text
+                  x="{angleLine.pointB.x * 100}%"
+                  y="{angleLine.pointB.y * 100}%"
+                  dx="10"
+                  dy="-10"
+                  fill={plumbColor}
+                  font-size="14"
+                  font-weight="bold"
+                >
+                  B
+                </text>
+
+                <!-- Angle display (midpoint) -->
+                <text
+                  x="{((angleLine.pointA.x + angleLine.pointB.x) / 2) * 100}%"
+                  y="{((angleLine.pointA.y + angleLine.pointB.y) / 2) * 100}%"
+                  dx="10"
+                  dy="5"
+                  fill={plumbColor}
+                  font-size="16"
+                  font-weight="bold"
+                  style="background: rgba(0,0,0,0.5); padding: 2px 4px;"
+                >
+                  {angleFromVertical.toFixed(1)}° | {angleFromHorizontal.toFixed(
+                    1
+                  )}° | {absoluteAngle.toFixed(1)}°
+                </text>
+              {/each}
+
+              <!-- Current angle line being drawn -->
+              {#if angleMode && currentAngleLine}
+                {#if currentAngleLine.pointA && !currentAngleLine.pointB}
+                  <!-- Show point A only -->
+                  <circle
+                    cx="{currentAngleLine.pointA.x * 100}%"
+                    cy="{currentAngleLine.pointA.y * 100}%"
+                    r="6"
+                    fill={plumbColor}
+                    opacity="0.9"
+                  />
+                  <text
+                    x="{currentAngleLine.pointA.x * 100}%"
+                    y="{currentAngleLine.pointA.y * 100}%"
+                    dx="10"
+                    dy="-10"
+                    fill={plumbColor}
+                    font-size="14"
+                    font-weight="bold"
+                  >
+                    A
+                  </text>
+                {/if}
+              {/if}
+            </svg>
+          {/if}
         {/if}
       </div>
+
+      <!-- Alignment Check Freeze Overlay -->
+      {#if showAlignmentCheck}
+        <div
+          class="absolute inset-0 z-20 bg-black/80 flex items-center justify-center"
+        >
+          <div class="text-center">
+            <div class="text-6xl font-bold text-red-500 mb-4 animate-pulse">
+              CHECK ALIGNMENT
+            </div>
+            <div class="text-2xl text-white">Timer paused for inspection</div>
+          </div>
+        </div>
+      {/if}
 
       <!-- Bottom Controls -->
       <div

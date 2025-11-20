@@ -5,6 +5,7 @@ Artist Reference Organizer - A Tauri 2 + SvelteKit desktop application for manag
 ## Features
 
 ### Library Management
+
 - **Image Library** - Browse your reference images in grid or list view
 - **Pack Import** - Import entire image packs from local folders
 - **Hierarchical Tags** - Create custom tag trees for organizing references
@@ -16,7 +17,9 @@ Artist Reference Organizer - A Tauri 2 + SvelteKit desktop application for manag
 ### Timer Mode - Professional Practice Sessions
 
 #### Classroom Mode (6 Built-in Presets)
+
 Pre-configured professional sessions used by real art schools:
+
 - **Classic Warm-Up** (~30 min) - 12×30s → 10×1m → 8×2m → 6×5m
 - **Standard 1-Hour Class** (60-75 min) - Full progression from 30s warm-ups to 20m pieces
 - **Beginner Friendly** (~50 min) - Gentle progression for new students
@@ -25,13 +28,16 @@ Pre-configured professional sessions used by real art schools:
 - **Portrait & Features** (60 min) - Face studies + hands/feet detail work
 
 #### Quick Custom Session
+
 Build your own practice sessions on the fly:
+
 - Filter images by tags (any combination)
 - Add multiple timed stages
 - Set custom image counts and durations per stage
 - Uses all library images if no tags selected
 
 #### Practice Session Features
+
 - **Auto-advance timer** with audio chimes between poses
 - **Victory celebration** with fanfare and stats at session end
 - **Stage-based thumbnails** - Only shows current stage images
@@ -43,11 +49,13 @@ Build your own practice sessions on the fly:
 - **Progress tracking** - Shows pose number, stage description, and progress bar
 
 ### Storage & Performance
+
 - **IndexedDB** - Fast, offline-first data persistence
 - **Image thumbnails** - Quick loading and browsing
 - **Tag usage tracking** - Recently used tags for faster filtering
 
 ### UI/UX
+
 - **Dark theme** - Modern interface with TailwindCSS + daisyUI
 - **Responsive design** - Adapts to different window sizes
 - **Visual feedback** - Selection indicators, hover states, transitions
