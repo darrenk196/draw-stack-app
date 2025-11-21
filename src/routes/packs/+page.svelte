@@ -165,27 +165,16 @@
   loadHistory();
   restoreSessionState();
 
-  let isInitialLoad = true;
-
-  // Watch for itemsPerPage changes
-  $effect(() => {
-    const currentValue = itemsPerPage;
-
-    // Skip during initial load
-    if (isInitialLoad) {
-      isInitialLoad = false;
-      return;
-    }
-
+  function handleItemsPerPageChange() {
     if (images.length > 0) {
       currentPage = 1;
       updateDisplayedImages();
     }
     // Save to localStorage
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem(PAGINATION_STORAGE_KEY, String(currentValue));
+      localStorage.setItem(PAGINATION_STORAGE_KEY, String(itemsPerPage));
     }
-  });
+  }
 
   // Build hierarchical folder tree from current path
   function getFolderTree(): Array<{
@@ -852,6 +841,7 @@
               <select
                 class="select select-sm select-bordered"
                 bind:value={itemsPerPage}
+                onchange={handleItemsPerPageChange}
               >
                 <option value={10}>10</option>
                 <option value={20}>20</option>

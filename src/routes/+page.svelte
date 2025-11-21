@@ -182,15 +182,13 @@
     };
   });
 
-  // Watch for itemsPerPage changes
-  $effect(() => {
-    void itemsPerPage;
+  function handleItemsPerPageChange() {
     currentPage = 1;
     // Save to localStorage
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(PAGINATION_STORAGE_KEY, String(itemsPerPage));
     }
-  });
+  }
 
   async function loadLibraryImages() {
     isLoading = true;
@@ -841,6 +839,7 @@
           <select
             class="select select-sm select-bordered"
             bind:value={itemsPerPage}
+            onchange={handleItemsPerPageChange}
           >
             <option value={10}>10</option>
             <option value={20}>20</option>
