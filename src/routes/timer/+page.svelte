@@ -2185,7 +2185,9 @@
               {#each angleLines as angleLine, i (angleLine.id)}
                 {@const dx = angleLine.pointB.x - angleLine.pointA.x}
                 {@const dy = angleLine.pointB.y - angleLine.pointA.y}
-                {@const angle = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360}
+                {@const rawAngle =
+                  ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360}
+                {@const angle = rawAngle > 180 ? 360 - rawAngle : rawAngle}
 
                 <!-- Line connecting points -->
                 <line
