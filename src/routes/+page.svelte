@@ -37,7 +37,7 @@
 
   // Pagination state
   const PAGINATION_STORAGE_KEY = "library-items-per-page";
-  
+
   function loadItemsPerPage(): number | "all" {
     if (typeof localStorage === "undefined") return 50;
     const stored = localStorage.getItem(PAGINATION_STORAGE_KEY);
@@ -46,7 +46,7 @@
     const parsed = parseInt(stored);
     return isNaN(parsed) ? 50 : parsed;
   }
-  
+
   let itemsPerPage = $state<number | "all">(loadItemsPerPage());
   let currentPage = $state(1);
 
@@ -177,19 +177,19 @@
 
     window.addEventListener("keydown", handleKeydown);
 
-    // Watch for itemsPerPage changes
-    $effect(() => {
-      void itemsPerPage;
-      currentPage = 1;
-      // Save to localStorage
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem(PAGINATION_STORAGE_KEY, String(itemsPerPage));
-      }
-    });
-
     return () => {
       window.removeEventListener("keydown", handleKeydown);
     };
+  });
+
+  // Watch for itemsPerPage changes
+  $effect(() => {
+    void itemsPerPage;
+    currentPage = 1;
+    // Save to localStorage
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(PAGINATION_STORAGE_KEY, String(itemsPerPage));
+    }
   });
 
   async function loadLibraryImages() {
