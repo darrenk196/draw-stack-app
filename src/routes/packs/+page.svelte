@@ -7,6 +7,7 @@
     addTag,
     addImageTag,
     getAllTags,
+    getLibraryImages,
     generateId,
     type Image,
     type Tag,
@@ -428,6 +429,26 @@
   function openImageViewer(image: ImageInfo, index: number) {
     viewingImage = image;
     viewingIndex = index;
+    preloadAdjacentViewerImages(index);
+  }
+
+  function preloadAdjacentViewerImages(index: number) {
+    // Preload next 2 and previous 2 images for smoother navigation
+    const toPreload = [
+      displayedImages[index + 1],
+      displayedImages[index + 2],
+      displayedImages[index - 1],
+      displayedImages[index - 2],
+    ].filter(Boolean);
+
+    toPreload.forEach((img) => {
+      if (img) {
+        const link = document.createElement("link");
+        link.rel = "prefetch";
+        link.href = convertFileSrc(img.path);
+        document.head.appendChild(link);
+      }
+    });
   }
 
   function closeImageViewer() {
@@ -519,6 +540,10 @@
       console.log("Saving to IndexedDB:", imagesToAdd.length, "images");
       await addImages(imagesToAdd);
       console.log("Successfully saved to IndexedDB");
+      
+      // Verify images were saved
+      const allImages = await getLibraryImages();
+      console.log("Verification: Library now has", allImages.length, "total images");
 
       // Auto-tag images with pack name
       if (rootPath) {
@@ -561,6 +586,10 @@
       // Clear selection and show success
       selectedImages = new Set();
       saveSessionState();
+
+      // Dispatch event to notify Library page to refresh
+      window.dispatchEvent(new CustomEvent("library-updated"));
+
       alert(`Successfully added ${imagesToAdd.length} images to library!`);
     } catch (error) {
       console.error("Failed to add images to library:", error);
@@ -897,10 +926,15 @@
                   <img
                     src={convertFileSrc(image.path)}
                     alt={image.filename}
-                    class="w-full h-full object-cover"
+                    class="w-full h-full object-cover transition-opacity duration-200"
                     loading={shouldEagerLoad ? "eager" : "lazy"}
                     decoding="async"
                     fetchpriority={shouldEagerLoad ? "high" : "auto"}
+                    style="background: linear-gradient(135deg, rgb(var(--b3)) 0%, rgb(var(--b2)) 100%);"
+                    onload={(e) =>
+                      ((e.currentTarget as HTMLImageElement).style.opacity =
+                        "1")}
+                    style:opacity="0"
                   />
 
                   {#if isSelected}

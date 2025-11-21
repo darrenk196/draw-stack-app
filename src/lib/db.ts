@@ -81,15 +81,22 @@ interface DrawStackDB extends DBSchema {
 }
 
 const DB_NAME = 'drawstack-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbInstance: IDBPDatabase<DrawStackDB> | null = null;
+let dbPromise: Promise<IDBPDatabase<DrawStackDB>> | null = null;
 
 export async function getDB(): Promise<IDBPDatabase<DrawStackDB>> {
+  // Return cached instance immediately
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB<DrawStackDB>(DB_NAME, DB_VERSION, {
+  // If connection is in progress, wait for it
+  if (dbPromise) return dbPromise;
+
+  // Start new connection
+  dbPromise = openDB<DrawStackDB>(DB_NAME, DB_VERSION, {
     upgrade(db, oldVersion, newVersion, transaction) {
+      console.log(`Database upgrade: ${oldVersion} -> ${newVersion}`);
       // Version 1: Create initial stores
       if (oldVersion < 1) {
         // Packs store
@@ -99,7 +106,7 @@ export async function getDB(): Promise<IDBPDatabase<DrawStackDB>> {
         // Images store
         const imagesStore = db.createObjectStore('images', { keyPath: 'id' });
         imagesStore.createIndex('by-pack', 'packId');
-        imagesStore.createIndex('by-library', 'isInLibrary');
+        imagesStore.createIndex('by-library', 'addedToLibraryAt');
 
         // Tags store
         const tagsStore = db.createObjectStore('tags', { keyPath: 'id' });
@@ -117,9 +124,22 @@ export async function getDB(): Promise<IDBPDatabase<DrawStackDB>> {
         const tagUsageStore = db.createObjectStore('tagUsage', { keyPath: 'tagId' });
         tagUsageStore.createIndex('by-last-used', 'lastUsed');
       }
+
+      // Version 3: Recreate by-library index to use addedToLibraryAt
+      if (oldVersion < 3) {
+        const imagesStore = transaction.objectStore('images');
+        // Delete old index if it exists
+        if (imagesStore.indexNames.contains('by-library')) {
+          imagesStore.deleteIndex('by-library');
+        }
+        // Create new index on addedToLibraryAt
+        imagesStore.createIndex('by-library', 'addedToLibraryAt');
+      }
     },
   });
 
+  dbInstance = await dbPromise;
+  dbPromise = null;
   return dbInstance;
 }
 
@@ -161,17 +181,27 @@ export async function addImages(images: Image[]): Promise<void> {
   const db = await getDB();
   const tx = db.transaction('images', 'readwrite');
   
-  // Batch adds without waiting for each one - much faster
-  for (const img of images) {
-    tx.store.add(img).catch(err => {
-      // Ignore duplicate key errors during import
-      if (err.name !== 'ConstraintError') {
-        console.error('Error adding image:', err);
-      }
-    });
-  }
+  console.log('addImages: Starting transaction for', images.length, 'images');
+  console.log('addImages: Sample image data:', images[0]);
   
-  await tx.done;
+  // Use Promise.all with tx.done to ensure all operations complete
+  await Promise.all([
+    ...images.map(img => 
+      tx.store.add(img).then(() => {
+        console.log('addImages: Successfully added image:', img.id);
+      }).catch((err: any) => {
+        if (err.name === 'ConstraintError') {
+          console.warn('Duplicate image skipped:', img.id);
+        } else {
+          console.error('Error adding image:', img.id, err);
+          throw err;
+        }
+      })
+    ),
+    tx.done
+  ]);
+  
+  console.log(`addImages: Transaction completed for ${images.length} images`);
 }
 
 export async function getImage(id: string): Promise<Image | undefined> {
@@ -186,9 +216,14 @@ export async function getImagesByPack(packId: string): Promise<Image[]> {
 
 export async function getLibraryImages(): Promise<Image[]> {
   const db = await getDB();
-  // Get all images and filter by isInLibrary boolean
+  console.log('getLibraryImages: Querying database...');
+  // Get all images and filter by isInLibrary (simpler and more reliable)
   const allImages = await db.getAll('images');
-  return allImages.filter(img => img.isInLibrary === true);
+  console.log('getLibraryImages: Total images in DB:', allImages.length);
+  const libraryImages = allImages.filter(img => img.isInLibrary === true);
+  console.log('getLibraryImages: Library images found:', libraryImages.length);
+  console.log('getLibraryImages: Sample images:', libraryImages.slice(0, 3));
+  return libraryImages;
 }
 
 export async function updateImage(image: Image): Promise<void> {
@@ -426,4 +461,35 @@ export async function clearAllData(): Promise<void> {
   
   await tx.done;
   console.log('All database data cleared');
+}
+
+// Debug function to completely reset database
+export async function resetDatabase(): Promise<void> {
+  // Close existing connection
+  if (dbInstance) {
+    dbInstance.close();
+    dbInstance = null;
+    dbPromise = null;
+  }
+  
+  // Delete the database
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(DB_NAME);
+    request.onsuccess = () => {
+      console.log('Database deleted successfully');
+      resolve();
+    };
+    request.onerror = () => {
+      console.error('Error deleting database');
+      reject(request.error);
+    };
+    request.onblocked = () => {
+      console.warn('Database deletion blocked - close all tabs using this database');
+    };
+  });
+  
+  // Reinitialize
+  console.log('Reinitializing database...');
+  await getDB();
+  console.log('Database reset complete');
 }

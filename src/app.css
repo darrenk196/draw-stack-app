@@ -13,3 +13,46 @@ body {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
+
+/* Performance optimizations */
+img {
+  /* Hardware acceleration for images */
+  transform: translateZ(0);
+  will-change: auto;
+}
+
+/* Smooth scrolling with GPU acceleration */
+.scroll-smooth {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Optimize animations */
+@media (prefers-reduced-motion: no-preference) {
+  .transition-opacity,
+  .transition-transform {
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Optimize grid rendering */
+.grid {
+  contain: layout style paint;
+}
+
+/* Improve button performance */
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}

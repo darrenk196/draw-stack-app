@@ -1,8 +1,11 @@
 use std::fs;
 use std::path::Path;
+use std::collections::HashSet;
 use tauri::{AppHandle, Manager, Emitter};
 use uuid::Uuid;
 use image::{ImageReader, imageops::FilterType};
+
+static VALID_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "gif", "bmp"];
 
 #[derive(Debug, serde::Serialize, Clone)]
 struct FolderContents {
@@ -54,10 +57,9 @@ fn greet(name: &str) -> String {
 }
 
 fn scan_for_images(folder_path: &Path) -> Result<Vec<std::path::PathBuf>, String> {
-    let valid_extensions = ["jpg", "jpeg", "png", "webp", "gif", "bmp"];
     let mut images = Vec::new();
     
-    fn scan_recursive(path: &Path, images: &mut Vec<std::path::PathBuf>, extensions: &[&str]) -> Result<(), String> {
+    fn scan_recursive(path: &Path, images: &mut Vec<std::path::PathBuf>) -> Result<(), String> {
         if !path.exists() {
             return Err(format!("Path does not exist: {}", path.display()));
         }
@@ -70,11 +72,13 @@ fn scan_for_images(folder_path: &Path) -> Result<Vec<std::path::PathBuf>, String
             
             if entry_path.is_dir() {
                 // Recursively scan subdirectories
-                scan_recursive(&entry_path, images, extensions)?;
+                scan_recursive(&entry_path, images)?;
             } else if entry_path.is_file() {
+                // Fast extension check
                 if let Some(ext) = entry_path.extension() {
                     if let Some(ext_str) = ext.to_str() {
-                        if extensions.contains(&ext_str.to_lowercase().as_str()) {
+                        let ext_lower = ext_str.to_lowercase();
+                        if VALID_EXTENSIONS.contains(&ext_lower.as_str()) {
                             images.push(entry_path);
                         }
                     }
@@ -85,7 +89,7 @@ fn scan_for_images(folder_path: &Path) -> Result<Vec<std::path::PathBuf>, String
         Ok(())
     }
     
-    scan_recursive(folder_path, &mut images, &valid_extensions)?;
+    scan_recursive(folder_path, &mut images)?;
     Ok(images)
 }
 
@@ -168,7 +172,6 @@ async fn browse_folder(folder_path: String) -> Result<FolderContents, String> {
     
     let mut folders = Vec::new();
     let mut images = Vec::new();
-    let valid_extensions = ["jpg", "jpeg", "png", "webp", "gif", "bmp"];
     
     for entry in entries.flatten() {
         let entry_path = entry.path();
@@ -186,9 +189,11 @@ async fn browse_folder(folder_path: String) -> Result<FolderContents, String> {
                 image_count: 0,
             });
         } else if entry_path.is_file() {
+            // Fast extension check with static array
             if let Some(ext) = entry_path.extension() {
                 if let Some(ext_str) = ext.to_str() {
-                    if valid_extensions.contains(&ext_str.to_lowercase().as_str()) {
+                    let ext_lower = ext_str.to_lowercase();
+                    if VALID_EXTENSIONS.contains(&ext_lower.as_str()) {
                         let filename = entry_path
                             .file_name()
                             .and_then(|n| n.to_str())

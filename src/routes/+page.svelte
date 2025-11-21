@@ -17,6 +17,8 @@
   import { convertFileSrc } from "@tauri-apps/api/core";
 
   let searchQuery = $state("");
+  let debouncedSearchQuery = $state("");
+  let searchDebounceTimer: number | undefined;
   let viewMode: "grid" | "list" = $state("grid");
   let isSelectMode = $state(false);
   let selectedImages = $state<Set<string>>(new Set());
@@ -50,10 +52,18 @@
   let itemsPerPage = $state<number | "all">(loadItemsPerPage());
   let currentPage = $state(1);
 
+  // Debounce search input
+  $effect(() => {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      debouncedSearchQuery = searchQuery;
+    }, 150) as unknown as number;
+  });
+
   // Filtered images based on search query and active filters
   let filteredImages = $derived.by(() => {
     // If no filters or search, show all
-    if (!searchQuery.trim() && activeFilters.length === 0) {
+    if (!debouncedSearchQuery.trim() && activeFilters.length === 0) {
       return libraryImages;
     }
 
@@ -78,8 +88,8 @@
       }
 
       // If there's a search query, also check filename or tags
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase().trim();
+      if (debouncedSearchQuery.trim()) {
+        const query = debouncedSearchQuery.toLowerCase().trim();
 
         // Check if filename matches
         if (image.filename.toLowerCase().includes(query)) {
@@ -116,7 +126,7 @@
     // Track dependencies
     void filteredImages.length;
     void activeFilters.length;
-    void searchQuery;
+    void debouncedSearchQuery;
 
     // Reset page
     currentPage = 1;
@@ -175,9 +185,27 @@
         console.error("TagUsage store error - database needs reset:", err);
       });
 
+    // Reload library when page becomes visible (navigating back from other pages)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        console.log("Page became visible, reloading library...");
+        loadLibraryImages();
+      }
+    };
+
+    // Listen for custom library update events
+    const handleLibraryUpdate = () => {
+      console.log("Library update event received, reloading...");
+      loadLibraryImages();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("library-updated", handleLibraryUpdate);
     window.addEventListener("keydown", handleKeydown);
 
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("library-updated", handleLibraryUpdate);
       window.removeEventListener("keydown", handleKeydown);
     };
   });
@@ -878,9 +906,13 @@
               <img
                 src={convertFileSrc(image.fullPath)}
                 alt={image.filename}
-                class="w-full h-full object-cover"
+                class="w-full h-full object-cover transition-opacity duration-200"
                 loading="lazy"
                 decoding="async"
+                style="background: linear-gradient(135deg, rgb(var(--b3)) 0%, rgb(var(--b2)) 100%);"
+                onload={(e) =>
+                  ((e.currentTarget as HTMLImageElement).style.opacity = "1")}
+                style:opacity="0"
               />
               {#if isSelected}
                 <div class="absolute top-1 left-1 bg-primary rounded-full p-1">
@@ -921,9 +953,13 @@
                 <img
                   src={convertFileSrc(image.fullPath)}
                   alt={image.filename}
-                  class="w-full h-full object-cover rounded"
+                  class="w-full h-full object-cover rounded transition-opacity duration-200"
                   loading="lazy"
                   decoding="async"
+                  style="background: linear-gradient(135deg, rgb(var(--b3)) 0%, rgb(var(--b2)) 100%);"
+                  onload={(e) =>
+                    ((e.currentTarget as HTMLImageElement).style.opacity = "1")}
+                  style:opacity="0"
                 />
                 {#if isSelected}
                   <div
