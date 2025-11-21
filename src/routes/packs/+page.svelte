@@ -256,17 +256,13 @@
 
       // Update with real data
       folders = contents.folders;
-      
-      // Ensure image paths are properly decoded (not URL-encoded)
-      images = contents.images.map(img => ({
-        ...img,
-        path: img.path.includes('%') ? decodeURIComponent(img.path) : img.path
-      }));
+      images = contents.images;
 
-      // Debug: Check if paths need decoding
+      // Debug: Check raw paths from Rust
       if (images.length > 0) {
-        console.log("Sample image path:", images[0].path);
-        console.log("Converted path:", convertFileSrc(images[0].path));
+        console.log("Raw image path from Rust:", images[0].path);
+        console.log("Path includes %:", images[0].path.includes("%"));
+        console.log("After convertFileSrc:", convertFileSrc(images[0].path));
       }
 
       // Apply pagination
