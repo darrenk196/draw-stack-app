@@ -2185,15 +2185,7 @@
               {#each angleLines as angleLine, i (angleLine.id)}
                 {@const dx = angleLine.pointB.x - angleLine.pointA.x}
                 {@const dy = angleLine.pointB.y - angleLine.pointA.y}
-                {@const angleFromVertical = Math.abs(
-                  (Math.atan2(dx, -dy) * 180) / Math.PI
-                )}
-                {@const angleFromHorizontal = Math.abs(
-                  (Math.atan2(dy, dx) * 180) / Math.PI
-                )}
-                {@const absoluteAngle = Math.abs(
-                  (Math.atan2(dy, dx) * 180) / Math.PI
-                )}
+                {@const angle = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360}
 
                 <!-- Line connecting points -->
                 <line
@@ -2257,13 +2249,11 @@
                   dx="10"
                   dy="5"
                   fill={angleLine.color}
-                  font-size="16"
+                  font-size="18"
                   font-weight="bold"
                   style="background: rgba(0,0,0,0.5); padding: 2px 4px;"
                 >
-                  {angleFromVertical.toFixed(1)}° | {angleFromHorizontal.toFixed(
-                    1
-                  )}° | {absoluteAngle.toFixed(1)}°
+                  {angle.toFixed(1)}°
                 </text>
               {/each}
 

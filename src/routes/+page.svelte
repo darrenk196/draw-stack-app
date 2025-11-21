@@ -165,13 +165,13 @@
       });
 
     window.addEventListener("keydown", handleKeydown);
-    
+
     // Watch for itemsPerPage changes
     $effect(() => {
       void itemsPerPage;
       currentPage = 1;
     });
-    
+
     return () => {
       window.removeEventListener("keydown", handleKeydown);
     };
