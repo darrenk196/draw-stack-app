@@ -37,11 +37,17 @@
 
   // Pagination state
   const PAGINATION_STORAGE_KEY = "library-items-per-page";
-  let itemsPerPage = $state<number | "all">(
-    (typeof localStorage !== "undefined" &&
-      (localStorage.getItem(PAGINATION_STORAGE_KEY) as number | "all")) ||
-      50
-  );
+  
+  function loadItemsPerPage(): number | "all" {
+    if (typeof localStorage === "undefined") return 50;
+    const stored = localStorage.getItem(PAGINATION_STORAGE_KEY);
+    if (!stored) return 50;
+    if (stored === "all") return "all";
+    const parsed = parseInt(stored);
+    return isNaN(parsed) ? 50 : parsed;
+  }
+  
+  let itemsPerPage = $state<number | "all">(loadItemsPerPage());
   let currentPage = $state(1);
 
   // Filtered images based on search query and active filters
