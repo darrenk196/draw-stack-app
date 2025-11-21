@@ -256,7 +256,12 @@
 
       // Update with real data
       folders = contents.folders;
-      images = contents.images;
+      
+      // Ensure image paths are properly decoded (not URL-encoded)
+      images = contents.images.map(img => ({
+        ...img,
+        path: img.path.includes('%') ? decodeURIComponent(img.path) : img.path
+      }));
 
       // Debug: Check if paths need decoding
       if (images.length > 0) {
