@@ -52,7 +52,7 @@
   let dragStartSelection = new Set<string>();
   let draggedImages = new Set<string>(); // Track images we've dragged over
   let showHelp = $state(false);
-  
+
   // Pagination state
   let itemsPerPage = $state<number | "all">(50);
   let currentPage = $state(1);
@@ -235,7 +235,7 @@
       // Update with real data
       folders = contents.folders;
       images = contents.images;
-      
+
       // Apply pagination
       currentPage = 1;
       updateDisplayedImages();
@@ -310,22 +310,26 @@
       const endIndex = startIndex + itemsPerPage;
       displayedImages = images.slice(startIndex, endIndex);
     }
-    
+
     if (scrollContainer) {
       scrollContainer.scrollTop = 0;
     }
-    
+
     saveSessionState();
   }
 
   function goToPage(page: number) {
-    const totalPages = Math.ceil(images.length / (itemsPerPage === "all" ? images.length : itemsPerPage));
+    const totalPages = Math.ceil(
+      images.length / (itemsPerPage === "all" ? images.length : itemsPerPage)
+    );
     currentPage = Math.max(1, Math.min(page, totalPages));
     updateDisplayedImages();
   }
 
   function nextPage() {
-    const totalPages = Math.ceil(images.length / (itemsPerPage === "all" ? images.length : itemsPerPage));
+    const totalPages = Math.ceil(
+      images.length / (itemsPerPage === "all" ? images.length : itemsPerPage)
+    );
     if (currentPage < totalPages) {
       currentPage++;
       updateDisplayedImages();
@@ -807,15 +811,20 @@
       <div class="flex-1 overflow-auto p-6" bind:this={scrollContainer}>
         {#if displayedImages.length > 0}
           <!-- Pagination Controls -->
-          <div class="mb-4 flex items-center justify-between border-b border-base-300 pb-4">
+          <div
+            class="mb-4 flex items-center justify-between border-b border-base-300 pb-4"
+          >
             <div class="flex items-center gap-3">
               <span class="text-sm text-base-content/70">Items per page:</span>
               <select
                 class="select select-sm select-bordered"
-                value={itemsPerPage}
-                onchange={(e) => changeItemsPerPage(
-                  e.currentTarget.value === "all" ? "all" : parseInt(e.currentTarget.value)
-                )}
+                bind:value={itemsPerPage}
+                onchange={(e) =>
+                  changeItemsPerPage(
+                    e.currentTarget.value === "all"
+                      ? "all"
+                      : parseInt(e.currentTarget.value)
+                  )}
               >
                 <option value="10">10</option>
                 <option value="20">20</option>
@@ -829,7 +838,10 @@
                 Showing all {images.length} images
               {:else}
                 {@const totalPages = Math.ceil(images.length / itemsPerPage)}
-                Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, images.length)} of {images.length} images
+                Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(
+                  currentPage * itemsPerPage,
+                  images.length
+                )} of {images.length} images
               {/if}
             </div>
           </div>
@@ -917,8 +929,19 @@
                 disabled={currentPage === 1}
                 onclick={previousPage}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15 19l-7-7 7-7"
+                  />
                 </svg>
                 Previous
               </button>
@@ -931,8 +954,19 @@
                 onclick={nextPage}
               >
                 Next
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5l7 7-7 7"
+                  />
                 </svg>
               </button>
             </div>
@@ -1127,10 +1161,7 @@
       <!-- Pagination info -->
       {#if images.length > 0}
         <div class="flex gap-2">
-          <button
-            class="btn btn-sm btn-ghost text-white gap-2"
-            disabled
-          >
+          <button class="btn btn-sm btn-ghost text-white gap-2" disabled>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               class="h-4 w-4"

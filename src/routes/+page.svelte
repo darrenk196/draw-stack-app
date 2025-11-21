@@ -34,7 +34,7 @@
   let allImageTags = $state<Map<string, Tag[]>>(new Map());
   let activeFilters = $state<string[]>([]);
   let selectedSuggestionIndex = $state(0);
-  
+
   // Pagination state
   let itemsPerPage = $state<number | "all">(50);
   let currentPage = $state(1);
@@ -106,7 +106,7 @@
     void filteredImages.length;
     void activeFilters.length;
     void searchQuery;
-    
+
     // Reset page
     currentPage = 1;
   });
@@ -811,15 +811,20 @@
       </div>
     {:else}
       <!-- Pagination Controls -->
-      <div class="mb-4 flex items-center justify-between border-b border-base-300 pb-4">
+      <div
+        class="mb-4 flex items-center justify-between border-b border-base-300 pb-4"
+      >
         <div class="flex items-center gap-3">
           <span class="text-sm text-base-content/70">Items per page:</span>
           <select
             class="select select-sm select-bordered"
-            value={itemsPerPage}
-            onchange={(e) => changeItemsPerPage(
-              e.currentTarget.value === "all" ? "all" : parseInt(e.currentTarget.value)
-            )}
+            bind:value={itemsPerPage}
+            onchange={(e) =>
+              changeItemsPerPage(
+                e.currentTarget.value === "all"
+                  ? "all"
+                  : parseInt(e.currentTarget.value)
+              )}
           >
             <option value="10">10</option>
             <option value="20">20</option>
@@ -832,7 +837,10 @@
           {#if itemsPerPage === "all"}
             Showing all {filteredImages.length} images
           {:else}
-            Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredImages.length)} of {filteredImages.length} images
+            Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(
+              currentPage * itemsPerPage,
+              filteredImages.length
+            )} of {filteredImages.length} images
           {/if}
         </div>
       </div>
@@ -937,6 +945,35 @@
               </div>
             </button>
           {/each}
+        </div>
+      {/if}
+
+      <!-- Pagination Navigation -->
+      {#if itemsPerPage !== "all" && filteredImages.length > 0}
+        <div class="mt-6 pt-4 border-t border-base-300 flex items-center justify-center gap-2">
+          <button
+            class="btn btn-sm"
+            disabled={currentPage === 1}
+            onclick={previousPage}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            Previous
+          </button>
+          <span class="text-sm text-base-content/70 mx-4">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            class="btn btn-sm"
+            disabled={currentPage === totalPages}
+            onclick={nextPage}
+          >
+            Next
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
       {/if}
     {/if}
