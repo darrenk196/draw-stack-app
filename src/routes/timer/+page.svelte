@@ -83,13 +83,35 @@
   let angleMode = $state(false);
   let currentAngleLine = $state<AngleLine | null>(null);
   let angleLines = $state<AngleLine[]>([]);
-  let plumbLocked = $state(false);
   let plumbColor = $state("#FF0000");
   let randomColors = $state(true);
   let snapToAngle = $state(true);
   let dragTarget = $state<string | null>(null);
   let imageContainerRef = $state<HTMLDivElement | null>(null);
   let imageElementRef = $state<HTMLImageElement | null>(null);
+
+  // Track held keys for line movement
+  let heldKeys = $state<Set<string>>(new Set());
+  let arrowUsedWithModifier = $state(false);
+
+  // Color presets for grid and plumb lines
+  const colorPresets = [
+    { name: "Red", color: "#FF0000" },
+    { name: "Cyan", color: "#00FFFF" },
+    { name: "Yellow", color: "#FFFF00" },
+    { name: "Magenta", color: "#FF00FF" },
+    { name: "Lime", color: "#00FF00" },
+    { name: "White", color: "#FFFFFF" },
+    { name: "Orange", color: "#FF8800" },
+    { name: "Blue", color: "#0088FF" },
+    { name: "Pink", color: "#FF88FF" },
+    { name: "Green", color: "#00FF88" },
+  ];
+  let currentColorIndex = $state(0);
+
+  // Line visibility enhancement options
+  let lineOpacity = $state(0.9); // 0.1 to 1.0
+  let lineOutline = $state(true); // Add contrasting outline for visibility
 
   // Grid overlay state
   let gridMode = $state<0 | 1 | 2 | 3>(0); // 0=off, 1=fine(32x32), 2=medium(16x16), 3=coarse(8x8)
@@ -368,6 +390,24 @@
     document.documentElement.classList.remove("immersive-practice");
   }
 
+  // Get contrasting outline color (inverse for visibility)
+  function getOutlineColor(mainColor: string): string {
+    // For common bright colors, use black outline
+    const brightColors = [
+      "#FFFF00",
+      "#00FFFF",
+      "#00FF00",
+      "#FFFFFF",
+      "#FF88FF",
+      "#00FF88",
+    ];
+    if (brightColors.includes(mainColor.toUpperCase())) {
+      return "#000000";
+    }
+    // For dark/saturated colors, use white outline
+    return "#FFFFFF";
+  }
+
   // Plumb Tool Interaction Handlers
   function getRandomColor(): string {
     const colors = [
@@ -386,17 +426,24 @@
   }
 
   function getRelativeCoords(e: PointerEvent): Point {
-    if (!imageContainerRef) return { x: 0.5, y: 0.5 };
-    const rect = imageContainerRef.getBoundingClientRect();
+    if (
+      !imageContainerRef ||
+      imageBounds.width === 0 ||
+      imageBounds.height === 0
+    ) {
+      return { x: 0.5, y: 0.5 };
+    }
+    const containerRect = imageContainerRef.getBoundingClientRect();
+    const imgLeft = containerRect.left + imageBounds.left;
+    const imgTop = containerRect.top + imageBounds.top;
+
     return {
-      x: (e.clientX - rect.left) / rect.width,
-      y: (e.clientY - rect.top) / rect.height,
+      x: (e.clientX - imgLeft) / imageBounds.width,
+      y: (e.clientY - imgTop) / imageBounds.height,
     };
   }
 
   function handlePlumbPointerDown(e: PointerEvent) {
-    if (plumbLocked) return;
-
     const target = (e.target as HTMLElement).getAttribute("data-drag-target");
 
     // Handle angle mode clicks
@@ -433,7 +480,7 @@
   }
 
   function handlePlumbPointerMove(e: PointerEvent) {
-    if (!dragTarget || plumbLocked) return;
+    if (!dragTarget) return;
 
     const coords = getRelativeCoords(e);
 
@@ -464,23 +511,20 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (showSetup) return;
-    // Any key interaction reveals UI briefly
-    revealUI();
 
-    // Plumb tool shortcuts
+    // Track held keys
+    heldKeys.add(e.key.toLowerCase());
+
+    // V and H keys - only prevent default, don't toggle yet (toggle on keyup)
     if (e.key === "v" || e.key === "V") {
       if (!e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        showVerticalLines = !showVerticalLines;
-        if (showVerticalLines) showPlumbTool = true;
         return;
       }
     }
     if (e.key === "h" || e.key === "H") {
       if (!e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        showHorizontalLines = !showHorizontalLines;
-        if (showHorizontalLines) showPlumbTool = true;
         return;
       }
     }
@@ -499,17 +543,6 @@
         return;
       }
     }
-    if (e.key === "l" || e.key === "L") {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        if (e.shiftKey) {
-          plumbLocked = !plumbLocked;
-        } else {
-          showPlumbTool = !showPlumbTool;
-        }
-        return;
-      }
-    }
     if (e.key === "Delete" || e.key === "Backspace") {
       if (currentAngleLine) {
         e.preventDefault();
@@ -519,6 +552,14 @@
       if (angleLines.length > 0) {
         e.preventDefault();
         angleLines = angleLines.slice(0, -1);
+        return;
+      }
+    }
+    if (e.key === "l" || e.key === "L") {
+      if (!e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        // Toggle UI lock (same as clicking lock icon)
+        uiLocked = !uiLocked;
         return;
       }
     }
@@ -547,6 +588,14 @@
         return;
       }
     }
+    if (e.key === "c" || e.key === "C") {
+      if (!e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        // Cycle through color presets
+        currentColorIndex = (currentColorIndex + 1) % colorPresets.length;
+        return;
+      }
+    }
     if (e.key === "=" || e.key === "+") {
       if (!e.ctrlKey && !e.metaKey && gridMode > 0) {
         e.preventDefault();
@@ -562,16 +611,48 @@
       }
     }
 
+    // Only reveal UI for playback controls, not navigation
     switch (e.key) {
       case "ArrowLeft":
-        goToPrevious();
+        if (heldKeys.has("v")) {
+          // Move vertical line left
+          e.preventDefault();
+          arrowUsedWithModifier = true;
+          verticalLine2X = Math.max(0, verticalLine2X - 0.01);
+        } else {
+          goToPrevious();
+        }
         break;
       case "ArrowRight":
-        goToNext();
+        if (heldKeys.has("v")) {
+          // Move vertical line right
+          e.preventDefault();
+          arrowUsedWithModifier = true;
+          verticalLine2X = Math.min(1, verticalLine2X + 0.01);
+        } else {
+          goToNext();
+        }
+        break;
+      case "ArrowUp":
+        if (heldKeys.has("h")) {
+          // Move horizontal line up
+          e.preventDefault();
+          arrowUsedWithModifier = true;
+          horizontalLine2Y = Math.max(0, horizontalLine2Y - 0.01);
+        }
+        break;
+      case "ArrowDown":
+        if (heldKeys.has("h")) {
+          // Move horizontal line down
+          e.preventDefault();
+          arrowUsedWithModifier = true;
+          horizontalLine2Y = Math.min(1, horizontalLine2Y + 0.01);
+        }
         break;
       case " ":
       case "Spacebar":
         e.preventDefault();
+        revealUI();
         if (isPaused) {
           resumeTimer();
         } else {
@@ -580,11 +661,13 @@
         break;
       case "r":
       case "R":
+        revealUI();
         resetCurrentTimer();
         break;
       case "f":
       case "F":
         e.preventDefault();
+        revealUI();
         toggleFullscreen();
         break;
       case "Escape":
@@ -595,6 +678,27 @@
         }
         break;
     }
+  }
+
+  function handleKeyup(e: KeyboardEvent) {
+    // Handle V/H toggle on keyup (only if arrows weren't used for movement)
+    if ((e.key === "v" || e.key === "V") && !e.ctrlKey && !e.metaKey) {
+      if (!arrowUsedWithModifier) {
+        showVerticalLines = !showVerticalLines;
+        if (showVerticalLines) showPlumbTool = true;
+      }
+      arrowUsedWithModifier = false;
+    }
+    if ((e.key === "h" || e.key === "H") && !e.ctrlKey && !e.metaKey) {
+      if (!arrowUsedWithModifier) {
+        showHorizontalLines = !showHorizontalLines;
+        if (showHorizontalLines) showPlumbTool = true;
+      }
+      arrowUsedWithModifier = false;
+    }
+
+    // Remove key from held keys set
+    heldKeys.delete(e.key.toLowerCase());
   }
 
   async function toggleFullscreen() {
@@ -629,8 +733,20 @@
     }
   });
 
+  // Sync plumbColor with current color preset
+  $effect(() => {
+    plumbColor = colorPresets[currentColorIndex].color;
+  });
+
   // Calculate image bounds for grid overlay
   $effect(() => {
+    // Track these dependencies
+    currentIndex;
+    practiceImages;
+    imageElementRef;
+    imageContainerRef;
+    uiLocked;
+
     const updateImageBounds = () => {
       if (!imageElementRef || !imageContainerRef) {
         imageBounds = { left: 0, top: 0, width: 0, height: 0 };
@@ -657,7 +773,6 @@
 
     return () => window.removeEventListener("resize", handleResize);
   });
-
   function formatTime(seconds: number): string {
     if (seconds < 60) {
       return `${seconds}s`;
@@ -930,6 +1045,7 @@
 
 <svelte:window
   onkeydown={handleKeydown}
+  onkeyup={handleKeyup}
   onmousemove={handlePointerActivity}
   onmousedown={handlePointerActivity}
   ontouchstart={handlePointerActivity}
@@ -1616,7 +1732,7 @@
               tabindex="0"
               class="btn btn-sm"
               class:btn-active={showPlumbTool}
-              title="Alignment tools (Ctrl+L)"
+              title="Alignment tools"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -1635,7 +1751,7 @@
               Tools
             </button>
             <div
-              class="dropdown-content z-[1] menu p-3 shadow bg-base-100 rounded-box w-72"
+              class="dropdown-content z-[1] menu p-3 shadow bg-base-100 rounded-box w-72 max-h-[70vh] overflow-y-auto"
             >
               <div class="flex flex-col gap-3">
                 <div class="text-xs font-bold opacity-60">ALIGNMENT TOOLS</div>
@@ -1696,29 +1812,60 @@
                 </div>
 
                 <div class="form-control">
-                  <label class="label cursor-pointer">
-                    <span class="label-text">Lock Tools (Ctrl+Shift+L)</span>
+                  <label class="label" for="color-preset-selector">
+                    <span class="label-text"
+                      >Line/Grid Color{randomColors
+                        ? " (Plumb/Grid Only)"
+                        : ""}</span
+                    >
+                  </label>
+                  <select
+                    id="color-preset-selector"
+                    bind:value={currentColorIndex}
+                    class="select select-bordered select-sm w-full"
+                  >
+                    {#each colorPresets as preset, index}
+                      <option value={index}>
+                        {preset.name} - {preset.color}
+                      </option>
+                    {/each}
+                  </select>
+                  <div class="mt-2 flex items-center gap-2">
+                    <div
+                      class="w-12 h-8 rounded border-2 border-base-content"
+                      style="background-color: {plumbColor};"
+                    ></div>
+                    <span class="text-xs opacity-60">Press C to cycle</span>
+                  </div>
+                </div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer justify-start gap-2">
                     <input
                       type="checkbox"
-                      bind:checked={plumbLocked}
+                      bind:checked={lineOutline}
                       class="checkbox checkbox-sm"
                     />
+                    <span class="label-text"
+                      >Contrasting Outline (for visibility)</span
+                    >
                   </label>
                 </div>
 
                 <div class="form-control">
-                  <label class="label" for="plumb-color-picker">
+                  <label class="label" for="line-opacity-slider">
                     <span class="label-text"
-                      >Line Color{randomColors
-                        ? " (Plumb Lines Only)"
-                        : ""}</span
+                      >Line Opacity: {(lineOpacity * 100).toFixed(0)}%</span
                     >
                   </label>
                   <input
-                    id="plumb-color-picker"
-                    type="color"
-                    bind:value={plumbColor}
-                    class="w-full h-8"
+                    id="line-opacity-slider"
+                    type="range"
+                    min="0.1"
+                    max="1"
+                    step="0.1"
+                    bind:value={lineOpacity}
+                    class="range range-sm"
                   />
                 </div>
 
@@ -1806,9 +1953,8 @@
                   <div><strong>Alt+A</strong> - Clear all angles</div>
                   <div><strong>G</strong> - Cycle grid (off → 32 → 16 → 8)</div>
                   <div><strong>D</strong> - Toggle diagonals</div>
+                  <div><strong>C</strong> - Cycle line/grid color</div>
                   <div><strong>+/-</strong> - Grid line width</div>
-                  <div><strong>Ctrl+L</strong> - Toggle all tools</div>
-                  <div><strong>Ctrl+Shift+L</strong> - Lock/unlock</div>
                   <div><strong>Delete</strong> - Remove last angle</div>
                 </div>
               </div>
@@ -1857,19 +2003,45 @@
             src={convertFileSrc(currentImage.fullPath)}
             alt={currentImage.filename}
             class="max-w-full max-h-full object-contain"
+            onload={() => {
+              // Recalculate bounds when image loads
+              if (imageElementRef && imageContainerRef) {
+                const containerRect = imageContainerRef.getBoundingClientRect();
+                const imgRect = imageElementRef.getBoundingClientRect();
+                imageBounds = {
+                  left: imgRect.left - containerRect.left,
+                  top: imgRect.top - containerRect.top,
+                  width: imgRect.width,
+                  height: imgRect.height,
+                };
+              }
+            }}
           />
 
           <!-- Plumb Line & Angle Overlay -->
-          {#if showPlumbTool && imageContainerRef}
+          {#if showPlumbTool && imageContainerRef && imageBounds.width > 0 && imageBounds.height > 0}
             <svg
-              class="absolute inset-0 w-full h-full pointer-events-auto"
-              style="z-index: 5;"
+              class="absolute pointer-events-auto"
+              style="z-index: 5; left: {imageBounds.left}px; top: {imageBounds.top}px; width: {imageBounds.width}px; height: {imageBounds.height}px;"
               onpointermove={handlePlumbPointerMove}
               onpointerdown={handlePlumbPointerDown}
               onpointerup={handlePlumbPointerUp}
             >
               <!-- Vertical Lines -->
               {#if showVerticalLines}
+                {#if lineOutline}
+                  <!-- Outline for center vertical line -->
+                  <line
+                    x1="50%"
+                    y1="0"
+                    x2="50%"
+                    y2="100%"
+                    stroke={getOutlineColor(plumbColor)}
+                    stroke-width="5"
+                    stroke-dasharray="10 5"
+                    opacity={lineOpacity * 0.5}
+                  />
+                {/if}
                 <!-- Center vertical line -->
                 <line
                   x1="50%"
@@ -1879,9 +2051,23 @@
                   stroke={plumbColor}
                   stroke-width="2"
                   stroke-dasharray="10 5"
-                  opacity="0.8"
+                  opacity={lineOpacity}
                 />
 
+                {#if lineOutline}
+                  <!-- Outline for draggable vertical line -->
+                  <line
+                    x1="{verticalLine2X * 100}%"
+                    y1="0"
+                    x2="{verticalLine2X * 100}%"
+                    y2="100%"
+                    stroke={getOutlineColor(plumbColor)}
+                    stroke-width="5"
+                    opacity={lineOpacity * 0.5}
+                    style="cursor: ew-resize;"
+                    data-drag-target="vertical-line"
+                  />
+                {/if}
                 <!-- Draggable vertical line -->
                 <line
                   x1="{verticalLine2X * 100}%"
@@ -1890,27 +2076,49 @@
                   y2="100%"
                   stroke={plumbColor}
                   stroke-width="2"
-                  opacity="0.9"
-                  style="cursor: {plumbLocked ? 'default' : 'ew-resize'};"
+                  opacity={lineOpacity}
+                  style="cursor: ew-resize;"
                   data-drag-target="vertical-line"
                 />
 
                 <!-- Drag handle for vertical line -->
-                {#if !plumbLocked}
+                {#if lineOutline}
                   <circle
                     cx="{verticalLine2X * 100}%"
                     cy="50%"
-                    r="8"
-                    fill={plumbColor}
-                    opacity="0.7"
+                    r="10"
+                    fill={getOutlineColor(plumbColor)}
+                    opacity={lineOpacity * 0.5}
                     style="cursor: ew-resize;"
                     data-drag-target="vertical-line"
                   />
                 {/if}
+                <circle
+                  cx="{verticalLine2X * 100}%"
+                  cy="50%"
+                  r="8"
+                  fill={plumbColor}
+                  opacity={lineOpacity}
+                  style="cursor: ew-resize;"
+                  data-drag-target="vertical-line"
+                />
               {/if}
 
               <!-- Horizontal Lines -->
               {#if showHorizontalLines}
+                {#if lineOutline}
+                  <!-- Outline for center horizontal line -->
+                  <line
+                    x1="0"
+                    y1="50%"
+                    x2="100%"
+                    y2="50%"
+                    stroke={getOutlineColor(plumbColor)}
+                    stroke-width="5"
+                    stroke-dasharray="10 5"
+                    opacity={lineOpacity * 0.5}
+                  />
+                {/if}
                 <!-- Center horizontal line -->
                 <line
                   x1="0"
@@ -1920,9 +2128,23 @@
                   stroke={plumbColor}
                   stroke-width="2"
                   stroke-dasharray="10 5"
-                  opacity="0.8"
+                  opacity={lineOpacity}
                 />
 
+                {#if lineOutline}
+                  <!-- Outline for draggable horizontal line -->
+                  <line
+                    x1="0"
+                    y1="{horizontalLine2Y * 100}%"
+                    x2="100%"
+                    y2="{horizontalLine2Y * 100}%"
+                    stroke={getOutlineColor(plumbColor)}
+                    stroke-width="5"
+                    opacity={lineOpacity * 0.5}
+                    style="cursor: ns-resize;"
+                    data-drag-target="horizontal-line"
+                  />
+                {/if}
                 <!-- Draggable horizontal line -->
                 <line
                   x1="0"
@@ -1931,23 +2153,32 @@
                   y2="{horizontalLine2Y * 100}%"
                   stroke={plumbColor}
                   stroke-width="2"
-                  opacity="0.9"
-                  style="cursor: {plumbLocked ? 'default' : 'ns-resize'};"
+                  opacity={lineOpacity}
+                  style="cursor: ns-resize;"
                   data-drag-target="horizontal-line"
                 />
 
                 <!-- Drag handle for horizontal line -->
-                {#if !plumbLocked}
+                {#if lineOutline}
                   <circle
                     cx="50%"
                     cy="{horizontalLine2Y * 100}%"
-                    r="8"
-                    fill={plumbColor}
-                    opacity="0.7"
+                    r="10"
+                    fill={getOutlineColor(plumbColor)}
+                    opacity={lineOpacity * 0.5}
                     style="cursor: ns-resize;"
                     data-drag-target="horizontal-line"
                   />
                 {/if}
+                <circle
+                  cx="50%"
+                  cy="{horizontalLine2Y * 100}%"
+                  r="8"
+                  fill={plumbColor}
+                  opacity={lineOpacity}
+                  style="cursor: ns-resize;"
+                  data-drag-target="horizontal-line"
+                />
               {/if}
 
               <!-- Angle Lines -->
@@ -1982,7 +2213,7 @@
                   r="6"
                   fill={angleLine.color}
                   opacity="0.9"
-                  style="cursor: {plumbLocked ? 'default' : 'move'};"
+                  style="cursor: move;"
                   data-drag-target="angle-point-a-{angleLine.id}"
                 />
                 <text
@@ -2004,7 +2235,7 @@
                   r="6"
                   fill={angleLine.color}
                   opacity="0.9"
-                  style="cursor: {plumbLocked ? 'default' : 'move'};"
+                  style="cursor: move;"
                   data-drag-target="angle-point-b-{angleLine.id}"
                 />
                 <text
@@ -2072,6 +2303,24 @@
               class="absolute pointer-events-none"
               style="z-index: 4; left: {imageBounds.left}px; top: {imageBounds.top}px; width: {imageBounds.width}px; height: {imageBounds.height}px;"
             >
+              {#if lineOutline}
+                <!-- Outline for vertical grid lines -->
+                {#each Array(Math.ceil(imageBounds.width / cellSize)) as _, i}
+                  {@const x = (i + 1) * cellSize}
+                  {#if x < imageBounds.width}
+                    <line
+                      x1={x}
+                      y1="0"
+                      x2={x}
+                      y2={imageBounds.height}
+                      stroke={getOutlineColor(plumbColor)}
+                      stroke-width={gridLineWidth + 2}
+                      opacity={lineOpacity * 0.3}
+                    />
+                  {/if}
+                {/each}
+              {/if}
+
               <!-- Vertical grid lines -->
               {#each Array(Math.ceil(imageBounds.width / cellSize)) as _, i}
                 {@const x = (i + 1) * cellSize}
@@ -2083,10 +2332,28 @@
                     y2={imageBounds.height}
                     stroke={plumbColor}
                     stroke-width={gridLineWidth}
-                    opacity="0.4"
+                    opacity={lineOpacity * 0.6}
                   />
                 {/if}
               {/each}
+
+              {#if lineOutline}
+                <!-- Outline for horizontal grid lines -->
+                {#each Array(Math.ceil(imageBounds.height / cellSize)) as _, i}
+                  {@const y = (i + 1) * cellSize}
+                  {#if y < imageBounds.height}
+                    <line
+                      x1="0"
+                      y1={y}
+                      x2={imageBounds.width}
+                      y2={y}
+                      stroke={getOutlineColor(plumbColor)}
+                      stroke-width={gridLineWidth + 2}
+                      opacity={lineOpacity * 0.3}
+                    />
+                  {/if}
+                {/each}
+              {/if}
 
               <!-- Horizontal grid lines -->
               {#each Array(Math.ceil(imageBounds.height / cellSize)) as _, i}
@@ -2099,13 +2366,37 @@
                     y2={y}
                     stroke={plumbColor}
                     stroke-width={gridLineWidth}
-                    opacity="0.4"
+                    opacity={lineOpacity * 0.6}
                   />
                 {/if}
               {/each}
 
               <!-- Diagonal lines -->
               {#if showDiagonals}
+                {#if lineOutline}
+                  <!-- Outline for top-left to bottom-right diagonal -->\n
+                  <line
+                    x1="0"
+                    y1="0"
+                    x2="100%"
+                    y2="100%"
+                    stroke={getOutlineColor(plumbColor)}
+                    stroke-width={gridLineWidth + 2}
+                    opacity={lineOpacity * 0.3}
+                    stroke-dasharray="5 5"
+                  />
+                  <!-- Outline for top-right to bottom-left diagonal -->
+                  <line
+                    x1="100%"
+                    y1="0"
+                    x2="0"
+                    y2="100%"
+                    stroke={getOutlineColor(plumbColor)}
+                    stroke-width={gridLineWidth + 2}
+                    opacity={lineOpacity * 0.3}
+                    stroke-dasharray="5 5"
+                  />
+                {/if}
                 <!-- Top-left to bottom-right -->
                 <line
                   x1="0"
@@ -2114,7 +2405,7 @@
                   y2="100%"
                   stroke={plumbColor}
                   stroke-width={gridLineWidth}
-                  opacity="0.5"
+                  opacity={lineOpacity * 0.7}
                   stroke-dasharray="5 5"
                 />
                 <!-- Top-right to bottom-left -->
@@ -2125,7 +2416,7 @@
                   y2="100%"
                   stroke={plumbColor}
                   stroke-width={gridLineWidth}
-                  opacity="0.5"
+                  opacity={lineOpacity * 0.7}
                   stroke-dasharray="5 5"
                 />
               {/if}
@@ -2230,27 +2521,6 @@
                 />
               </svg>
               {angleLines.length} Angle{angleLines.length === 1 ? "" : "s"}
-            </div>
-          {/if}
-          {#if plumbLocked}
-            <div
-              class="badge badge-sm gap-1 bg-warning/90 text-warning-content border-warning shadow-lg"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-3 w-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
-              </svg>
-              Locked
             </div>
           {/if}
 
@@ -2495,6 +2765,7 @@
           <span>Space Pause/Resume</span>
           <span>R Reset</span>
           <span>F Fullscreen</span>
+          <span>L Lock UI</span>
           <span>Esc Exit</span>
         </div>
       </div>
