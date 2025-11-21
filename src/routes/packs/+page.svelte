@@ -52,12 +52,14 @@
   let dragStartSelection = new Set<string>();
   let draggedImages = new Set<string>(); // Track images we've dragged over
   let showHelp = $state(false);
+  
+  // Pagination state
+  let itemsPerPage = $state<number | "all">(50);
+  let currentPage = $state(1);
 
   const MAX_HISTORY = 10;
   const HISTORY_STORAGE_KEY = "pack-history";
   const SESSION_STATE_KEY = "pack-session-state";
-
-  const IMAGES_PER_LOAD = 50; // Reduced for faster initial load
   const EAGER_LOAD_COUNT = 20; // First 20 images load immediately
 
   // Load history from localStorage on mount
@@ -138,11 +140,9 @@
           // Restore the folder contents with saved state
           await browseFolder(state.currentPath, true);
 
-          // Restore selections and displayed count after browsing
+          // Restore selections after browsing
           selectedImages = new Set(state.selectedImages || []);
-          if (state.displayedCount && state.displayedCount > IMAGES_PER_LOAD) {
-            displayedImages = images.slice(0, state.displayedCount);
-          }
+          // Pagination will be applied automatically by updateDisplayedImages()
         }
       }
     } catch (error) {
@@ -235,7 +235,10 @@
       // Update with real data
       folders = contents.folders;
       images = contents.images;
-      displayedImages = images.slice(0, IMAGES_PER_LOAD);
+      
+      // Apply pagination
+      currentPage = 1;
+      updateDisplayedImages();
 
       // Lazy load folder counts in background (don't wait)
       setTimeout(() => loadFolderCounts(), 0);
@@ -299,19 +302,47 @@
     showHistory = false;
   }
 
-  function loadMore() {
-    const currentLength = displayedImages.length;
-    const nextBatch = images.slice(
-      currentLength,
-      currentLength + IMAGES_PER_LOAD
-    );
-    displayedImages = [...displayedImages, ...nextBatch];
+  function updateDisplayedImages() {
+    if (itemsPerPage === "all") {
+      displayedImages = [...images];
+    } else {
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      displayedImages = images.slice(startIndex, endIndex);
+    }
+    
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 0;
+    }
+    
     saveSessionState();
   }
 
-  function loadAll() {
-    displayedImages = [...images];
-    saveSessionState();
+  function goToPage(page: number) {
+    const totalPages = Math.ceil(images.length / (itemsPerPage === "all" ? images.length : itemsPerPage));
+    currentPage = Math.max(1, Math.min(page, totalPages));
+    updateDisplayedImages();
+  }
+
+  function nextPage() {
+    const totalPages = Math.ceil(images.length / (itemsPerPage === "all" ? images.length : itemsPerPage));
+    if (currentPage < totalPages) {
+      currentPage++;
+      updateDisplayedImages();
+    }
+  }
+
+  function previousPage() {
+    if (currentPage > 1) {
+      currentPage--;
+      updateDisplayedImages();
+    }
+  }
+
+  function changeItemsPerPage(value: number | "all") {
+    itemsPerPage = value;
+    currentPage = 1;
+    updateDisplayedImages();
   }
 
   function toggleImageSelection(imagePath: string) {
@@ -775,12 +806,32 @@
       <!-- Image Grid -->
       <div class="flex-1 overflow-auto p-6" bind:this={scrollContainer}>
         {#if displayedImages.length > 0}
-          <div
-            class="mb-4 flex items-center justify-between text-sm text-base-content/70"
-          >
-            <span>
-              Showing {displayedImages.length} of {images.length} images
-            </span>
+          <!-- Pagination Controls -->
+          <div class="mb-4 flex items-center justify-between border-b border-base-300 pb-4">
+            <div class="flex items-center gap-3">
+              <span class="text-sm text-base-content/70">Items per page:</span>
+              <select
+                class="select select-sm select-bordered"
+                value={itemsPerPage}
+                onchange={(e) => changeItemsPerPage(
+                  e.currentTarget.value === "all" ? "all" : parseInt(e.currentTarget.value)
+                )}
+              >
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="all">All</option>
+              </select>
+            </div>
+            <div class="text-sm text-base-content/70">
+              {#if itemsPerPage === "all"}
+                Showing all {images.length} images
+              {:else}
+                {@const totalPages = Math.ceil(images.length / itemsPerPage)}
+                Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, images.length)} of {images.length} images
+              {/if}
+            </div>
           </div>
 
           <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -857,22 +908,33 @@
             {/each}
           </div>
 
-          {#if displayedImages.length < images.length}
-            <div class="mt-8 text-center space-y-3">
-              <p class="text-base-content/70">
-                Showing {displayedImages.length} of {images.length} images
-              </p>
-              <div class="flex gap-3 justify-center">
-                <button class="btn btn-primary btn-sm" onclick={loadMore}>
-                  Load {Math.min(
-                    IMAGES_PER_LOAD,
-                    images.length - displayedImages.length
-                  )} More
-                </button>
-                <button class="btn btn-outline btn-sm" onclick={loadAll}>
-                  Load All ({images.length - displayedImages.length} remaining)
-                </button>
-              </div>
+          <!-- Pagination Navigation -->
+          {#if itemsPerPage !== "all" && images.length > 0}
+            {@const totalPages = Math.ceil(images.length / itemsPerPage)}
+            <div class="mt-8 flex items-center justify-center gap-2">
+              <button
+                class="btn btn-sm"
+                disabled={currentPage === 1}
+                onclick={previousPage}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                Previous
+              </button>
+              <span class="text-sm text-base-content/70 mx-4">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                class="btn btn-sm"
+                disabled={currentPage === totalPages}
+                onclick={nextPage}
+              >
+                Next
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
             </div>
           {/if}
         {:else}
@@ -1062,38 +1124,12 @@
         </button>
       </div>
 
-      <!-- Load More Buttons -->
-      {#if displayedImages.length < images.length}
+      <!-- Pagination info -->
+      {#if images.length > 0}
         <div class="flex gap-2">
           <button
             class="btn btn-sm btn-ghost text-white gap-2"
-            onclick={(e) => {
-              e.stopPropagation();
-              loadMore();
-            }}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Load 50 More
-          </button>
-          <button
-            class="btn btn-sm btn-ghost text-white gap-2"
-            onclick={(e) => {
-              e.stopPropagation();
-              loadAll();
-            }}
+            disabled
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

@@ -34,6 +34,10 @@
   let allImageTags = $state<Map<string, Tag[]>>(new Map());
   let activeFilters = $state<string[]>([]);
   let selectedSuggestionIndex = $state(0);
+  
+  // Pagination state
+  let itemsPerPage = $state<number | "all">(50);
+  let currentPage = $state(1);
 
   // Filtered images based on search query and active filters
   let filteredImages = $derived.by(() => {
@@ -80,6 +84,31 @@
 
       return true;
     });
+  });
+
+  // Pagination calculations
+  let totalPages = $derived(
+    itemsPerPage === "all" ? 1 : Math.ceil(filteredImages.length / itemsPerPage)
+  );
+
+  let displayedLibraryImages = $derived.by(() => {
+    if (itemsPerPage === "all") {
+      return filteredImages;
+    }
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredImages.slice(startIndex, endIndex);
+  });
+
+  // Reset to page 1 when filters change
+  $effect(() => {
+    // Track dependencies
+    void filteredImages.length;
+    void activeFilters.length;
+    void searchQuery;
+    
+    // Reset page
+    currentPage = 1;
   });
 
   // Predefined tag categories with subcategories
@@ -501,6 +530,27 @@
     const imageIds = imagesToPractice.map((img) => img.id).join(",");
     window.location.href = `/timer?images=${encodeURIComponent(imageIds)}`;
   }
+
+  function goToPage(page: number) {
+    currentPage = Math.max(1, Math.min(page, totalPages));
+  }
+
+  function nextPage() {
+    if (currentPage < totalPages) {
+      currentPage++;
+    }
+  }
+
+  function previousPage() {
+    if (currentPage > 1) {
+      currentPage--;
+    }
+  }
+
+  function changeItemsPerPage(value: number | "all") {
+    itemsPerPage = value;
+    currentPage = 1;
+  }
 </script>
 
 <div class="h-full flex flex-col bg-base-100">
@@ -760,10 +810,37 @@
         </button>
       </div>
     {:else}
+      <!-- Pagination Controls -->
+      <div class="mb-4 flex items-center justify-between border-b border-base-300 pb-4">
+        <div class="flex items-center gap-3">
+          <span class="text-sm text-base-content/70">Items per page:</span>
+          <select
+            class="select select-sm select-bordered"
+            value={itemsPerPage}
+            onchange={(e) => changeItemsPerPage(
+              e.currentTarget.value === "all" ? "all" : parseInt(e.currentTarget.value)
+            )}
+          >
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+        <div class="text-sm text-base-content/70">
+          {#if itemsPerPage === "all"}
+            Showing all {filteredImages.length} images
+          {:else}
+            Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredImages.length)} of {filteredImages.length} images
+          {/if}
+        </div>
+      </div>
+
       <!-- Image Grid/List -->
       {#if viewMode === "grid"}
         <div class="grid grid-cols-8 gap-2">
-          {#each filteredImages as image (image.id)}
+          {#each displayedLibraryImages as image (image.id)}
             {@const isSelected = selectedImages.has(image.id)}
             <button
               class="relative aspect-square bg-base-300 rounded overflow-hidden cursor-pointer border-2 transition-colors"
@@ -804,7 +881,7 @@
       {:else}
         <!-- List View -->
         <div class="space-y-2">
-          {#each filteredImages as image (image.id)}
+          {#each displayedLibraryImages as image (image.id)}
             {@const isSelected = selectedImages.has(image.id)}
             {@const tags = allImageTags.get(image.id) || []}
             <button
