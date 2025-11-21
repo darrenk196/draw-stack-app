@@ -165,6 +165,13 @@
       });
 
     window.addEventListener("keydown", handleKeydown);
+    
+    // Watch for itemsPerPage changes
+    $effect(() => {
+      void itemsPerPage;
+      currentPage = 1;
+    });
+    
     return () => {
       window.removeEventListener("keydown", handleKeydown);
     };
@@ -819,17 +826,11 @@
           <select
             class="select select-sm select-bordered"
             bind:value={itemsPerPage}
-            onchange={(e) =>
-              changeItemsPerPage(
-                e.currentTarget.value === "all"
-                  ? "all"
-                  : parseInt(e.currentTarget.value)
-              )}
           >
-            <option value="10">10</option>
-            <option value="20">20</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
             <option value="all">All</option>
           </select>
         </div>
@@ -950,14 +951,27 @@
 
       <!-- Pagination Navigation -->
       {#if itemsPerPage !== "all" && filteredImages.length > 0}
-        <div class="mt-6 pt-4 border-t border-base-300 flex items-center justify-center gap-2">
+        <div
+          class="mt-6 pt-4 border-t border-base-300 flex items-center justify-center gap-2"
+        >
           <button
             class="btn btn-sm"
             disabled={currentPage === 1}
             onclick={previousPage}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
             Previous
           </button>
@@ -970,8 +984,19 @@
             onclick={nextPage}
           >
             Next
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5l7 7-7 7"
+              />
             </svg>
           </button>
         </div>

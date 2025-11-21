@@ -154,6 +154,15 @@
   loadHistory();
   restoreSessionState();
 
+  // Watch for itemsPerPage changes
+  $effect(() => {
+    void itemsPerPage;
+    if (images.length > 0) {
+      currentPage = 1;
+      updateDisplayedImages();
+    }
+  });
+
   // Build hierarchical folder tree from current path
   function getFolderTree(): Array<{
     name: string;
@@ -819,17 +828,11 @@
               <select
                 class="select select-sm select-bordered"
                 bind:value={itemsPerPage}
-                onchange={(e) =>
-                  changeItemsPerPage(
-                    e.currentTarget.value === "all"
-                      ? "all"
-                      : parseInt(e.currentTarget.value)
-                  )}
               >
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
                 <option value="all">All</option>
               </select>
             </div>
