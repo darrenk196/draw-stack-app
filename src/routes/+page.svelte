@@ -36,7 +36,12 @@
   let selectedSuggestionIndex = $state(0);
 
   // Pagination state
-  let itemsPerPage = $state<number | "all">(50);
+  const PAGINATION_STORAGE_KEY = "library-items-per-page";
+  let itemsPerPage = $state<number | "all">(
+    (typeof localStorage !== "undefined" &&
+      (localStorage.getItem(PAGINATION_STORAGE_KEY) as number | "all")) ||
+      50
+  );
   let currentPage = $state(1);
 
   // Filtered images based on search query and active filters
@@ -170,6 +175,10 @@
     $effect(() => {
       void itemsPerPage;
       currentPage = 1;
+      // Save to localStorage
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(PAGINATION_STORAGE_KEY, String(itemsPerPage));
+      }
     });
 
     return () => {

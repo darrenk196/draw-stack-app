@@ -54,7 +54,12 @@
   let showHelp = $state(false);
 
   // Pagination state
-  let itemsPerPage = $state<number | "all">(50);
+  const PAGINATION_STORAGE_KEY = "packs-items-per-page";
+  let itemsPerPage = $state<number | "all">(
+    (typeof localStorage !== "undefined" &&
+      (localStorage.getItem(PAGINATION_STORAGE_KEY) as number | "all")) ||
+      50
+  );
   let currentPage = $state(1);
 
   const MAX_HISTORY = 10;
@@ -160,6 +165,10 @@
     if (images.length > 0) {
       currentPage = 1;
       updateDisplayedImages();
+    }
+    // Save to localStorage
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(PAGINATION_STORAGE_KEY, String(itemsPerPage));
     }
   });
 
