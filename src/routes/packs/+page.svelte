@@ -319,8 +319,15 @@
   // Browse from history
   async function browseFromHistory(historyEntry: HistoryEntry) {
     rootPath = historyEntry.path;
-    await browseFolder(historyEntry.path);
-    addToHistory(historyEntry.path); // Update last visited time
+    currentPath = historyEntry.path; // Set immediately to show loading state
+    
+    try {
+      await browseFolder(historyEntry.path);
+      addToHistory(historyEntry.path); // Update last visited time
+    } catch (error) {
+      console.error("Failed to browse from history:", error);
+    }
+    
     showHistory = false;
   }
 
