@@ -257,6 +257,12 @@
       // Update with real data
       folders = contents.folders;
       images = contents.images;
+      
+      // Debug: Check if paths need decoding
+      if (images.length > 0) {
+        console.log("Sample image path:", images[0].path);
+        console.log("Converted path:", convertFileSrc(images[0].path));
+      }
 
       // Apply pagination
       currentPage = 1;
@@ -320,14 +326,14 @@
   async function browseFromHistory(historyEntry: HistoryEntry) {
     rootPath = historyEntry.path;
     currentPath = historyEntry.path; // Set immediately to show loading state
-    
+
     try {
       await browseFolder(historyEntry.path);
       addToHistory(historyEntry.path); // Update last visited time
     } catch (error) {
       console.error("Failed to browse from history:", error);
     }
-    
+
     showHistory = false;
   }
 
