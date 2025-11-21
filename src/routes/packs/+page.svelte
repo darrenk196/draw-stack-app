@@ -257,7 +257,7 @@
       // Update with real data
       folders = contents.folders;
       images = contents.images;
-      
+
       // Debug: Check if paths need decoding
       if (images.length > 0) {
         console.log("Sample image path:", images[0].path);
