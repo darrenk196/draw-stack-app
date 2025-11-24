@@ -22,6 +22,8 @@
   let viewMode: "grid" | "list" = $state("grid");
   let isSelectMode = $state(false);
   let selectedImages = $state<Set<string>>(new Set());
+  let lastSelectedIndex = $state<number>(-1);
+  let showHelpModal = $state(false);
   let libraryImages = $state<Image[]>([]);
   let isLoading = $state(true);
   let viewingImage = $state<Image | null>(null);
@@ -148,6 +150,8 @@
         "Lying",
         "Kneeling",
         "Action",
+        "Crouching",
+        "Jumping",
       ],
     },
     {
@@ -168,6 +172,84 @@
     {
       name: "Character Type",
       tags: ["Human", "Animal", "Fantasy", "Robot", "Monster"],
+    },
+    {
+      name: "Clothing",
+      tags: [
+        "Casual",
+        "Formal",
+        "Athletic",
+        "Swimwear",
+        "Armor",
+        "Robes",
+        "Uniform",
+        "Traditional",
+      ],
+    },
+    {
+      name: "Body Parts",
+      tags: [
+        "Hands",
+        "Feet",
+        "Face",
+        "Torso",
+        "Arms",
+        "Legs",
+        "Head",
+        "Full Body",
+      ],
+    },
+    {
+      name: "Lighting",
+      tags: [
+        "Bright",
+        "Dark",
+        "Backlit",
+        "Natural",
+        "Dramatic",
+        "Soft",
+        "Studio",
+      ],
+    },
+    {
+      name: "Environment",
+      tags: [
+        "Indoor",
+        "Outdoor",
+        "Nature",
+        "Urban",
+        "Studio",
+        "Fantasy Setting",
+        "Abstract BG",
+      ],
+    },
+  ];
+
+  // Quick tag presets for bulk operations
+  const quickTagPresets = [
+    {
+      name: "Female Standing Front",
+      tags: ["Female", "Standing", "Front View"],
+    },
+    {
+      name: "Male Standing Front",
+      tags: ["Male", "Standing", "Front View"],
+    },
+    {
+      name: "Female Sitting Side",
+      tags: ["Female", "Sitting", "Side View"],
+    },
+    {
+      name: "Male Action 3/4",
+      tags: ["Male", "Action", "3/4 View"],
+    },
+    {
+      name: "Hands Close-up",
+      tags: ["Hands", "Bright", "Studio"],
+    },
+    {
+      name: "Face Portrait",
+      tags: ["Face", "Front View", "Studio"],
     },
   ];
 
@@ -344,6 +426,93 @@
   function clearAllFilters() {
     activeFilters = [];
     searchQuery = "";
+    debouncedSearchQuery = "";
+    currentPage = 1;
+  }
+
+  function toggleSelectionMode() {
+    isSelectMode = !isSelectMode;
+    if (!isSelectMode) {
+      clearSelection();
+    }
+  }
+
+  function selectAllImages() {
+    selectedImages = new Set(filteredImages.map((img) => img.id));
+    lastSelectedIndex = filteredImages.length - 1;
+  }
+
+  function clearSelection() {
+    selectedImages = new Set();
+    lastSelectedIndex = -1;
+  }
+
+  function toggleImageSelectionEnhanced(imageId: string, event: MouseEvent) {
+    const imageIndex = filteredImages.findIndex((img) => img.id === imageId);
+
+    // Ctrl+Click: Toggle single image
+    if (event.ctrlKey) {
+      event.preventDefault();
+      const newSelection = new Set(selectedImages);
+      if (newSelection.has(imageId)) {
+        newSelection.delete(imageId);
+      } else {
+        newSelection.add(imageId);
+      }
+      selectedImages = newSelection;
+      lastSelectedIndex = imageIndex;
+      return;
+    }
+
+    // Shift+Click: Range select
+    if (event.shiftKey && lastSelectedIndex >= 0) {
+      event.preventDefault();
+      const newSelection = new Set(selectedImages);
+      const start = Math.min(lastSelectedIndex, imageIndex);
+      const end = Math.max(lastSelectedIndex, imageIndex);
+      for (let i = start; i <= end; i++) {
+        newSelection.add(filteredImages[i].id);
+      }
+      selectedImages = newSelection;
+      return;
+    }
+
+    // Regular behavior: toggle (for backwards compatibility with right-click)
+    const newSelection = new Set(selectedImages);
+    if (newSelection.has(imageId)) {
+      newSelection.delete(imageId);
+    } else {
+      newSelection.add(imageId);
+    }
+    selectedImages = newSelection;
+    lastSelectedIndex = imageIndex;
+  }
+
+  async function applyQuickPreset(preset: { name: string; tags: string[] }) {
+    // Find or create all tags in the preset
+    const presetTags: Tag[] = [];
+
+    for (const tagName of preset.tags) {
+      let tag = allTags.find((t) => t.name === tagName);
+      if (!tag) {
+        // Create the tag if it doesn't exist
+        const tagId = generateId();
+        tag = {
+          id: tagId,
+          name: tagName,
+          parentId: null,
+          createdAt: Date.now(),
+        };
+        await addTag(tag);
+        allTags = [...allTags, tag];
+      }
+      presetTags.push(tag);
+    }
+
+    // Add these tags to the selection (avoid duplicates)
+    const existingIds = new Set(imageTags.map((t) => t.id));
+    const newTags = presetTags.filter((t) => !existingIds.has(t.id));
+    imageTags = [...imageTags, ...newTags];
   }
 
   function selectSearchSuggestion(tag: Tag) {
@@ -416,6 +585,50 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
+    // Help modal toggle
+    if (e.key === "?" && !viewingImage && !isBulkTagging) {
+      e.preventDefault();
+      showHelpModal = !showHelpModal;
+      return;
+    }
+
+    // Close help modal
+    if (e.key === "Escape" && showHelpModal) {
+      showHelpModal = false;
+      return;
+    }
+
+    // Select all images (Ctrl+A)
+    if (e.key === "a" && e.ctrlKey && !viewingImage && !isBulkTagging) {
+      e.preventDefault();
+      selectAllImages();
+      return;
+    }
+
+    // Open bulk tag editor (T key)
+    if (
+      e.key === "t" &&
+      !viewingImage &&
+      !isBulkTagging &&
+      selectedImages.size > 0
+    ) {
+      e.preventDefault();
+      openBulkTagEditor();
+      return;
+    }
+
+    // Clear selection (Escape when not viewing)
+    if (
+      e.key === "Escape" &&
+      !viewingImage &&
+      !isBulkTagging &&
+      selectedImages.size > 0
+    ) {
+      clearSelection();
+      return;
+    }
+
+    // Image viewer navigation
     if (!viewingImage) return;
 
     if (e.key === "Escape") {
@@ -608,6 +821,75 @@
       <h1 class="text-2xl font-semibold text-base-content">Library</h1>
 
       <div class="flex items-center gap-3">
+        <!-- Selection Mode Toggle -->
+        <div class="form-control">
+          <label class="label cursor-pointer gap-2">
+            <input
+              type="checkbox"
+              class="toggle toggle-sm toggle-primary"
+              checked={isSelectMode}
+              onchange={toggleSelectionMode}
+            />
+            <span class="label-text text-xs">Select Mode</span>
+          </label>
+        </div>
+
+        <!-- Selection Counter & Clear -->
+        {#if selectedImages.size > 0}
+          <div class="flex items-center gap-2">
+            <span class="badge badge-primary badge-lg">
+              {selectedImages.size} selected
+            </span>
+            <button
+              class="btn btn-sm btn-ghost btn-circle"
+              onclick={clearSelection}
+              title="Clear selection (Esc)"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        {/if}
+
+        <!-- Tag Selected Button (prominent when images are selected) -->
+        {#if selectedImages.size > 0}
+          <button
+            class="btn btn-sm btn-accent gap-2 animate-pulse"
+            onclick={openBulkTagEditor}
+            title="Tag selected images (T)"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+              />
+            </svg>
+            Tag Selected
+          </button>
+        {/if}
+
+        <div class="divider divider-horizontal mx-0"></div>
+
         <!-- View Mode Toggle -->
         <button
           class="btn btn-sm"
@@ -647,6 +929,28 @@
               />
             </svg>
           {/if}
+        </button>
+
+        <!-- Help Button -->
+        <button
+          class="btn btn-sm btn-ghost btn-circle"
+          onclick={() => (showHelpModal = true)}
+          title="Keyboard shortcuts (?)"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
         </button>
 
         <button class="btn btn-sm btn-primary gap-2" onclick={startPractice}>
@@ -1242,6 +1546,42 @@
         {/if}
       </div>
 
+      {#if isBulkTagging}
+        <div class="divider my-2"></div>
+
+        <!-- Quick Tag Presets -->
+        <div>
+          <h4 class="text-sm font-semibold mb-2 text-base-content/70">
+            Quick Presets
+          </h4>
+          <div class="grid grid-cols-1 gap-1">
+            {#each quickTagPresets as preset}
+              <button
+                class="btn btn-xs btn-ghost justify-start text-left"
+                onclick={() => applyQuickPreset(preset)}
+                title={preset.tags.join(" + ")}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-3 w-3"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
+                </svg>
+                <span class="text-xs truncate">{preset.name}</span>
+              </button>
+            {/each}
+          </div>
+        </div>
+      {/if}
+
       <div class="divider"></div>
 
       <!-- Tag Categories Section -->
@@ -1384,6 +1724,149 @@
           </button>
         </div>
       {/if}
+    </div>
+  </div>
+{/if}
+
+<!-- Help Modal -->
+{#if showHelpModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-8"
+    onclick={() => (showHelpModal = false)}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="bg-base-100 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold">Keyboard Shortcuts</h2>
+        <button
+          class="btn btn-circle btn-ghost btn-sm"
+          onclick={() => (showHelpModal = false)}
+          aria-label="Close help"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-6">
+        <!-- Selection Section -->
+        <div>
+          <h3 class="text-lg font-semibold mb-3 text-primary">Selection</h3>
+          <div class="space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Toggle selection mode</span>
+              <kbd class="kbd kbd-sm">Toggle in toolbar</kbd>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Select all images</span>
+              <kbd class="kbd kbd-sm">Ctrl+A</kbd>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Clear selection</span>
+              <kbd class="kbd kbd-sm">Esc</kbd>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Toggle single image</span>
+              <div class="flex gap-1">
+                <kbd class="kbd kbd-sm">Ctrl</kbd>
+                <span class="text-xs">+</span>
+                <kbd class="kbd kbd-sm">Click</kbd>
+              </div>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Range select images</span>
+              <div class="flex gap-1">
+                <kbd class="kbd kbd-sm">Shift</kbd>
+                <span class="text-xs">+</span>
+                <kbd class="kbd kbd-sm">Click</kbd>
+              </div>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Toggle image (alternative)</span>
+              <kbd class="kbd kbd-sm">Right-Click</kbd>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tagging Section -->
+        <div>
+          <h3 class="text-lg font-semibold mb-3 text-primary">Tagging</h3>
+          <div class="space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Open bulk tag editor</span>
+              <kbd class="kbd kbd-sm">T</kbd>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Apply tags (in bulk editor)</span>
+              <kbd class="kbd kbd-sm">Click "Apply Tags"</kbd>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Cancel bulk tagging</span>
+              <kbd class="kbd kbd-sm">Esc</kbd>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navigation Section -->
+        <div>
+          <h3 class="text-lg font-semibold mb-3 text-primary">Image Viewer</h3>
+          <div class="space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Previous image</span>
+              <kbd class="kbd kbd-sm">←</kbd>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Next image</span>
+              <kbd class="kbd kbd-sm">→</kbd>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Close viewer</span>
+              <kbd class="kbd kbd-sm">Esc</kbd>
+            </div>
+          </div>
+        </div>
+
+        <!-- General Section -->
+        <div>
+          <h3 class="text-lg font-semibold mb-3 text-primary">General</h3>
+          <div class="space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Show this help</span>
+              <kbd class="kbd kbd-sm">?</kbd>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Close modals</span>
+              <kbd class="kbd kbd-sm">Esc</kbd>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 p-4 bg-base-200 rounded-lg">
+        <p class="text-sm text-base-content/70">
+          <strong>Tip:</strong> Enable "Select Mode" in the toolbar for easier multi-selection
+          without holding Ctrl. Use quick presets in the bulk tag editor to apply
+          common tag combinations instantly!
+        </p>
+      </div>
     </div>
   </div>
 {/if}
