@@ -9,6 +9,8 @@
     getAllTags,
     getLibraryImages,
     generateId,
+    updateTagUsage,
+    buildTagPath,
     type Image,
     type Tag,
   } from "$lib/db";
@@ -53,6 +55,105 @@
   let dragStartSelection = new Set<string>();
   let draggedImages = new Set<string>(); // Track images we've dragged over
   let showHelp = $state(false);
+
+  // Add to Library popup state
+  let showAddPopup = $state(false);
+  let imagesToAdd = $state<Image[]>([]);
+  let popupSelectedImages = $state<Set<string>>(new Set()); // Images selected in popup for tag assignment
+  let customPackName = $state("");
+  let allTags = $state<Tag[]>([]);
+  let selectedTags = $state<Set<string>>(new Set());
+  let expandedCategories = $state<Set<string>>(new Set(["Gender", "Pose"]));
+  let imageSpecificTags = $state<Map<string, Set<string>>>(new Map());
+  let customTagInput = $state("");
+
+  // Tag categories (matches library page)
+  const tagCategories = [
+    { name: "Gender", tags: ["Male", "Female"] },
+    {
+      name: "Pose",
+      tags: [
+        "Standing",
+        "Sitting",
+        "Walking",
+        "Running",
+        "Lying",
+        "Kneeling",
+        "Action",
+        "Crouching",
+        "Jumping",
+      ],
+    },
+    {
+      name: "View Angle",
+      tags: [
+        "Front View",
+        "Side View",
+        "Back View",
+        "3/4 View",
+        "Top View",
+        "Bottom View",
+      ],
+    },
+    {
+      name: "Art Style",
+      tags: ["Realistic", "Anime", "Cartoon", "Abstract", "Sketch"],
+    },
+    {
+      name: "Character Type",
+      tags: ["Human", "Animal", "Fantasy", "Robot", "Monster"],
+    },
+    {
+      name: "Clothing",
+      tags: [
+        "Casual",
+        "Formal",
+        "Athletic",
+        "Swimwear",
+        "Armor",
+        "Robes",
+        "Uniform",
+        "Traditional",
+      ],
+    },
+    {
+      name: "Body Parts",
+      tags: [
+        "Hands",
+        "Feet",
+        "Face",
+        "Torso",
+        "Arms",
+        "Legs",
+        "Head",
+        "Full Body",
+      ],
+    },
+    {
+      name: "Lighting",
+      tags: [
+        "Bright",
+        "Dark",
+        "Backlit",
+        "Natural",
+        "Dramatic",
+        "Soft",
+        "Studio",
+      ],
+    },
+    {
+      name: "Environment",
+      tags: [
+        "Indoor",
+        "Outdoor",
+        "Nature",
+        "Urban",
+        "Studio",
+        "Fantasy Setting",
+        "Abstract BG",
+      ],
+    },
+  ];
 
   // Pagination state
   const PAGINATION_STORAGE_KEY = "packs-items-per-page";
@@ -499,14 +600,15 @@
     saveSessionState();
   }
 
-  async function addToLibrary() {
+  // Quick add with automatic pack name tagging
+  async function quickAddToLibrary() {
     if (selectedImages.size === 0) return;
 
     const selectedPaths = Array.from(selectedImages);
-    const imagesToAdd: Image[] = [];
+    const copiedImages: Image[] = [];
 
     try {
-      console.log(`Adding ${selectedPaths.length} images to library...`);
+      console.log(`Quick adding ${selectedPaths.length} images to library...`);
 
       // Generate UUIDs and copy images to library
       for (const imagePath of selectedPaths) {
@@ -532,69 +634,286 @@
           addedToLibraryAt: Date.now(),
         };
 
-        console.log("Adding image to library:", imageData);
-        imagesToAdd.push(imageData);
+        copiedImages.push(imageData);
       }
 
       // Add to IndexedDB
-      console.log("Saving to IndexedDB:", imagesToAdd.length, "images");
-      await addImages(imagesToAdd);
-      console.log("Successfully saved to IndexedDB");
-      
-      // Verify images were saved
-      const allImages = await getLibraryImages();
-      console.log("Verification: Library now has", allImages.length, "total images");
+      await addImages(copiedImages);
 
       // Auto-tag images with pack name
       if (rootPath) {
         const packName = rootPath.split(/[/\\]/).pop() || "Unknown Pack";
-        console.log(`Auto-tagging images with pack: ${packName}`);
+        const existingTags = await getAllTags();
+        let packTag = existingTags.find(
+          (t) => t.name === packName && t.parentId === "Pack"
+        );
 
-        try {
-          // Get all existing tags
-          const existingTags = await getAllTags();
-          let packTag = existingTags.find(
-            (t) => t.name === packName && t.parentId === "Pack"
-          );
+        // Create pack tag if it doesn't exist
+        if (!packTag) {
+          const tagId = generateId();
+          packTag = {
+            id: tagId,
+            name: packName,
+            parentId: "Pack",
+            createdAt: Date.now(),
+          };
+          await addTag(packTag);
+        }
 
-          // Create pack tag if it doesn't exist
-          if (!packTag) {
-            const tagId = generateId();
-            packTag = {
-              id: tagId,
-              name: packName,
-              parentId: "Pack",
-              createdAt: Date.now(),
-            };
-            await addTag(packTag);
-            console.log(`Created new pack tag: ${packName}`);
-          }
-
-          // Add pack tag to all newly added images
-          for (const image of imagesToAdd) {
-            await addImageTag(image.id, packTag.id);
-          }
-          console.log(
-            `Tagged ${imagesToAdd.length} images with pack: ${packName}`
-          );
-        } catch (tagError) {
-          console.error("Failed to auto-tag images:", tagError);
-          // Don't fail the whole operation if tagging fails
+        // Add pack tag to all newly added images
+        for (const image of copiedImages) {
+          await addImageTag(image.id, packTag.id);
         }
       }
 
-      // Clear selection and show success
+      // Clear selection
       selectedImages = new Set();
       saveSessionState();
 
       // Dispatch event to notify Library page to refresh
       window.dispatchEvent(new CustomEvent("library-updated"));
 
-      alert(`Successfully added ${imagesToAdd.length} images to library!`);
+      alert(`Successfully added ${copiedImages.length} images to library!`);
     } catch (error) {
       console.error("Failed to add images to library:", error);
       alert(`Failed to add images to library: ${error}`);
     }
+  }
+
+  // Add to library with popup for customization
+  async function addToLibrary() {
+    if (selectedImages.size === 0) return;
+
+    const selectedPaths = Array.from(selectedImages);
+    const copiedImages: Image[] = [];
+
+    try {
+      console.log(`Preparing ${selectedPaths.length} images for library...`);
+
+      // Generate UUIDs and copy images to library
+      for (const imagePath of selectedPaths) {
+        const imageInfo = images.find((img) => img.path === imagePath);
+        if (!imageInfo) continue;
+
+        const imageId = await invoke<string>("generate_uuid");
+
+        // Copy image to library directory
+        const libraryPath = await invoke<string>("copy_to_library", {
+          sourcePath: imagePath,
+          imageId: imageId,
+        });
+
+        const imageData: Image = {
+          id: imageId,
+          packId: null,
+          filename: imageInfo.filename,
+          originalPath: imagePath,
+          thumbnailPath: libraryPath,
+          fullPath: libraryPath,
+          isInLibrary: true,
+          addedToLibraryAt: Date.now(),
+        };
+
+        copiedImages.push(imageData);
+      }
+
+      // Add to IndexedDB
+      await addImages(copiedImages);
+
+      // Load all tags for selection
+      allTags = await getAllTags();
+
+      // Set default pack name
+      customPackName = rootPath
+        ? rootPath.split(/[/\\]/).pop() || "Unknown Pack"
+        : "Unknown Pack";
+
+      // Store images and show popup
+      imagesToAdd = copiedImages;
+
+      // Pre-select pack tag
+      const existingPackTag = allTags.find(
+        (t) => t.name === customPackName && t.parentId === "Pack"
+      );
+      if (existingPackTag) {
+        selectedTags = new Set([existingPackTag.id]);
+      }
+
+      // Initialize all images to receive all selected tags
+      const allTagSet = new Set<string>();
+      if (existingPackTag) allTagSet.add(existingPackTag.id);
+      imagesToAdd.forEach((img) => {
+        imageSpecificTags.set(img.id, new Set(allTagSet));
+      });
+
+      showAddPopup = true;
+    } catch (error) {
+      console.error("Failed to prepare images:", error);
+      alert(`Failed to prepare images: ${error}`);
+    }
+  }
+
+  async function confirmAddToLibrary() {
+    try {
+      // Create or find pack tag with custom name
+      const trimmedPackName = customPackName.trim();
+      let packTag = allTags.find(
+        (t) => t.name === trimmedPackName && t.parentId === "Pack"
+      );
+
+      if (!packTag && trimmedPackName) {
+        const tagId = generateId();
+        packTag = {
+          id: tagId,
+          name: trimmedPackName,
+          parentId: "Pack",
+          createdAt: Date.now(),
+        };
+        await addTag(packTag);
+        allTags = [...allTags, packTag];
+      }
+
+      // Apply tags based on image-specific assignments
+      for (const image of imagesToAdd) {
+        const imageTags = imageSpecificTags.get(image.id) || new Set();
+        for (const tagId of imageTags) {
+          await addImageTag(image.id, tagId);
+          await updateTagUsage(tagId);
+        }
+      }
+
+      // Close popup and clear state
+      showAddPopup = false;
+      selectedImages = new Set();
+      imagesToAdd = [];
+      selectedTags = new Set();
+      imageSpecificTags = new Map();
+      popupSelectedImages = new Set();
+      saveSessionState();
+
+      // Dispatch event to notify Library page to refresh
+      window.dispatchEvent(new CustomEvent("library-updated"));
+
+      alert(
+        `Successfully added ${imagesToAdd.length} images to library with tags!`
+      );
+    } catch (error) {
+      console.error("Failed to apply tags:", error);
+      alert(`Failed to apply tags: ${error}`);
+    }
+  }
+
+  function closeAddPopup() {
+    showAddPopup = false;
+    // Images already copied, just clear popup state
+    imagesToAdd = [];
+    selectedTags = new Set();
+    imageSpecificTags = new Map();
+    popupSelectedImages = new Set();
+  }
+
+  function toggleCategory(categoryName: string) {
+    const newExpanded = new Set(expandedCategories);
+    if (newExpanded.has(categoryName)) {
+      newExpanded.delete(categoryName);
+    } else {
+      newExpanded.add(categoryName);
+    }
+    expandedCategories = newExpanded;
+  }
+
+  function toggleTagSelection(tagId: string) {
+    const newSelected = new Set(selectedTags);
+    if (newSelected.has(tagId)) {
+      newSelected.delete(tagId);
+      // Remove from all images
+      imagesToAdd.forEach((img) => {
+        const imgTags = imageSpecificTags.get(img.id) || new Set();
+        imgTags.delete(tagId);
+        imageSpecificTags.set(img.id, imgTags);
+      });
+    } else {
+      newSelected.add(tagId);
+      // Add to all images
+      imagesToAdd.forEach((img) => {
+        const imgTags = imageSpecificTags.get(img.id) || new Set();
+        imgTags.add(tagId);
+        imageSpecificTags.set(img.id, imgTags);
+      });
+    }
+    selectedTags = newSelected;
+  }
+
+  function togglePopupImageSelection(imageId: string) {
+    const newSelection = new Set(popupSelectedImages);
+    if (newSelection.has(imageId)) {
+      newSelection.delete(imageId);
+    } else {
+      newSelection.add(imageId);
+    }
+    popupSelectedImages = newSelection;
+  }
+
+  function selectAllPopupImages() {
+    popupSelectedImages = new Set(imagesToAdd.map(img => img.id));
+  }
+
+  function clearPopupImageSelection() {
+    popupSelectedImages = new Set();
+  }
+
+  function applyTagsToSelectedImages() {
+    if (popupSelectedImages.size === 0) return;
+    
+    // Apply all selected tags to selected images
+    for (const imageId of popupSelectedImages) {
+      const imgTags = imageSpecificTags.get(imageId) || new Set();
+      for (const tagId of selectedTags) {
+        imgTags.add(tagId);
+      }
+      imageSpecificTags.set(imageId, new Set(imgTags));
+    }
+    
+    // Force reactivity
+    imageSpecificTags = new Map(imageSpecificTags);
+    
+    // Clear selection
+    popupSelectedImages = new Set();
+  }
+
+  function toggleImageTagAssignment(imageId: string, tagId: string) {
+    const imgTags = imageSpecificTags.get(imageId) || new Set();
+    if (imgTags.has(tagId)) {
+      imgTags.delete(tagId);
+    } else {
+      imgTags.add(tagId);
+    }
+    imageSpecificTags.set(imageId, new Set(imgTags));
+    // Force reactivity
+    imageSpecificTags = new Map(imageSpecificTags);
+  }
+
+  async function addCustomTagToPopup() {
+    if (!customTagInput.trim()) return;
+
+    const tagName = customTagInput.trim();
+    let tag = allTags.find((t) => t.name === tagName);
+
+    if (!tag) {
+      const tagId = generateId();
+      tag = {
+        id: tagId,
+        name: tagName,
+        parentId: null,
+        createdAt: Date.now(),
+      };
+      await addTag(tag);
+      allTags = [...allTags, tag];
+    }
+
+    // Add to selection
+    toggleTagSelection(tag.id);
+    customTagInput = "";
   }
 </script>
 
@@ -860,13 +1179,52 @@
               <button class="btn btn-sm btn-ghost" onclick={selectAll}>
                 Select All
               </button>
-              <button
-                class="btn btn-sm btn-primary"
-                disabled={selectedImages.size === 0}
-                onclick={addToLibrary}
-              >
-                Add to Library ({selectedImages.size})
-              </button>
+              <div class="flex gap-2">
+                <button
+                  class="btn btn-sm btn-ghost"
+                  disabled={selectedImages.size === 0}
+                  onclick={quickAddToLibrary}
+                  title="Quick add with auto-tagging"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                  Quick Add ({selectedImages.size})
+                </button>
+                <button
+                  class="btn btn-sm btn-primary"
+                  disabled={selectedImages.size === 0}
+                  onclick={addToLibrary}
+                  title="Add with tag customization"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                    />
+                  </svg>
+                  Add to Library ({selectedImages.size})
+                </button>
+              </div>
             </div>
           {/if}
         </div>
@@ -1536,6 +1894,364 @@
             across multiple images. Drag back over selected images to unselect them!
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Add to Library Popup -->
+{#if showAddPopup}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8"
+    onclick={closeAddPopup}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="bg-base-100 rounded-lg w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <!-- Header -->
+      <div
+        class="flex items-center justify-between p-6 border-b border-base-300"
+      >
+        <div>
+          <h2 class="text-2xl font-bold">Add to Library</h2>
+          <p class="text-sm text-base-content/70 mt-1">
+            Customize pack name and select tags for {imagesToAdd.length} image{imagesToAdd.length !==
+            1
+              ? "s"
+              : ""}
+          </p>
+        </div>
+        <button
+          class="btn btn-circle btn-ghost"
+          onclick={closeAddPopup}
+          aria-label="Close"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Content -->
+      <div class="flex-1 overflow-hidden flex">
+        <!-- Left side - Tag Selection -->
+        <div
+          class="w-96 border-r border-base-300 overflow-y-auto p-6 space-y-6"
+        >
+          <!-- Pack Name -->
+          <div>
+            <div class="mb-2">
+              <span class="text-sm font-semibold">Pack Name</span>
+            </div>
+            <input
+              type="text"
+              class="input input-bordered w-full"
+              bind:value={customPackName}
+              placeholder="Enter pack name..."
+            />
+            <div class="mt-1">
+              <span class="text-xs text-base-content/60">
+                Images will be tagged with this pack name
+              </span>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Selected Tags -->
+          <div>
+            <h3 class="font-semibold mb-2">
+              Selected Tags ({selectedTags.size})
+            </h3>
+            {#if selectedTags.size === 0}
+              <p class="text-sm text-base-content/50">No tags selected</p>
+            {:else}
+              <div class="flex flex-wrap gap-2">
+                {#each Array.from(selectedTags) as tagId}
+                  {@const tag = allTags.find((t) => t.id === tagId)}
+                  {#if tag}
+                    <div class="badge badge-primary gap-1">
+                      {tag.name}
+                      <button
+                        class="btn btn-xs btn-circle btn-ghost"
+                        onclick={() => toggleTagSelection(tagId)}
+                        aria-label="Remove tag"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-3 w-3"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  {/if}
+                {/each}
+              </div>
+            {/if}
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Tag Categories -->
+          <div>
+            <h3 class="font-semibold mb-3">Tag Categories</h3>
+            <div class="space-y-2">
+              {#each tagCategories as category}
+                <div class="border border-base-300 rounded-lg">
+                  <button
+                    class="w-full flex items-center justify-between p-2 hover:bg-base-200 transition-colors"
+                    onclick={() => toggleCategory(category.name)}
+                  >
+                    <span class="font-medium text-sm">{category.name}</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4 transition-transform {expandedCategories.has(
+                        category.name
+                      )
+                        ? 'rotate-180'
+                        : ''}"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </button>
+
+                  {#if expandedCategories.has(category.name)}
+                    <div class="p-2 pt-0 flex flex-wrap gap-1">
+                      {#each category.tags as tagName}
+                        {@const existingTag = allTags.find(
+                          (t) => t.name === tagName
+                        )}
+                        {@const tagId = existingTag?.id}
+                        {@const isSelected = tagId && selectedTags.has(tagId)}
+                        <button
+                          class="btn btn-xs {isSelected
+                            ? 'btn-primary'
+                            : 'btn-ghost'}"
+                          onclick={() => {
+                            if (!existingTag) {
+                              const newTag = {
+                                id: generateId(),
+                                name: tagName,
+                                parentId: category.name,
+                                createdAt: Date.now(),
+                              };
+                              addTag(newTag).then(() => {
+                                allTags = [...allTags, newTag];
+                                toggleTagSelection(newTag.id);
+                              });
+                            } else {
+                              toggleTagSelection(existingTag.id);
+                            }
+                          }}
+                        >
+                          {tagName}
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Custom Tag -->
+          <div>
+            <div class="mb-2">
+              <span class="text-sm font-semibold">Custom Tag</span>
+            </div>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                class="input input-bordered input-sm flex-1"
+                bind:value={customTagInput}
+                placeholder="Enter custom tag..."
+                onkeydown={(e) => {
+                  if (e.key === "Enter") {
+                    addCustomTagToPopup();
+                  }
+                }}
+              />
+              <button
+                class="btn btn-primary btn-sm"
+                onclick={addCustomTagToPopup}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right side - Image Grid with tag assignment -->
+        <div class="flex-1 overflow-y-auto p-6">
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-semibold">Images ({imagesToAdd.length})</h3>
+              <div class="flex gap-2">
+                {#if popupSelectedImages.size > 0}
+                  <span class="badge badge-primary"
+                    >{popupSelectedImages.size} selected</span
+                  >
+                  <button
+                    class="btn btn-xs btn-primary"
+                    onclick={applyTagsToSelectedImages}
+                    disabled={selectedTags.size === 0}
+                  >
+                    Apply Tags to Selected
+                  </button>
+                  <button
+                    class="btn btn-xs btn-ghost"
+                    onclick={clearPopupImageSelection}
+                  >
+                    Clear
+                  </button>
+                {:else}
+                  <button
+                    class="btn btn-xs btn-ghost"
+                    onclick={selectAllPopupImages}
+                  >
+                    Select All
+                  </button>
+                {/if}
+              </div>
+            </div>
+            <p class="text-sm text-base-content/60">
+              Click images to select them, then use "Apply Tags to Selected"
+              button. Or click individual tag badges below each image to toggle
+              tags.
+            </p>
+          </div>
+
+          <div class="grid grid-cols-6 gap-3">
+            {#each imagesToAdd as image (image.id)}
+              {@const imageTags = imageSpecificTags.get(image.id) || new Set()}
+              {@const isSelected = popupSelectedImages.has(image.id)}
+              <div class="border rounded-lg p-2 {isSelected ? 'border-primary border-2 bg-primary/5' : 'border-base-300'}">
+                <button
+                  class="relative aspect-square bg-base-300 rounded overflow-hidden mb-2 w-full cursor-pointer"
+                  onclick={() => togglePopupImageSelection(image.id)}
+                >
+                  <img
+                    src={convertFileSrc(image.fullPath)}
+                    alt={image.filename}
+                    class="w-full h-full object-cover"
+                  />
+                  {#if isSelected}
+                    <div class="absolute top-1 left-1 bg-primary rounded-full p-1">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-3 w-3 text-primary-content"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  {/if}
+                </button>
+                <p
+                  class="text-xs font-medium truncate mb-2"
+                  title={image.filename}
+                >
+                  {image.filename}
+                </p>
+
+                <!-- Tags for this image -->
+                {#if selectedTags.size > 0}
+                  <div class="flex flex-wrap gap-1">
+                    {#each Array.from(selectedTags) as tagId}
+                      {@const tag = allTags.find((t) => t.id === tagId)}
+                      {#if tag}
+                        <button
+                          class="badge badge-xs cursor-pointer {imageTags.has(
+                            tagId
+                          )
+                            ? 'badge-primary'
+                            : 'badge-ghost'}"
+                          onclick={() =>
+                            toggleImageTagAssignment(image.id, tagId)}
+                          title={imageTags.has(tagId)
+                            ? "Click to remove"
+                            : "Click to add"}
+                        >
+                          {tag.name}
+                        </button>
+                      {/if}
+                    {/each}
+                  </div>
+                {:else}
+                  <p class="text-xs text-base-content/50">
+                    Select tags on the left
+                  </p>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="p-6 border-t border-base-300 flex justify-end gap-3">
+        <button class="btn btn-ghost" onclick={closeAddPopup}> Cancel </button>
+        <button
+          class="btn btn-primary"
+          onclick={confirmAddToLibrary}
+          disabled={!customPackName.trim()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+          Add to Library
+        </button>
       </div>
     </div>
   </div>
