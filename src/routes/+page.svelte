@@ -11,6 +11,7 @@
     getRecentlyUsedTags,
     buildTagPath,
     updateTagUsage,
+    deleteImages,
     type Image,
     type Tag,
   } from "$lib/db";
@@ -20,7 +21,7 @@
   let debouncedSearchQuery = $state("");
   let searchDebounceTimer: number | undefined;
   let viewMode: "grid" | "list" = $state("grid");
-  let isSelectMode = $state(false);
+  // Selection mode toggle removed; selection is implicit when any image is selected
   let selectedImages = $state<Set<string>>(new Set());
   let lastSelectedIndex = $state<number>(-1);
   let showHelpModal = $state(false);
@@ -38,9 +39,20 @@
   let allImageTags = $state<Map<string, Tag[]>>(new Map());
   let activeFilters = $state<string[]>([]);
   let selectedSuggestionIndex = $state(0);
+  let showDeleteConfirm = $state(false);
+  let deleteCount = $state(0);
+  let skipDeleteWarning = $state(false);
 
   // Pagination state
   const PAGINATION_STORAGE_KEY = "library-items-per-page";
+  const DELETE_WARNING_KEY = "library-skip-delete-warning";
+
+  function loadDeleteWarningPreference(): boolean {
+    if (typeof localStorage === "undefined") return false;
+    return localStorage.getItem(DELETE_WARNING_KEY) === "true";
+  }
+
+  let skipDeleteWarningPref = $state(loadDeleteWarningPreference());
 
   function loadItemsPerPage(): number | "all" {
     if (typeof localStorage === "undefined") return 50;
@@ -430,16 +442,9 @@
     currentPage = 1;
   }
 
-  function toggleSelectionMode() {
-    isSelectMode = !isSelectMode;
-    if (!isSelectMode) {
-      clearSelection();
-    }
-  }
-
   function selectAllImages() {
-    selectedImages = new Set(filteredImages.map((img) => img.id));
-    lastSelectedIndex = filteredImages.length - 1;
+    selectedImages = new Set(displayedLibraryImages.map((img) => img.id));
+    lastSelectedIndex = displayedLibraryImages.length - 1;
   }
 
   function clearSelection() {
@@ -532,14 +537,6 @@
     viewMode = mode;
   }
 
-  function toggleSelectMode() {
-    isSelectMode = !isSelectMode;
-    if (!isSelectMode) {
-      selectedImages = new Set();
-      isBulkTagging = false;
-    }
-  }
-
   function toggleImageSelection(imageId: string, e: Event) {
     e.stopPropagation();
     const newSelected = new Set(selectedImages);
@@ -598,10 +595,14 @@
       return;
     }
 
-    // Select all images (Ctrl+A)
+    // Toggle select all / deselect all (Ctrl+A)
     if (e.key === "a" && e.ctrlKey && !viewingImage && !isBulkTagging) {
       e.preventDefault();
-      selectAllImages();
+      if (selectedImages.size > 0) {
+        clearSelection();
+      } else {
+        selectAllImages();
+      }
       return;
     }
 
@@ -617,14 +618,15 @@
       return;
     }
 
-    // Clear selection (Escape when not viewing)
+    // Delete selected images (Delete key)
     if (
-      e.key === "Escape" &&
+      e.key === "Delete" &&
       !viewingImage &&
       !isBulkTagging &&
       selectedImages.size > 0
     ) {
-      clearSelection();
+      e.preventDefault();
+      deleteSelectedImages();
       return;
     }
 
@@ -764,7 +766,6 @@
 
       // Close bulk editor and clear selection
       closeBulkTagEditor();
-      isSelectMode = false;
       selectedImages = new Set();
 
       // Reload image tags for filtering
@@ -772,6 +773,49 @@
     } catch (error) {
       console.error("Failed to apply bulk tags:", error);
     }
+  }
+
+  function deleteSelectedImages() {
+    if (selectedImages.size === 0) return;
+
+    // Check if user has disabled warnings
+    if (skipDeleteWarningPref) {
+      confirmDelete();
+      return;
+    }
+
+    // Show confirmation dialog
+    deleteCount = selectedImages.size;
+    showDeleteConfirm = true;
+  }
+
+  async function confirmDelete() {
+    showDeleteConfirm = false;
+
+    // Save preference if checkbox was checked
+    if (skipDeleteWarning) {
+      localStorage.setItem(DELETE_WARNING_KEY, "true");
+      skipDeleteWarningPref = true;
+    }
+
+    try {
+      await deleteImages(Array.from(selectedImages));
+      // Refresh library
+      await loadLibraryImages();
+      selectedImages = new Set();
+      lastSelectedIndex = -1;
+      skipDeleteWarning = false;
+      // Notify other components to update library count
+      window.dispatchEvent(new CustomEvent("library-updated"));
+    } catch (error) {
+      console.error("Failed to delete images:", error);
+      alert(`Failed to delete images: ${error}`);
+    }
+  }
+
+  function cancelDelete() {
+    showDeleteConfirm = false;
+    skipDeleteWarning = false;
   }
   function startPractice() {
     // Get selected or filtered images
@@ -821,18 +865,7 @@
       <h1 class="text-2xl font-semibold text-base-content">Library</h1>
 
       <div class="flex items-center gap-3">
-        <!-- Selection Mode Toggle -->
-        <div class="form-control">
-          <label class="label cursor-pointer gap-2">
-            <input
-              type="checkbox"
-              class="toggle toggle-sm toggle-primary"
-              checked={isSelectMode}
-              onchange={toggleSelectionMode}
-            />
-            <span class="label-text text-xs">Select Mode</span>
-          </label>
-        </div>
+        <!-- (Select Mode toggle removed; selection activates automatically) -->
 
         <!-- Selection Counter & Clear -->
         {#if selectedImages.size > 0}
@@ -885,6 +918,27 @@
               />
             </svg>
             Tag Selected
+          </button>
+          <button
+            class="btn btn-sm btn-error gap-2"
+            onclick={deleteSelectedImages}
+            title="Delete selected images (Delete key)"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 7h12M9 7V4h6v3m2 0v11a2 2 0 01-2 2H8a2 2 0 01-2-2V7h12z"
+              />
+            </svg>
+            Delete Selected
           </button>
         {/if}
 
@@ -1201,10 +1255,20 @@
               class="relative aspect-square bg-base-300 rounded overflow-hidden cursor-pointer border-2 transition-colors"
               class:border-base-300={!isSelected}
               class:border-primary={isSelected}
-              onclick={() => openImageViewer(image)}
+              onclick={(e) => {
+                // If there is an active selection or user holds Ctrl/Shift, treat click as selection
+                if (
+                  selectedImages.size > 0 ||
+                  (e instanceof MouseEvent && (e.ctrlKey || e.shiftKey))
+                ) {
+                  toggleImageSelectionEnhanced(image.id, e as MouseEvent);
+                } else {
+                  openImageViewer(image);
+                }
+              }}
               oncontextmenu={(e) => {
                 e.preventDefault();
-                toggleImageSelection(image.id, e);
+                toggleImageSelectionEnhanced(image.id, e as MouseEvent);
               }}
             >
               <img
@@ -1247,10 +1311,19 @@
               class="w-full flex items-center gap-4 p-3 bg-base-200 rounded-lg hover:bg-base-300 border-2 transition-colors"
               class:border-base-200={!isSelected}
               class:border-primary={isSelected}
-              onclick={() => openImageViewer(image)}
+              onclick={(e) => {
+                if (
+                  selectedImages.size > 0 ||
+                  (e instanceof MouseEvent && (e.ctrlKey || e.shiftKey))
+                ) {
+                  toggleImageSelectionEnhanced(image.id, e as MouseEvent);
+                } else {
+                  openImageViewer(image);
+                }
+              }}
               oncontextmenu={(e) => {
                 e.preventDefault();
-                toggleImageSelection(image.id, e);
+                toggleImageSelectionEnhanced(image.id, e as MouseEvent);
               }}
             >
               <div class="relative w-20 h-20 flex-shrink-0">
@@ -1518,10 +1591,13 @@
         {:else}
           <div class="flex flex-wrap gap-2">
             {#each imageTags as tag}
-              <div class="badge badge-primary gap-2">
-                {tag.name}
+              <div
+                class="badge badge-primary gap-2 max-w-[200px]"
+                title={tag.name}
+              >
+                <span class="truncate">{tag.name}</span>
                 <button
-                  class="btn btn-circle btn-ghost btn-xs"
+                  class="btn btn-circle btn-ghost btn-xs flex-shrink-0"
                   onclick={() => removeTag(tag)}
                   aria-label="Remove tag"
                 >
@@ -1728,6 +1804,55 @@
   </div>
 {/if}
 
+<!-- Delete Confirmation Modal -->
+{#if showDeleteConfirm}
+  <div
+    class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-8"
+  >
+    <div class="bg-base-100 rounded-lg shadow-xl max-w-md w-full p-6">
+      <div class="flex items-start gap-4 mb-6">
+        <div class="flex-shrink-0">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-8 w-8 text-warning"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-lg font-bold mb-2">Delete Images</h3>
+          <p class="text-base-content/80">
+            Delete {deleteCount} selected image{deleteCount !== 1 ? "s" : ""}?
+            This cannot be undone.
+          </p>
+          <div class="form-control mt-4">
+            <label class="label cursor-pointer justify-start gap-3">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-sm"
+                bind:checked={skipDeleteWarning}
+              />
+              <span class="label-text">Don't show this warning again</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button class="btn btn-ghost" onclick={cancelDelete}> Cancel </button>
+        <button class="btn btn-error" onclick={confirmDelete}> Delete </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- Help Modal -->
 {#if showHelpModal}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -1776,12 +1901,32 @@
               <kbd class="kbd kbd-sm">Toggle in toolbar</kbd>
             </div>
             <div class="flex justify-between items-center">
-              <span class="text-sm">Select all images</span>
+              <span class="text-sm">Toggle select all / deselect all</span>
               <kbd class="kbd kbd-sm">Ctrl+A</kbd>
             </div>
             <div class="flex justify-between items-center">
-              <span class="text-sm">Clear selection</span>
-              <kbd class="kbd kbd-sm">Esc</kbd>
+              <span class="text-sm">Multi-select (add/remove)</span>
+              <div class="flex gap-1">
+                <kbd class="kbd kbd-sm">Ctrl</kbd>
+                <span class="text-xs">+</span>
+                <kbd class="kbd kbd-sm">Click</kbd>
+              </div>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Range select</span>
+              <div class="flex gap-1">
+                <kbd class="kbd kbd-sm">Shift</kbd>
+                <span class="text-xs">+</span>
+                <kbd class="kbd kbd-sm">Click</kbd>
+              </div>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Quick select (context menu)</span>
+              <kbd class="kbd kbd-sm">Right-Click</kbd>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Delete selected images</span>
+              <kbd class="kbd kbd-sm">Delete</kbd>
             </div>
             <div class="flex justify-between items-center">
               <span class="text-sm">Toggle single image</span>
@@ -1855,6 +2000,32 @@
             <div class="flex justify-between items-center">
               <span class="text-sm">Close modals</span>
               <kbd class="kbd kbd-sm">Esc</kbd>
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings Section -->
+        <div>
+          <h3 class="text-lg font-semibold mb-3 text-primary">Settings</h3>
+          <div class="space-y-2">
+            <div class="form-control">
+              <label class="label cursor-pointer justify-start gap-3">
+                <input
+                  type="checkbox"
+                  class="checkbox checkbox-sm"
+                  checked={!skipDeleteWarningPref}
+                  onchange={(e) => {
+                    const showWarning = e.currentTarget.checked;
+                    skipDeleteWarningPref = !showWarning;
+                    if (showWarning) {
+                      localStorage.removeItem(DELETE_WARNING_KEY);
+                    } else {
+                      localStorage.setItem(DELETE_WARNING_KEY, "true");
+                    }
+                  }}
+                />
+                <span class="label-text">Show delete confirmation warning</span>
+              </label>
             </div>
           </div>
         </div>

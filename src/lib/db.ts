@@ -245,6 +245,39 @@ export async function deleteImage(id: string): Promise<void> {
   await db.delete('images', id);
 }
 
+// Bulk delete images and their tag associations (and decrement usage counts)
+export async function deleteImages(imageIds: string[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(['images', 'imageTags', 'tagUsage'], 'readwrite');
+  const imagesStore = tx.objectStore('images');
+  const imageTagsStore = tx.objectStore('imageTags');
+  const tagUsageStore = tx.objectStore('tagUsage');
+
+  for (const imageId of imageIds) {
+    // Get all tag associations for this image
+    const associatedTags: ImageTag[] = await imageTagsStore.index('by-image').getAll(imageId);
+    for (const it of associatedTags) {
+      // Remove image-tag association
+      await imageTagsStore.delete([it.imageId, it.tagId]);
+      // Decrement usage count if present
+      const usage = await tagUsageStore.get(it.tagId);
+      if (usage) {
+        const newCount = Math.max(usage.usageCount - 1, 0);
+        if (newCount === 0) {
+          await tagUsageStore.delete(it.tagId);
+        } else {
+          await tagUsageStore.put({ tagId: it.tagId, lastUsed: usage.lastUsed, usageCount: newCount });
+        }
+      }
+    }
+    // Delete the image itself
+    await imagesStore.delete(imageId);
+  }
+
+  await tx.done;
+  console.log('Deleted images:', imageIds.length);
+}
+
 // ============= Tag Operations =============
 
 export async function addTag(tag: Tag): Promise<void> {

@@ -3,10 +3,29 @@
   import { page } from "$app/stores";
   let { children } = $props();
 
-  let libraryCount = $state(0);
-  let packCount = $state(0);
+  import { onMount } from "svelte";
+  import { getLibraryImages } from "$lib/db";
 
-  // TODO: Load counts from IndexedDB
+  let libraryCount = $state(0);
+
+  async function refreshLibraryCount() {
+    try {
+      const imgs = await getLibraryImages();
+      libraryCount = imgs.length;
+    } catch (e) {
+      console.error("Failed to load library count", e);
+    }
+  }
+
+  onMount(() => {
+    refreshLibraryCount();
+    const handler = () => refreshLibraryCount();
+    window.addEventListener("library-updated", handler);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") refreshLibraryCount();
+    });
+    return () => window.removeEventListener("library-updated", handler);
+  });
 </script>
 
 <div class="flex h-screen bg-base-100">
@@ -99,10 +118,6 @@
       <div class="flex justify-between text-base-content">
         <span class="opacity-70">Library Items</span>
         <span class="font-medium">{libraryCount}</span>
-      </div>
-      <div class="flex justify-between text-base-content">
-        <span class="opacity-70">Total Packs</span>
-        <span class="font-medium">{packCount}</span>
       </div>
     </div>
   </aside>
