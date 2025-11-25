@@ -11,6 +11,8 @@
     generateId,
     updateTagUsage,
     buildTagPath,
+    deleteTag,
+    deleteTagsByCategory,
     type Image,
     type Tag,
   } from "$lib/db";
@@ -59,14 +61,69 @@
   // Add to Library popup state
   let showAddPopup = $state(false);
   let imagesToAdd = $state<Image[]>([]);
-  let popupSelectedImages = $state<Set<string>>(new Set()); // Images selected in popup for tag assignment
   let customPackName = $state("");
   let initialPackTagId = $state<string | null>(null); // Track the pack tag ID for updates
   let allTags = $state<Tag[]>([]);
   let selectedTags = $state<Set<string>>(new Set());
   let expandedCategories = $state<Set<string>>(new Set(["Gender", "Pose"]));
+  const CUSTOM_CATEGORIES_KEY = "customCategories";
+  function loadCustomCategories(): Set<string> {
+    try {
+      const raw =
+        typeof localStorage !== "undefined"
+          ? localStorage.getItem(CUSTOM_CATEGORIES_KEY)
+          : null;
+      const arr = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch {
+      return new Set();
+    }
+  }
+  function saveCustomCategories(categories: Set<string>) {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(
+        CUSTOM_CATEGORIES_KEY,
+        JSON.stringify(Array.from(categories))
+      );
+    } catch {
+      // ignore
+    }
+  }
+  let customCategories = $state<Set<string>>(loadCustomCategories());
+
+  // Hidden categories persistence
+  const HIDDEN_CATEGORIES_KEY = "hiddenCategories";
+  function loadHiddenCategories(): Set<string> {
+    try {
+      const raw =
+        typeof localStorage !== "undefined"
+          ? localStorage.getItem(HIDDEN_CATEGORIES_KEY)
+          : null;
+      const arr = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch {
+      return new Set();
+    }
+  }
+  function saveHiddenCategories(categories: Set<string>) {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(
+        HIDDEN_CATEGORIES_KEY,
+        JSON.stringify(Array.from(categories))
+      );
+    } catch {
+      // ignore
+    }
+  }
+  let hiddenCategories = $state<Set<string>>(loadHiddenCategories());
+
   let imageSpecificTags = $state<Map<string, Set<string>>>(new Map());
   let customTagInput = $state("");
+  let newCategoryName = $state("");
+  let newTagName = $state("");
+  let selectedCategoryForNewTag = $state("");
 
   // Tag categories (matches library page)
   const tagCategories = [
@@ -658,7 +715,9 @@
 
       // Get existing library images to check for duplicates
       const existingImages = await getLibraryImages();
-      const existingPaths = new Set(existingImages.map(img => img.originalPath));
+      const existingPaths = new Set(
+        existingImages.map((img) => img.originalPath)
+      );
 
       // Generate UUIDs and copy images to library
       for (const imagePath of selectedPaths) {
@@ -697,7 +756,9 @@
 
       // If all images were duplicates, show message and return
       if (copiedImages.length === 0) {
-        alert(`All ${duplicateCount} selected image${duplicateCount !== 1 ? 's were' : ' was'} already in the library.`);
+        alert(
+          `All ${duplicateCount} selected image${duplicateCount !== 1 ? "s were" : " was"} already in the library.`
+        );
         return;
       }
 
@@ -739,9 +800,13 @@
 
       // Show appropriate message
       if (duplicateCount > 0) {
-        alert(`Added ${successCount} image${successCount !== 1 ? 's' : ''}. Skipped ${duplicateCount} duplicate${duplicateCount !== 1 ? 's' : ''}.`);
+        alert(
+          `Added ${successCount} image${successCount !== 1 ? "s" : ""}. Skipped ${duplicateCount} duplicate${duplicateCount !== 1 ? "s" : ""}.`
+        );
       } else {
-        alert(`Successfully added ${successCount} image${successCount !== 1 ? 's' : ''} to library!`);
+        alert(
+          `Successfully added ${successCount} image${successCount !== 1 ? "s" : ""} to library!`
+        );
       }
     } catch (error) {
       console.error("Failed to add images to library:", error);
@@ -763,7 +828,9 @@
 
       // Get existing library images to check for duplicates
       const existingImages = await getLibraryImages();
-      const existingPaths = new Set(existingImages.map(img => img.originalPath));
+      const existingPaths = new Set(
+        existingImages.map((img) => img.originalPath)
+      );
 
       // Generate UUIDs and copy images to library
       for (const imagePath of selectedPaths) {
@@ -802,7 +869,9 @@
 
       // If all images were duplicates, show message and return
       if (copiedImages.length === 0) {
-        alert(`All ${duplicateCount} selected image${duplicateCount !== 1 ? 's were' : ' was'} already in the library.`);
+        alert(
+          `All ${duplicateCount} selected image${duplicateCount !== 1 ? "s were" : " was"} already in the library.`
+        );
         return;
       }
 
@@ -850,7 +919,9 @@
       // Show notification about duplicates if any
       if (duplicateCount > 0) {
         setTimeout(() => {
-          alert(`Added ${successCount} image${successCount !== 1 ? 's' : ''}. Skipped ${duplicateCount} duplicate${duplicateCount !== 1 ? 's' : ''}.`);
+          alert(
+            `Added ${successCount} image${successCount !== 1 ? "s" : ""}. Skipped ${duplicateCount} duplicate${duplicateCount !== 1 ? "s" : ""}.`
+          );
         }, 100);
       }
     } catch (error) {
@@ -900,7 +971,6 @@
       imagesToAdd = [];
       selectedTags = new Set();
       imageSpecificTags = new Map();
-      popupSelectedImages = new Set();
       initialPackTagId = null;
       saveSessionState();
 
@@ -920,7 +990,6 @@
     imagesToAdd = [];
     selectedTags = new Set();
     imageSpecificTags = new Map();
-    popupSelectedImages = new Set();
     initialPackTagId = null;
   }
 
@@ -945,63 +1014,82 @@
     }
     selectedTags = newSelected;
 
-    // Determine which images to update
-    const selectedImagesCount = popupSelectedImages.size;
-    const imagesToUpdate =
-      selectedImagesCount > 0
-        ? Array.from(popupSelectedImages)
-        : imagesToAdd.map((img) => img.id);
-
-    // Apply/remove tag to the relevant images
-    imagesToUpdate.forEach((imageId) => {
-      const imgTags = imageSpecificTags.get(imageId) || new Set();
+    // Apply/remove tag to all images
+    imagesToAdd.forEach((image) => {
+      const imgTags = imageSpecificTags.get(image.id) || new Set();
       if (isRemoving) {
         imgTags.delete(tagId);
       } else {
         imgTags.add(tagId);
       }
-      imageSpecificTags.set(imageId, imgTags);
+      imageSpecificTags.set(image.id, imgTags);
     });
 
     // Force reactivity
     imageSpecificTags = new Map(imageSpecificTags);
   }
 
-  function togglePopupImageSelection(imageId: string) {
-    const newSelection = new Set(popupSelectedImages);
-    if (newSelection.has(imageId)) {
-      newSelection.delete(imageId);
-    } else {
-      newSelection.add(imageId);
+  async function handleDeleteTag(tagId: string, tagName: string) {
+    if (
+      !confirm(`Delete tag "${tagName}"? This will remove it from all images.`)
+    ) {
+      return;
     }
-    popupSelectedImages = newSelection;
-  }
-
-  function selectAllPopupImages() {
-    popupSelectedImages = new Set(imagesToAdd.map((img) => img.id));
-  }
-
-  function clearPopupImageSelection() {
-    popupSelectedImages = new Set();
-  }
-
-  function applyTagsToSelectedImages() {
-    if (popupSelectedImages.size === 0) return;
-
-    // Apply all selected tags to selected images
-    for (const imageId of popupSelectedImages) {
-      const imgTags = imageSpecificTags.get(imageId) || new Set();
-      for (const tagId of selectedTags) {
-        imgTags.add(tagId);
+    try {
+      await deleteTag(tagId);
+      allTags = await getAllTags();
+      // Remove from selection if selected
+      if (selectedTags.has(tagId)) {
+        selectedTags.delete(tagId);
+        selectedTags = new Set(selectedTags);
       }
-      imageSpecificTags.set(imageId, new Set(imgTags));
+    } catch (err) {
+      console.error("Failed to delete tag:", err);
+      alert("Failed to delete tag");
     }
+  }
 
-    // Force reactivity
-    imageSpecificTags = new Map(imageSpecificTags);
+  async function handleDeleteCategory(
+    categoryName: string,
+    isDefault: boolean = false
+  ) {
+    const tagsInCategory = allTags.filter((t) => t.parentId === categoryName);
+    const tagCount = tagsInCategory.length;
+    const message =
+      tagCount > 0
+        ? `Delete category "${categoryName}" and its ${tagCount} tag${tagCount > 1 ? "s" : ""}? This will remove all tags from images.`
+        : `Delete category "${categoryName}"?`;
 
-    // Clear selection
-    popupSelectedImages = new Set();
+    if (!confirm(message)) {
+      return;
+    }
+    try {
+      await deleteTagsByCategory(categoryName);
+
+      if (isDefault) {
+        // Hide default categories
+        hiddenCategories.add(categoryName);
+        hiddenCategories = new Set(hiddenCategories);
+        saveHiddenCategories(hiddenCategories);
+      } else {
+        // Remove custom categories completely
+        customCategories.delete(categoryName);
+        customCategories = new Set(customCategories);
+        saveCustomCategories(customCategories);
+      }
+
+      expandedCategories.delete(categoryName);
+      expandedCategories = new Set(expandedCategories);
+      allTags = await getAllTags();
+      // Remove deleted tags from selection
+      for (const tag of tagsInCategory) {
+        selectedTags.delete(tag.id);
+      }
+      selectedTags = new Set(selectedTags);
+    } catch (err) {
+      console.error("Failed to delete category:", err);
+      alert("Failed to delete category");
+    }
   }
 
   function toggleImageTagAssignment(imageId: string, tagId: string) {
@@ -2206,65 +2294,269 @@
           <div>
             <h3 class="text-lg font-semibold mb-3">Tag Categories</h3>
             <div class="space-y-3">
-              {#each tagCategories as category}
+              {#each tagCategories.filter((cat) => !hiddenCategories.has(cat.name)) as category}
                 <div class="border border-base-300 rounded-lg">
-                  <button
-                    class="w-full flex items-center justify-between p-4 hover:bg-base-200 transition-colors rounded-lg"
-                    onclick={() => toggleCategory(category.name)}
-                  >
-                    <span class="font-semibold text-base">{category.name}</span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-5 w-5 transition-transform {expandedCategories.has(
-                        category.name
-                      )
-                        ? 'rotate-180'
-                        : ''}"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                  <div class="flex items-center">
+                    <button
+                      class="flex-1 flex items-center justify-between p-4 hover:bg-base-200 transition-colors rounded-lg"
+                      onclick={() => toggleCategory(category.name)}
                     >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </button>
+                      <span class="font-semibold text-base"
+                        >{category.name}</span
+                      >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-5 w-5 transition-transform {expandedCategories.has(
+                          category.name
+                        )
+                          ? 'rotate-180'
+                          : ''}"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      class="btn btn-ghost btn-sm btn-square mr-2"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCategory(category.name, true);
+                      }}
+                      title="Delete category"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
 
                   {#if expandedCategories.has(category.name)}
                     <div class="p-3 pt-0 flex flex-wrap gap-2">
                       {#each category.tags as tagName}
                         {@const existingTag = allTags.find(
-                          (t) => t.name === tagName
+                          (t) =>
+                            t.name === tagName && t.parentId === category.name
                         )}
                         {@const tagId = existingTag?.id}
                         {@const isSelected = tagId && selectedTags.has(tagId)}
-                        <button
-                          class="btn btn-sm {isSelected
-                            ? 'btn-primary'
-                            : 'btn-ghost'}"
-                          onclick={() => {
-                            if (!existingTag) {
-                              const newTag = {
-                                id: generateId(),
-                                name: tagName,
-                                parentId: category.name,
-                                createdAt: Date.now(),
-                              };
-                              addTag(newTag).then(() => {
-                                allTags = [...allTags, newTag];
-                                toggleTagSelection(newTag.id);
-                              });
-                            } else {
-                              toggleTagSelection(existingTag.id);
-                            }
-                          }}
-                        >
-                          {tagName}
-                        </button>
+                        <div class="flex items-center gap-1">
+                          <button
+                            class="btn btn-sm {isSelected
+                              ? 'btn-primary'
+                              : 'btn-ghost'}"
+                            onclick={() => {
+                              if (!existingTag) {
+                                const newTag = {
+                                  id: generateId(),
+                                  name: tagName,
+                                  parentId: category.name,
+                                  createdAt: Date.now(),
+                                };
+                                addTag(newTag).then(() => {
+                                  allTags = [...allTags, newTag];
+                                  toggleTagSelection(newTag.id);
+                                });
+                              } else {
+                                toggleTagSelection(existingTag.id);
+                              }
+                            }}
+                          >
+                            {tagName}
+                          </button>
+                          <button
+                            class="btn btn-ghost btn-xs btn-square"
+                            onclick={(e) => {
+                              e.stopPropagation();
+                              if (existingTag) {
+                                handleDeleteTag(
+                                  existingTag.id,
+                                  existingTag.name
+                                );
+                              }
+                            }}
+                            title={existingTag
+                              ? "Delete tag"
+                              : "Tag not in database yet"}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-3 w-3"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        </div>
                       {/each}
+                      <!-- Dynamic tags from database for this category -->
+                      {#each allTags.filter((t) => t.parentId === category.name && !category.tags.includes(t.name)) as tag}
+                        {@const isSelected = selectedTags.has(tag.id)}
+                        <div class="flex items-center gap-1">
+                          <button
+                            class="btn btn-sm {isSelected
+                              ? 'btn-primary'
+                              : 'btn-ghost'}"
+                            onclick={() => toggleTagSelection(tag.id)}
+                          >
+                            {tag.name}
+                          </button>
+                          <button
+                            class="btn btn-ghost btn-xs btn-square"
+                            onclick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTag(tag.id, tag.name);
+                            }}
+                            title="Delete tag"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-3 w-3"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+
+              <!-- Custom Categories -->
+              {#each Array.from(customCategories) as customCat}
+                {@const customTags = allTags.filter(
+                  (t) => t.parentId === customCat
+                )}
+                <div class="border border-base-300 rounded-lg">
+                  <div class="flex items-center">
+                    <button
+                      class="flex-1 flex items-center justify-between p-4 hover:bg-base-200 transition-colors rounded-lg"
+                      onclick={() => toggleCategory(customCat)}
+                    >
+                      <span class="font-semibold text-base">{customCat}</span>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-5 w-5 transition-transform {expandedCategories.has(
+                          customCat
+                        )
+                          ? 'rotate-180'
+                          : ''}"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      class="btn btn-ghost btn-sm btn-square mr-2"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCategory(customCat);
+                      }}
+                      title="Delete category"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {#if expandedCategories.has(customCat)}
+                    <div class="p-3 pt-0 flex flex-wrap gap-2">
+                      {#if customTags.length === 0}
+                        <p
+                          class="text-sm text-base-content/50 w-full text-center py-2"
+                        >
+                          No tags yet
+                        </p>
+                      {:else}
+                        {#each customTags as tag}
+                          {@const isSelected = selectedTags.has(tag.id)}
+                          <div class="flex items-center gap-1">
+                            <button
+                              class="btn btn-sm {isSelected
+                                ? 'btn-primary'
+                                : 'btn-ghost'}"
+                              onclick={() => toggleTagSelection(tag.id)}
+                            >
+                              {tag.name}
+                            </button>
+                            <button
+                              class="btn btn-ghost btn-xs btn-square"
+                              onclick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTag(tag.id, tag.name);
+                              }}
+                              title="Delete tag"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-3 w-3"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        {/each}
+                      {/if}
                     </div>
                   {/if}
                 </div>
@@ -2274,67 +2566,140 @@
 
           <div class="divider"></div>
 
-          <!-- Custom Tag -->
+          <!-- Add Category Section -->
           <div>
             <div class="mb-3">
-              <span class="text-base font-semibold">Custom Tag</span>
+              <span class="text-base font-semibold">Add Category</span>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2 mb-4">
               <input
                 type="text"
                 class="input input-bordered input-md flex-1 text-base"
-                bind:value={customTagInput}
-                placeholder="Enter custom tag..."
+                bind:value={newCategoryName}
+                placeholder="Category name..."
                 onkeydown={(e) => {
-                  if (e.key === "Enter") {
-                    addCustomTagToPopup();
+                  if (e.key === "Enter" && newCategoryName.trim()) {
+                    const name = newCategoryName.trim();
+                    customCategories.add(name);
+                    customCategories = new Set(customCategories);
+                    saveCustomCategories(customCategories);
+                    expandedCategories.add(name);
+                    expandedCategories = new Set(expandedCategories);
+                    newCategoryName = "";
                   }
                 }}
               />
               <button
                 class="btn btn-primary btn-md"
-                onclick={addCustomTagToPopup}
+                onclick={() => {
+                  const name = newCategoryName.trim();
+                  if (name) {
+                    customCategories.add(name);
+                    customCategories = new Set(customCategories);
+                    saveCustomCategories(customCategories);
+                    expandedCategories.add(name);
+                    expandedCategories = new Set(expandedCategories);
+                    newCategoryName = "";
+                  }
+                }}
+                disabled={!newCategoryName.trim()}
               >
                 Add
               </button>
             </div>
+
+            <div class="mb-3">
+              <span class="text-base font-semibold">Add Tag to Category</span>
+            </div>
+            <div class="space-y-2">
+              <select
+                class="select select-bordered select-md w-full text-base"
+                bind:value={selectedCategoryForNewTag}
+              >
+                <option value="" disabled>Select category...</option>
+                {#each [...tagCategories.map((c) => c.name), ...Array.from(customCategories)] as categoryName}
+                  <option value={categoryName}>{categoryName}</option>
+                {/each}
+              </select>
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  class="input input-bordered input-md flex-1 text-base"
+                  bind:value={newTagName}
+                  placeholder="Tag name..."
+                  disabled={!selectedCategoryForNewTag}
+                  onkeydown={(e) => {
+                    if (
+                      e.key === "Enter" &&
+                      newTagName.trim() &&
+                      selectedCategoryForNewTag
+                    ) {
+                      e.preventDefault();
+                      const tagId = generateId();
+                      const newTag = {
+                        id: tagId,
+                        name: newTagName.trim(),
+                        parentId: selectedCategoryForNewTag,
+                        createdAt: Date.now(),
+                      };
+                      addTag(newTag)
+                        .then(() => {
+                          allTags = [...allTags, newTag];
+                          newTagName = "";
+                          console.log("Tag added:", newTag);
+                        })
+                        .catch((err) => {
+                          console.error("Failed to add tag:", err);
+                          alert("Failed to add tag: " + err);
+                        });
+                    }
+                  }}
+                />
+                <button
+                  class="btn btn-primary btn-md"
+                  onclick={() => {
+                    if (newTagName.trim() && selectedCategoryForNewTag) {
+                      const tagId = generateId();
+                      const newTag = {
+                        id: tagId,
+                        name: newTagName.trim(),
+                        parentId: selectedCategoryForNewTag,
+                        createdAt: Date.now(),
+                      };
+                      addTag(newTag)
+                        .then(() => {
+                          allTags = [...allTags, newTag];
+                          newTagName = "";
+                          console.log("Tag added:", newTag);
+                        })
+                        .catch((err) => {
+                          console.error("Failed to add tag:", err);
+                          alert("Failed to add tag: " + err);
+                        });
+                    }
+                  }}
+                  disabled={!newTagName.trim() || !selectedCategoryForNewTag}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Right side - Image Grid with tag assignment -->
+        <!-- Right side - Image Grid -->
         <div class="flex-1 overflow-y-auto p-8">
           <div class="mb-6">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="text-lg font-semibold">
-                Images ({imagesToAdd.length})
-              </h3>
-              <div class="flex gap-2">
-                {#if popupSelectedImages.size > 0}
-                  <span class="badge badge-primary badge-lg px-4 py-3"
-                    >{popupSelectedImages.size} selected</span
-                  >
-                  <button
-                    class="btn btn-sm btn-ghost"
-                    onclick={clearPopupImageSelection}
-                  >
-                    Clear Selection
-                  </button>
-                {:else}
-                  <button
-                    class="btn btn-sm btn-ghost"
-                    onclick={selectAllPopupImages}
-                  >
-                    Select All Images
-                  </button>
-                {/if}
-              </div>
-            </div>
+            <h3 class="text-lg font-semibold mb-3">
+              Images ({imagesToAdd.length})
+            </h3>
             <div class="bg-base-200 p-4 rounded-lg">
               <p class="text-base text-base-content/80 leading-relaxed">
-                <strong>How to tag:</strong> Click images to select them (or none
-                to affect all). Then click tags on the left to add/remove them. You
-                can also click individual tag badges below each image to toggle specific
-                tags.
+                <strong>Bulk Tagging:</strong> Click tags on the left to apply
+                them to all {imagesToAdd.length} image{imagesToAdd.length !== 1
+                  ? "s"
+                  : ""}. You can also click individual tag badges below each
+                image to remove specific tags.
               </p>
             </div>
           </div>
@@ -2342,41 +2707,16 @@
           <div class="grid grid-cols-5 gap-4">
             {#each imagesToAdd as image (image.id)}
               {@const imageTags = imageSpecificTags.get(image.id) || new Set()}
-              {@const isSelected = popupSelectedImages.has(image.id)}
-              <div
-                class="border rounded-lg p-3 transition-all {isSelected
-                  ? 'border-primary border-2 bg-primary/5 shadow-lg'
-                  : 'border-base-300 hover:border-primary/50'}"
-              >
-                >
-                <button
-                  class="relative aspect-square bg-base-300 rounded overflow-hidden mb-2 w-full cursor-pointer"
-                  onclick={() => togglePopupImageSelection(image.id)}
+              <div class="border rounded-lg p-3 border-base-300">
+                <div
+                  class="relative aspect-square bg-base-300 rounded overflow-hidden mb-2 w-full"
                 >
                   <img
                     src={convertFileSrc(image.fullPath)}
                     alt={image.filename}
                     class="w-full h-full object-cover"
                   />
-                  {#if isSelected}
-                    <div
-                      class="absolute top-1 left-1 bg-primary rounded-full p-1"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-3 w-3 text-primary-content"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                  {/if}
-                </button>
+                </div>
                 <p
                   class="text-xs font-medium mb-3 break-words line-clamp-2 leading-tight min-h-[2.5rem]"
                   title={image.filename}

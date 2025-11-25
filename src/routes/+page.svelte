@@ -12,6 +12,8 @@
     buildTagPath,
     updateTagUsage,
     deleteImages,
+    deleteTag,
+    deleteTagsByCategory,
     type Image,
     type Tag,
   } from "$lib/db";
@@ -31,6 +33,9 @@
   let allTags = $state<Tag[]>([]);
   let imageTags = $state<Tag[]>([]);
   let customTagInput = $state("");
+  let newCategoryName = $state("");
+  let newTagName = $state("");
+  let selectedCategoryForNewTag = $state("");
   let expandedCategories = $state<Set<string>>(new Set(["Gender", "Pose"]));
   let isBulkTagging = $state(false);
   let recentTags = $state<Tag[]>([]);
@@ -42,6 +47,56 @@
   let showDeleteConfirm = $state(false);
   let deleteCount = $state(0);
   let skipDeleteWarning = $state(false);
+
+  // Custom categories persistence
+  const CUSTOM_CATEGORIES_KEY = "customCategories";
+  function loadCustomCategories(): Set<string> {
+    try {
+      const raw = localStorage.getItem(CUSTOM_CATEGORIES_KEY);
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw);
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch (e) {
+      console.warn("Failed to load custom categories", e);
+      return new Set();
+    }
+  }
+  function saveCustomCategories(set: Set<string>) {
+    try {
+      localStorage.setItem(
+        CUSTOM_CATEGORIES_KEY,
+        JSON.stringify(Array.from(set))
+      );
+    } catch (e) {
+      console.warn("Failed to save custom categories", e);
+    }
+  }
+  let customCategories = $state<Set<string>>(loadCustomCategories());
+
+  // Hidden categories persistence
+  const HIDDEN_CATEGORIES_KEY = "hiddenCategories";
+  function loadHiddenCategories(): Set<string> {
+    try {
+      const raw = localStorage.getItem(HIDDEN_CATEGORIES_KEY);
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw);
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch (e) {
+      console.warn("Failed to load hidden categories", e);
+      return new Set();
+    }
+  }
+  function saveHiddenCategories(set: Set<string>) {
+    try {
+      localStorage.setItem(
+        HIDDEN_CATEGORIES_KEY,
+        JSON.stringify(Array.from(set))
+      );
+    } catch (e) {
+      console.warn("Failed to save hidden categories", e);
+    }
+  }
+  let hiddenCategories = $state<Set<string>>(loadHiddenCategories());
 
   // Pagination state
   const PAGINATION_STORAGE_KEY = "library-items-per-page";
@@ -650,6 +705,59 @@
       newExpanded.add(categoryName);
     }
     expandedCategories = newExpanded;
+  }
+
+  async function handleDeleteTag(tagId: string, tagName: string) {
+    if (
+      !confirm(`Delete tag "${tagName}"? This will remove it from all images.`)
+    ) {
+      return;
+    }
+    try {
+      await deleteTag(tagId);
+      await loadAllTags();
+    } catch (err) {
+      console.error("Failed to delete tag:", err);
+      alert("Failed to delete tag");
+    }
+  }
+
+  async function handleDeleteCategory(
+    categoryName: string,
+    isDefault: boolean = false
+  ) {
+    const tagsInCategory = allTags.filter((t) => t.parentId === categoryName);
+    const tagCount = tagsInCategory.length;
+    const message =
+      tagCount > 0
+        ? `Delete category "${categoryName}" and its ${tagCount} tag${tagCount > 1 ? "s" : ""}? This will remove all tags from images.`
+        : `Delete category "${categoryName}"?`;
+
+    if (!confirm(message)) {
+      return;
+    }
+    try {
+      await deleteTagsByCategory(categoryName);
+
+      if (isDefault) {
+        // Hide default categories
+        hiddenCategories.add(categoryName);
+        hiddenCategories = new Set(hiddenCategories);
+        saveHiddenCategories(hiddenCategories);
+      } else {
+        // Remove custom categories completely
+        customCategories.delete(categoryName);
+        customCategories = new Set(customCategories);
+        saveCustomCategories(customCategories);
+      }
+
+      expandedCategories.delete(categoryName);
+      expandedCategories = new Set(expandedCategories);
+      await loadAllTags();
+    } catch (err) {
+      console.error("Failed to delete category:", err);
+      alert("Failed to delete category");
+    }
   }
 
   async function openBulkTagEditor() {
@@ -1664,62 +1772,285 @@
       <div>
         <h3 class="text-lg font-semibold mb-3">Tag Categories</h3>
         <div class="space-y-3">
-          {#each tagCategories as category}
+          {#each tagCategories.filter((cat) => !hiddenCategories.has(cat.name)) as category}
             <div class="border border-base-300 rounded-lg">
-              <!-- Category Header -->
-              <button
-                class="w-full flex items-center justify-between p-3 hover:bg-base-200 transition-colors"
-                onclick={() => toggleCategory(category.name)}
-              >
-                <span class="font-medium">{category.name}</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-5 w-5 transition-transform {expandedCategories.has(
-                    category.name
-                  )
-                    ? 'rotate-180'
-                    : ''}"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+              <div class="flex items-center">
+                <button
+                  class="flex-1 flex items-center justify-between p-3 hover:bg-base-200 transition-colors"
+                  onclick={() => toggleCategory(category.name)}
                 >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-
+                  <span class="font-medium">{category.name}</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5 transition-transform {expandedCategories.has(
+                      category.name
+                    )
+                      ? 'rotate-180'
+                      : ''}"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                <button
+                  class="btn btn-ghost btn-sm btn-square mr-2"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteCategory(category.name, true);
+                  }}
+                  title="Delete category"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
               <!-- Category Tags -->
               {#if expandedCategories.has(category.name)}
                 <div class="p-3 pt-0 space-y-2">
                   {#each category.tags as tagName}
                     {@const active = isTagActive(tagName)}
-                    <button
-                      class="btn btn-sm {active
-                        ? 'btn-primary'
-                        : 'btn-ghost'} w-full justify-start"
-                      onclick={() => toggleTag(tagName, category.name)}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4 {active ? '' : 'opacity-0'}"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
+                    {@const dbTag = allTags.find(
+                      (t) => t.name === tagName && t.parentId === category.name
+                    )}
+                    <div class="flex items-center gap-1">
+                      <button
+                        class="btn btn-sm {active
+                          ? 'btn-primary'
+                          : 'btn-ghost'} flex-1 justify-start"
+                        onclick={() => toggleTag(tagName, category.name)}
                       >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                      {tagName}
-                    </button>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-4 w-4 {active ? '' : 'opacity-0'}"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                        {tagName}
+                      </button>
+                      <button
+                        class="btn btn-ghost btn-xs btn-square"
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          if (dbTag) {
+                            handleDeleteTag(dbTag.id, dbTag.name);
+                          }
+                        }}
+                        title={dbTag ? "Delete tag" : "Tag not in database yet"}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-3 w-3"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   {/each}
+                  <!-- Dynamic tags from database for this category -->
+                  {#each allTags.filter((t) => t.parentId === category.name && !category.tags.includes(t.name)) as tag}
+                    {@const active = imageTags.some((t) => t.id === tag.id)}
+                    <div class="flex items-center gap-1">
+                      <button
+                        class="btn btn-sm {active
+                          ? 'btn-primary'
+                          : 'btn-ghost'} flex-1 justify-start"
+                        onclick={() => toggleTag(tag.name, category.name)}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-4 w-4 {active ? '' : 'opacity-0'}"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                        {tag.name}
+                      </button>
+                      <button
+                        class="btn btn-ghost btn-xs btn-square"
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTag(tag.id, tag.name);
+                        }}
+                        title="Delete tag"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-3 w-3"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/each}
+
+          <!-- Custom Categories -->
+          {#each Array.from(customCategories) as customCat}
+            {@const customTags = allTags.filter(
+              (t) => t.parentId === customCat
+            )}
+            <div class="border border-base-300 rounded-lg">
+              <div class="flex items-center">
+                <button
+                  class="flex-1 flex items-center justify-between p-3 hover:bg-base-200 transition-colors"
+                  onclick={() => toggleCategory(customCat)}
+                >
+                  <span class="font-medium">{customCat}</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5 transition-transform {expandedCategories.has(
+                      customCat
+                    )
+                      ? 'rotate-180'
+                      : ''}"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                <button
+                  class="btn btn-ghost btn-sm btn-square mr-2"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteCategory(customCat);
+                  }}
+                  title="Delete category"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {#if expandedCategories.has(customCat)}
+                <div class="p-3 pt-0 space-y-2">
+                  {#if customTags.length === 0}
+                    <p class="text-sm text-base-content/50 text-center py-2">
+                      No tags yet
+                    </p>
+                  {:else}
+                    {#each customTags as tag}
+                      {@const active = imageTags.some((t) => t.id === tag.id)}
+                      <div class="flex items-center gap-1">
+                        <button
+                          class="btn btn-sm {active
+                            ? 'btn-primary'
+                            : 'btn-ghost'} flex-1 justify-start"
+                          onclick={() => toggleTag(tag.name, customCat)}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 {active ? '' : 'opacity-0'}"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                          {tag.name}
+                        </button>
+                        <button
+                          class="btn btn-ghost btn-xs btn-square"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTag(tag.id, tag.name);
+                          }}
+                          title="Delete tag"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-3 w-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    {/each}
+                  {/if}
                 </div>
               {/if}
             </div>
@@ -1729,24 +2060,119 @@
 
       <div class="divider"></div>
 
-      <!-- Custom Tag Section -->
+      <!-- Custom Category Section -->
       <div>
-        <h3 class="text-lg font-semibold mb-3">Custom Tag</h3>
-        <div class="flex gap-2">
+        <h3 class="text-lg font-semibold mb-3">Add Category</h3>
+        <div class="flex gap-2 mb-4">
           <input
             type="text"
-            placeholder="Enter custom tag..."
+            placeholder="Category name..."
             class="input input-bordered input-sm flex-1"
-            bind:value={customTagInput}
+            bind:value={newCategoryName}
             onkeydown={(e) => {
-              if (e.key === "Enter") {
-                addCustomTag();
+              if (e.key === "Enter" && newCategoryName.trim()) {
+                const name = newCategoryName.trim();
+                customCategories.add(name);
+                customCategories = new Set(customCategories);
+                saveCustomCategories(customCategories);
+                expandedCategories.add(name);
+                expandedCategories = new Set(expandedCategories);
+                newCategoryName = "";
               }
             }}
           />
-          <button class="btn btn-primary btn-sm" onclick={addCustomTag}>
+          <button
+            class="btn btn-primary btn-sm"
+            onclick={() => {
+              const name = newCategoryName.trim();
+              if (name) {
+                customCategories.add(name);
+                customCategories = new Set(customCategories);
+                saveCustomCategories(customCategories);
+                expandedCategories.add(name);
+                expandedCategories = new Set(expandedCategories);
+                newCategoryName = "";
+              }
+            }}
+            disabled={!newCategoryName.trim()}
+          >
             Add
           </button>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">Add Tag to Category</h3>
+        <div class="space-y-2">
+          <select
+            class="select select-bordered select-sm w-full"
+            bind:value={selectedCategoryForNewTag}
+          >
+            <option value="" disabled>Select category...</option>
+            {#each [...tagCategories.map((c) => c.name), ...Array.from(customCategories)] as categoryName}
+              <option value={categoryName}>{categoryName}</option>
+            {/each}
+          </select>
+          <div class="flex gap-2">
+            <input
+              type="text"
+              placeholder="Tag name..."
+              class="input input-bordered input-sm flex-1"
+              bind:value={newTagName}
+              disabled={!selectedCategoryForNewTag}
+              onkeydown={(e) => {
+                if (
+                  e.key === "Enter" &&
+                  newTagName.trim() &&
+                  selectedCategoryForNewTag
+                ) {
+                  e.preventDefault();
+                  const tagId = generateId();
+                  const newTag = {
+                    id: tagId,
+                    name: newTagName.trim(),
+                    parentId: selectedCategoryForNewTag,
+                    createdAt: Date.now(),
+                  };
+                  addTag(newTag)
+                    .then(() => {
+                      allTags = [...allTags, newTag];
+                      newTagName = "";
+                      console.log("Tag added:", newTag);
+                    })
+                    .catch((err) => {
+                      console.error("Failed to add tag:", err);
+                      alert("Failed to add tag: " + err);
+                    });
+                }
+              }}
+            />
+            <button
+              class="btn btn-primary btn-sm"
+              onclick={() => {
+                if (newTagName.trim() && selectedCategoryForNewTag) {
+                  const tagId = generateId();
+                  const newTag = {
+                    id: tagId,
+                    name: newTagName.trim(),
+                    parentId: selectedCategoryForNewTag,
+                    createdAt: Date.now(),
+                  };
+                  addTag(newTag)
+                    .then(() => {
+                      allTags = [...allTags, newTag];
+                      newTagName = "";
+                      console.log("Tag added:", newTag);
+                    })
+                    .catch((err) => {
+                      console.error("Failed to add tag:", err);
+                      alert("Failed to add tag: " + err);
+                    });
+                }
+              }}
+              disabled={!newTagName.trim() || !selectedCategoryForNewTag}
+            >
+              Add
+            </button>
+          </div>
         </div>
       </div>
 

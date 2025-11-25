@@ -320,7 +320,21 @@ export async function deleteTag(id: string): Promise<void> {
     await removeImageTag(it.imageId, it.tagId);
   }
   
+  // Delete tag usage tracking
+  await db.delete('tagUsage', id).catch(() => {});
+  
   await db.delete('tags', id);
+}
+
+export async function deleteTagsByCategory(categoryName: string): Promise<void> {
+  const db = await getDB();
+  const allTags = await getAllTags();
+  const tagsToDelete = allTags.filter(tag => tag.parentId === categoryName);
+  
+  // Delete each tag (this will also remove image associations)
+  for (const tag of tagsToDelete) {
+    await deleteTag(tag.id);
+  }
 }
 
 // ============= ImageTag Operations =============
