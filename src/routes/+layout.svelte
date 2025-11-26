@@ -1,6 +1,7 @@
 <script lang="ts">
   import "../app.css";
   import { page } from "$app/stores";
+  import { Toaster } from "svelte-sonner";
   let { children } = $props();
 
   import { onMount } from "svelte";
@@ -127,6 +128,8 @@
     {@render children()}
   </main>
 </div>
+
+<Toaster position="bottom-right" theme="dark" richColors />
 
 <style>
   :global(html.immersive-practice) .app-sidebar {

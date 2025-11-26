@@ -18,6 +18,7 @@
     type Tag,
   } from "$lib/db";
   import { convertFileSrc } from "@tauri-apps/api/core";
+  import { toast } from "$lib/toast";
 
   let searchQuery = $state("");
   let debouncedSearchQuery = $state("");
@@ -767,7 +768,7 @@
       }
     } catch (err) {
       console.error("Failed to delete tag:", err);
-      alert("Failed to delete tag");
+      toast.error("Failed to delete tag");
     }
   }
 
@@ -805,7 +806,7 @@
       await loadAllTags();
     } catch (err) {
       console.error("Failed to delete category:", err);
-      alert("Failed to delete category");
+      toast.error("Failed to delete category");
     }
   }
 
@@ -966,7 +967,7 @@
       window.dispatchEvent(new CustomEvent("library-updated"));
     } catch (error) {
       console.error("Failed to delete images:", error);
-      alert(`Failed to delete images: ${error}`);
+      toast.error(`Failed to delete images: ${error}`);
     }
   }
 
@@ -984,7 +985,7 @@
         : filteredImages;
 
     if (imagesToPractice.length === 0) {
-      alert("No images to practice with. Select images or apply filters.");
+      toast.warning("No images to practice with. Select images or apply filters.");
       return;
     }
 
@@ -2191,7 +2192,7 @@
                     })
                     .catch((err) => {
                       console.error("Failed to add tag:", err);
-                      alert("Failed to add tag: " + err);
+                      toast.error("Failed to add tag: " + err);
                     });
                 }
               }}
@@ -2215,7 +2216,7 @@
                     })
                     .catch((err) => {
                       console.error("Failed to add tag:", err);
-                      alert("Failed to add tag: " + err);
+                      toast.error("Failed to add tag: " + err);
                     });
                 }
               }}

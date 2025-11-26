@@ -16,6 +16,7 @@
     type Image,
     type Tag,
   } from "$lib/db";
+  import { toast } from "$lib/toast";
 
   interface FolderInfo {
     path: string;
@@ -482,7 +483,7 @@
       }
     } catch (error) {
       console.error("Failed to browse folder:", error);
-      alert(`Failed to browse folder: ${error}`);
+      toast.error(`Failed to browse folder: ${error}`);
       currentPath = null;
     }
   }
@@ -786,7 +787,7 @@
 
       // If all images were duplicates, show message and return
       if (copiedImages.length === 0) {
-        alert(
+        toast.info(
           `All ${duplicateCount} selected image${duplicateCount !== 1 ? "s were" : " was"} already in the library.`
         );
         return;
@@ -830,17 +831,17 @@
 
       // Show appropriate message
       if (duplicateCount > 0) {
-        alert(
+        toast.success(
           `Added ${successCount} image${successCount !== 1 ? "s" : ""}. Skipped ${duplicateCount} duplicate${duplicateCount !== 1 ? "s" : ""}.`
         );
       } else {
-        alert(
+        toast.success(
           `Successfully added ${successCount} image${successCount !== 1 ? "s" : ""} to library!`
         );
       }
     } catch (error) {
       console.error("Failed to add images to library:", error);
-      alert(`Failed to add images to library: ${error}`);
+      toast.error(`Failed to add images to library: ${error}`);
     }
   }
 
@@ -899,7 +900,7 @@
 
       // If all images were duplicates, show message and return
       if (copiedImages.length === 0) {
-        alert(
+        toast.info(
           `All ${duplicateCount} selected image${duplicateCount !== 1 ? "s were" : " was"} already in the library.`
         );
         return;
@@ -950,14 +951,14 @@
       // Show notification about duplicates if any
       if (duplicateCount > 0) {
         setTimeout(() => {
-          alert(
+          toast.info(
             `Added ${successCount} image${successCount !== 1 ? "s" : ""}. Skipped ${duplicateCount} duplicate${duplicateCount !== 1 ? "s" : ""}.`
           );
         }, 100);
       }
     } catch (error) {
       console.error("Failed to prepare images:", error);
-      alert(`Failed to prepare images: ${error}`);
+      toast.error(`Failed to prepare images: ${error}`);
     }
   }
 
@@ -1008,10 +1009,10 @@
       // Dispatch event to notify Library page to refresh
       window.dispatchEvent(new CustomEvent("library-updated"));
 
-      alert(`Successfully added ${imageCount} images to library with tags!`);
+      toast.success(`Successfully added ${imageCount} images to library with tags!`);
     } catch (error) {
       console.error("Failed to apply tags:", error);
-      alert(`Failed to apply tags: ${error}`);
+      toast.error(`Failed to apply tags: ${error}`);
     }
   }
 
@@ -1098,7 +1099,7 @@
       }
     } catch (err) {
       console.error("Failed to delete tag:", err);
-      alert("Failed to delete tag");
+      toast.error("Failed to delete tag");
     }
   }
 
@@ -1141,7 +1142,7 @@
       selectedTags = new Set(selectedTags);
     } catch (err) {
       console.error("Failed to delete category:", err);
-      alert("Failed to delete category");
+      toast.error("Failed to delete category");
     }
   }
 
@@ -2700,7 +2701,7 @@
                         })
                         .catch((err) => {
                           console.error("Failed to add tag:", err);
-                          alert("Failed to add tag: " + err);
+                          toast.error("Failed to add tag: " + err);
                         });
                     }
                   }}
@@ -2724,7 +2725,7 @@
                         })
                         .catch((err) => {
                           console.error("Failed to add tag:", err);
-                          alert("Failed to add tag: " + err);
+                          toast.error("Failed to add tag: " + err);
                         });
                     }
                   }}

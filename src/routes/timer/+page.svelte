@@ -10,6 +10,7 @@
     type Image,
   } from "$lib/db";
   import { convertFileSrc } from "@tauri-apps/api/core";
+  import { toast } from "$lib/toast";
 
   interface TimerEntry {
     imageId: string;
@@ -787,7 +788,7 @@
   async function generateSessionFromPreset(preset: ClassroomPreset) {
     const allImages = await getLibraryImages();
     if (allImages.length === 0) {
-      alert("No images in library. Please add images first.");
+      toast.warning("No images in library. Please add images first.");
       return;
     }
 
@@ -834,12 +835,12 @@
     }
 
     if (sourceImages.length === 0) {
-      alert("No images match your filters. Please adjust your selection.");
+      toast.warning("No images match your filters. Please adjust your selection.");
       return;
     }
 
     if (quickConfig.stages.length === 0) {
-      alert("Please add at least one stage to your session.");
+      toast.warning("Please add at least one stage to your session.");
       return;
     }
 
