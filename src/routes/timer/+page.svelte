@@ -948,36 +948,53 @@
   // ============= Classroom Mode & Quick Session Functions =============
 
   async function generateSessionFromPreset(preset: ClassroomPreset) {
-    const allImages = await getLibraryImages();
-    if (allImages.length === 0) {
-      toast.warning("No images in library. Please add images first.");
-      return;
-    }
-
-    // Shuffle images for randomness
-    const shuffled = [...allImages].sort(() => Math.random() - 0.5);
-
     const entries: TimerEntry[] = [];
     const images: Image[] = [];
-    let imageIndex = 0;
     let poseNumber = 1;
 
+    // Generate images for each stage with its specific tags
     for (let stageIndex = 0; stageIndex < preset.stages.length; stageIndex++) {
       const stage = preset.stages[stageIndex];
-      for (let i = 0; i < stage.imageCount; i++) {
-        if (imageIndex >= shuffled.length) {
-          imageIndex = 0; // Loop back if we run out of images
+      let stageImages: Image[];
+
+      // Check if stage has specific tags
+      if (stage.tagIds && stage.tagIds.length > 0) {
+        // Use stage-specific tags
+        stageImages = await getImagesByTags(stage.tagIds);
+        if (stageImages.length === 0) {
+          toast.warning(
+            `No images found for stage ${stageIndex + 1} tags. Using all library images.`,
+          );
+          stageImages = await getLibraryImages();
         }
+      } else {
+        // Use all library images
+        stageImages = await getLibraryImages();
+      }
+
+      if (stageImages.length === 0) {
+        toast.warning("No images in library. Please add images first.");
+        return;
+      }
+
+      // Shuffle and select images for this stage
+      const shuffled = [...stageImages].sort(() => Math.random() - 0.5);
+      for (let i = 0; i < stage.imageCount; i++) {
+        const imgIndex = i % shuffled.length; // Loop if needed
         entries.push({
-          imageId: shuffled[imageIndex].id,
+          imageId: shuffled[imgIndex].id,
           duration: stage.duration,
           stageIndex,
           poseNumber,
         });
-        images.push(shuffled[imageIndex]);
-        imageIndex++;
+        images.push(shuffled[imgIndex]);
         poseNumber++;
       }
+    }
+
+    if (entries.length === 0) {
+      toast.warning("Could not generate session. Please check your settings.");
+      return;
     }
 
     practiceImages = images;
