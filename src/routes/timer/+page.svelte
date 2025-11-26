@@ -23,6 +23,7 @@
     imageCount: number;
     duration: number; // seconds per image
     description?: string;
+    tagIds?: string[]; // Per-stage tag filtering
   }
 
   interface ClassroomPreset {
@@ -37,6 +38,37 @@
     selectedTags: string[];
     stages: SessionStage[];
   }
+
+  interface CustomSession {
+    id: string;
+    name: string;
+    stages: SessionStage[];
+    createdAt: number;
+  }
+
+  const CUSTOM_SESSIONS_KEY = "customPracticeSessions";
+
+  function loadCustomSessions(): CustomSession[] {
+    if (typeof localStorage === "undefined") return [];
+    try {
+      const stored = localStorage.getItem(CUSTOM_SESSIONS_KEY);
+      if (!stored) return [];
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
+  }
+
+  function saveCustomSessions(sessions: CustomSession[]) {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(CUSTOM_SESSIONS_KEY, JSON.stringify(sessions));
+    } catch (e) {
+      console.error("Failed to save custom sessions", e);
+    }
+  }
+
+  let customSessions = $state<CustomSession[]>(loadCustomSessions());
 
   let practiceImages = $state<Image[]>([]);
   let timerEntries = $state<TimerEntry[]>([]);
@@ -826,44 +858,51 @@
   }
 
   async function generateQuickSession() {
-    let sourceImages: Image[];
-
-    if (quickConfig.selectedTags.length > 0) {
-      sourceImages = await getImagesByTags(quickConfig.selectedTags);
-    } else {
-      sourceImages = await getLibraryImages();
-    }
-
-    if (sourceImages.length === 0) {
-      toast.warning(
-        "No images match your filters. Please adjust your selection."
-      );
-      return;
-    }
-
     if (quickConfig.stages.length === 0) {
       toast.warning("Please add at least one stage to your session.");
       return;
     }
 
-    // Shuffle images
-    const shuffled = [...sourceImages].sort(() => Math.random() - 0.5);
-
     const entries: TimerEntry[] = [];
     const images: Image[] = [];
-    let imageIndex = 0;
     let poseNumber = 1;
 
+    // Generate images for each stage with its specific tags
     for (
       let stageIndex = 0;
       stageIndex < quickConfig.stages.length;
       stageIndex++
     ) {
       const stage = quickConfig.stages[stageIndex];
+      let stageImages: Image[];
+
+      // Use stage-specific tags if available, otherwise use global tags
+      const tagsToUse =
+        stage.tagIds && stage.tagIds.length > 0
+          ? stage.tagIds
+          : quickConfig.selectedTags.length > 0
+            ? quickConfig.selectedTags
+            : [];
+
+      if (tagsToUse.length > 0) {
+        stageImages = await getImagesByTags(tagsToUse);
+      } else {
+        stageImages = await getLibraryImages();
+      }
+
+      if (stageImages.length === 0) {
+        toast.warning(
+          `No images found for Stage ${stageIndex + 1}. Please adjust tag filters.`
+        );
+        return;
+      }
+
+      // Shuffle images for this stage
+      const shuffled = [...stageImages].sort(() => Math.random() - 0.5);
+
+      // Generate entries for this stage
       for (let i = 0; i < stage.imageCount; i++) {
-        if (imageIndex >= shuffled.length) {
-          imageIndex = 0;
-        }
+        const imageIndex = i % shuffled.length; // Cycle through if needed
         entries.push({
           imageId: shuffled[imageIndex].id,
           duration: stage.duration,
@@ -871,7 +910,6 @@
           poseNumber,
         });
         images.push(shuffled[imageIndex]);
-        imageIndex++;
         poseNumber++;
       }
     }
@@ -884,13 +922,65 @@
   }
 
   function addQuickStage() {
-    quickConfig.stages.push({ imageCount: 10, duration: 60 });
+    quickConfig.stages.push({ imageCount: 10, duration: 60, tagIds: [] });
     quickConfig = { ...quickConfig };
   }
 
   function removeQuickStage(index: number) {
     quickConfig.stages.splice(index, 1);
     quickConfig = { ...quickConfig };
+  }
+
+  function toggleStageTag(stageIndex: number, tagId: string) {
+    const stage = quickConfig.stages[stageIndex];
+    if (!stage.tagIds) stage.tagIds = [];
+
+    const index = stage.tagIds.indexOf(tagId);
+    if (index >= 0) {
+      stage.tagIds.splice(index, 1);
+    } else {
+      stage.tagIds.push(tagId);
+    }
+    quickConfig = { ...quickConfig };
+  }
+
+  function saveCurrentSession() {
+    if (quickConfig.stages.length === 0) {
+      toast.warning("No stages to save. Add at least one stage first.");
+      return;
+    }
+
+    const sessionName = prompt("Enter a name for this session:");
+    if (!sessionName || !sessionName.trim()) return;
+
+    const newSession: CustomSession = {
+      id: Date.now().toString(),
+      name: sessionName.trim(),
+      stages: JSON.parse(JSON.stringify(quickConfig.stages)), // Deep copy
+      createdAt: Date.now(),
+    };
+
+    customSessions.push(newSession);
+    customSessions = [...customSessions];
+    saveCustomSessions(customSessions);
+    toast.success(`Session "${sessionName}" saved!`);
+  }
+
+  function loadCustomSession(session: CustomSession) {
+    quickConfig.stages = JSON.parse(JSON.stringify(session.stages)); // Deep copy
+    quickConfig = { ...quickConfig };
+    toast.success(`Loaded session "${session.name}"`);
+  }
+
+  function deleteCustomSession(sessionId: string) {
+    const session = customSessions.find((s) => s.id === sessionId);
+    if (!session) return;
+
+    if (!confirm(`Delete session "${session.name}"?`)) return;
+
+    customSessions = customSessions.filter((s) => s.id !== sessionId);
+    saveCustomSessions(customSessions);
+    toast.success("Session deleted");
   }
 
   function toggleQuickTag(tagId: string) {
@@ -1342,55 +1432,128 @@
               {:else}
                 <div class="space-y-3">
                   {#each quickConfig.stages as stage, index}
-                    <div
-                      class="flex items-center gap-4 bg-base-300 p-4 rounded-lg"
-                    >
-                      <span class="font-semibold text-base-content"
-                        >Stage {index + 1}</span
-                      >
-
-                      <div class="flex items-center gap-2">
-                        <span class="text-sm text-base-content/70">Images:</span
+                    <div class="bg-base-300 p-4 rounded-lg space-y-3">
+                      <div class="flex items-center gap-4">
+                        <span class="font-semibold text-base-content"
+                          >Stage {index + 1}</span
                         >
-                        <input
-                          type="number"
-                          class="input input-sm input-bordered w-20"
-                          bind:value={stage.imageCount}
-                          min="1"
-                          max="100"
-                        />
+
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm text-base-content/70"
+                            >Images:</span
+                          >
+                          <input
+                            type="number"
+                            class="input input-sm input-bordered w-20"
+                            bind:value={stage.imageCount}
+                            min="1"
+                            max="100"
+                          />
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm text-base-content/70"
+                            >Duration:</span
+                          >
+                          <select
+                            class="select select-sm select-bordered w-32"
+                            bind:value={stage.duration}
+                          >
+                            <option value={10}>10 seconds</option>
+                            <option value={20}>20 seconds</option>
+                            <option value={30}>30 seconds</option>
+                            <option value={60}>1 minute</option>
+                            <option value={120}>2 minutes</option>
+                            <option value={300}>5 minutes</option>
+                            <option value={600}>10 minutes</option>
+                            <option value={1200}>20 minutes</option>
+                            <option value={2700}>45 minutes</option>
+                          </select>
+                        </div>
+
+                        <div class="flex-1"></div>
+
+                        <button
+                          class="btn btn-sm btn-ghost btn-circle"
+                          onclick={() => removeQuickStage(index)}
+                          aria-label="Remove stage"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-5 w-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
                       </div>
 
-                      <div class="flex items-center gap-2">
-                        <span class="text-sm text-base-content/70"
-                          >Duration:</span
-                        >
-                        <select
-                          class="select select-sm select-bordered w-32"
-                          bind:value={stage.duration}
-                        >
-                          <option value={10}>10 seconds</option>
-                          <option value={20}>20 seconds</option>
-                          <option value={30}>30 seconds</option>
-                          <option value={60}>1 minute</option>
-                          <option value={120}>2 minutes</option>
-                          <option value={300}>5 minutes</option>
-                          <option value={600}>10 minutes</option>
-                          <option value={1200}>20 minutes</option>
-                          <option value={2700}>45 minutes</option>
-                        </select>
+                      <!-- Per-stage tag filtering -->
+                      <div class="pl-4 border-l-2 border-primary/30">
+                        <p class="text-xs text-base-content/60 mb-2">
+                          Stage-specific tags (optional - overrides global
+                          tags):
+                        </p>
+                        <div class="flex flex-wrap gap-1">
+                          {#each allTags as tag}
+                            <button
+                              class="btn btn-xs"
+                              class:btn-primary={stage.tagIds?.includes(tag.id)}
+                              class:btn-ghost={!stage.tagIds?.includes(tag.id)}
+                              onclick={() => toggleStageTag(index, tag.id)}
+                            >
+                              {tag.name}
+                            </button>
+                          {/each}
+                        </div>
                       </div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          </div>
 
-                      <div class="flex-1"></div>
-
+          <!-- Saved Sessions Section -->
+          {#if customSessions.length > 0}
+            <div class="bg-base-200 rounded-lg p-4">
+              <h3 class="text-lg font-semibold mb-3">Saved Sessions</h3>
+              <div class="space-y-2">
+                {#each customSessions as session}
+                  <div
+                    class="flex items-center justify-between bg-base-300 p-3 rounded-lg"
+                  >
+                    <div class="flex-1">
+                      <p class="font-medium">{session.name}</p>
+                      <p class="text-sm text-base-content/60">
+                        {session.stages.length} stages • {session.stages.reduce(
+                          (acc, s) => acc + s.imageCount,
+                          0
+                        )} images total
+                      </p>
+                    </div>
+                    <div class="flex gap-2">
                       <button
-                        class="btn btn-sm btn-ghost btn-circle"
-                        onclick={() => removeQuickStage(index)}
-                        aria-label="Remove stage"
+                        class="btn btn-sm btn-primary"
+                        onclick={() => loadCustomSession(session)}
+                      >
+                        Load
+                      </button>
+                      <button
+                        class="btn btn-sm btn-ghost"
+                        onclick={() => deleteCustomSession(session.id)}
+                        aria-label="Delete session"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          class="h-5 w-5"
+                          class="h-4 w-4"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -1399,19 +1562,40 @@
                             stroke-linecap="round"
                             stroke-linejoin="round"
                             stroke-width="2"
-                            d="M6 18L18 6M6 6l12 12"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                           />
                         </svg>
                       </button>
                     </div>
-                  {/each}
-                </div>
-              {/if}
+                  </div>
+                {/each}
+              </div>
             </div>
-          </div>
+          {/if}
 
           <!-- Start Button -->
-          <div class="flex justify-end">
+          <div class="flex justify-end gap-3">
+            <button
+              class="btn btn-outline"
+              onclick={saveCurrentSession}
+              disabled={quickConfig.stages.length === 0}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+                />
+              </svg>
+              Save Session
+            </button>
             <button
               class="btn btn-primary btn-lg"
               onclick={generateQuickSession}
@@ -2831,6 +3015,28 @@
               </div>
 
               <div class="card-actions justify-center gap-3">
+                {#if setupMode === "quick" && quickConfig.stages.length > 0}
+                  <button
+                    class="btn btn-success btn-outline"
+                    onclick={saveCurrentSession}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+                      />
+                    </svg>
+                    Save Session
+                  </button>
+                {/if}
                 <button
                   class="btn btn-primary"
                   onclick={() => {
