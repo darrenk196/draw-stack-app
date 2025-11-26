@@ -82,7 +82,7 @@
   function markTagAsRecent(tagId: string) {
     const updated = [tagId, ...recentTagIds.filter((id) => id !== tagId)].slice(
       0,
-      MAX_RECENT_TAGS,
+      MAX_RECENT_TAGS
     );
     recentTagIds = updated;
     saveRecentTags(updated);
@@ -121,7 +121,7 @@
   // Derived tag organization
   const tagsByCategory = $derived.by(() => {
     const categories = new Map<string, typeof allTags>();
-    
+
     for (const tag of allTags) {
       const category = tag.parentId || "Uncategorized";
       if (!categories.has(category)) {
@@ -129,7 +129,7 @@
       }
       categories.get(category)!.push(tag);
     }
-    
+
     // Sort categories alphabetically, but keep "Uncategorized" last
     return Array.from(categories.entries())
       .sort(([a], [b]) => {
@@ -146,14 +146,12 @@
   const filteredTags = $derived.by(() => {
     if (!tagSearchQuery.trim()) return allTags;
     const query = tagSearchQuery.toLowerCase();
-    return allTags.filter(tag => 
-      tag.name.toLowerCase().includes(query)
-    );
+    return allTags.filter((tag) => tag.name.toLowerCase().includes(query));
   });
 
   const recentTags = $derived.by(() => {
     return recentTagIds
-      .map(id => allTags.find(t => t.id === id))
+      .map((id) => allTags.find((t) => t.id === id))
       .filter(Boolean);
   });
 
@@ -1362,6 +1360,68 @@
             </button>
           </div>
 
+          <!-- Saved Custom Sessions -->
+          {#if customSessions.length > 0}
+            <div class="card bg-base-200 mb-6">
+              <div class="card-body">
+                <h3 class="text-lg font-semibold mb-3">Your Saved Sessions</h3>
+                <div class="space-y-2">
+                  {#each customSessions as session}
+                    <div
+                      class="flex items-center justify-between bg-base-300 p-3 rounded-lg"
+                    >
+                      <div class="flex-1">
+                        <p class="font-medium">{session.name}</p>
+                        <p class="text-sm text-base-content/60">
+                          {session.stages.length} stages •
+                          {session.stages.reduce(
+                            (acc, s) => acc + s.imageCount,
+                            0
+                          )} images total
+                        </p>
+                      </div>
+                      <div class="flex gap-2">
+                        <button
+                          class="btn btn-sm btn-primary"
+                          onclick={() => {
+                            loadCustomSession(session);
+                            setupMode = "quick";
+                          }}
+                        >
+                          Load
+                        </button>
+                        <button
+                          class="btn btn-sm btn-ghost"
+                          onclick={() => deleteCustomSession(session.id)}
+                          aria-label="Delete session"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          <h2 class="text-xl font-semibold mb-4 text-base-content">
+            Classroom Presets
+          </h2>
+
           <div class="grid gap-4">
             {#each classroomPresets as preset (preset.id)}
               <div class="card bg-base-200 border border-base-300">
@@ -1550,10 +1610,10 @@
                       <button
                         class="btn btn-sm"
                         class:btn-primary={quickConfig.selectedTags.includes(
-                          tag.id,
+                          tag.id
                         )}
                         class:btn-ghost={!quickConfig.selectedTags.includes(
-                          tag.id,
+                          tag.id
                         )}
                         onclick={() => toggleQuickTag(tag.id)}
                       >
@@ -1574,10 +1634,10 @@
                       <button
                         class="btn btn-sm"
                         class:btn-primary={quickConfig.selectedTags.includes(
-                          tag.id,
+                          tag.id
                         )}
                         class:btn-ghost={!quickConfig.selectedTags.includes(
-                          tag.id,
+                          tag.id
                         )}
                         onclick={() => toggleQuickTag(tag.id)}
                       >
@@ -1591,9 +1651,7 @@
                     {/each}
                   </div>
                 {:else}
-                  <div
-                    class="text-center py-8 text-base-content/50"
-                  >
+                  <div class="text-center py-8 text-base-content/50">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       class="h-12 w-12 mx-auto mb-2 opacity-50"
@@ -1623,10 +1681,10 @@
                         <span class="badge badge-sm ml-2"
                           >{category.tags.length}</span
                         >
-                        {#if category.tags.some((t) => quickConfig.selectedTags.includes(t.id))}
+                        {#if category.tags.some( (t) => quickConfig.selectedTags.includes(t.id) )}
                           <span class="badge badge-primary badge-sm ml-1">
                             {category.tags.filter((t) =>
-                              quickConfig.selectedTags.includes(t.id),
+                              quickConfig.selectedTags.includes(t.id)
                             ).length} selected
                           </span>
                         {/if}
@@ -1637,10 +1695,10 @@
                             <button
                               class="btn btn-xs"
                               class:btn-primary={quickConfig.selectedTags.includes(
-                                tag.id,
+                                tag.id
                               )}
                               class:btn-ghost={!quickConfig.selectedTags.includes(
-                                tag.id,
+                                tag.id
                               )}
                               onclick={() => toggleQuickTag(tag.id)}
                             >
@@ -1821,10 +1879,10 @@
                                     <button
                                       class="btn btn-xs"
                                       class:btn-primary={stage.tagIds?.includes(
-                                        tag.id,
+                                        tag.id
                                       )}
                                       class:btn-ghost={!stage.tagIds?.includes(
-                                        tag.id,
+                                        tag.id
                                       )}
                                       onclick={() =>
                                         toggleStageTag(index, tag.id)}
@@ -1838,21 +1896,21 @@
                             {/if}
 
                             <!-- Categorized Tags for Stage -->
-                            <div
-                              class="space-y-1 max-h-64 overflow-y-auto"
-                            >
+                            <div class="space-y-1 max-h-64 overflow-y-auto">
                               {#each tagsByCategory as category}
-                                <details class="collapse collapse-arrow bg-base-300">
+                                <details
+                                  class="collapse collapse-arrow bg-base-300"
+                                >
                                   <summary
                                     class="collapse-title text-xs min-h-0 py-1.5 px-2"
                                   >
                                     {category.name}
-                                    {#if category.tags.some((t) => stage.tagIds?.includes(t.id))}
+                                    {#if category.tags.some( (t) => stage.tagIds?.includes(t.id) )}
                                       <span
                                         class="badge badge-primary badge-xs ml-1"
                                       >
                                         {category.tags.filter((t) =>
-                                          stage.tagIds?.includes(t.id),
+                                          stage.tagIds?.includes(t.id)
                                         ).length}
                                       </span>
                                     {/if}
@@ -1863,10 +1921,10 @@
                                         <button
                                           class="btn btn-xs"
                                           class:btn-primary={stage.tagIds?.includes(
-                                            tag.id,
+                                            tag.id
                                           )}
                                           class:btn-ghost={!stage.tagIds?.includes(
-                                            tag.id,
+                                            tag.id
                                           )}
                                           onclick={() =>
                                             toggleStageTag(index, tag.id)}
