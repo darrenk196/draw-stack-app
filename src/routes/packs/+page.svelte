@@ -92,6 +92,32 @@
   }
   let customCategories = $state<Set<string>>(loadCustomCategories());
 
+  // Tag categories persistence
+  const TAG_CATEGORIES_KEY = "tagCategories";
+  function loadTagCategories() {
+    try {
+      const raw =
+        typeof localStorage !== "undefined"
+          ? localStorage.getItem(TAG_CATEGORIES_KEY)
+          : null;
+      if (!raw) return null;
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : null;
+    } catch {
+      return null;
+    }
+  }
+  function saveTagCategories(
+    categories: Array<{ name: string; tags: string[] }>
+  ) {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(TAG_CATEGORIES_KEY, JSON.stringify(categories));
+    } catch {
+      // ignore
+    }
+  }
+
   // Hidden categories persistence
   const HIDDEN_CATEGORIES_KEY = "hiddenCategories";
   function loadHiddenCategories(): Set<string> {
@@ -126,7 +152,7 @@
   let selectedCategoryForNewTag = $state("");
 
   // Tag categories (matches library page)
-  const tagCategories = [
+  const defaultTagCategories = [
     { name: "Gender", tags: ["Male", "Female"] },
     {
       name: "Pose",
@@ -212,6 +238,10 @@
       ],
     },
   ];
+
+  let tagCategories = $state<Array<{ name: string; tags: string[] }>>(
+    loadTagCategories() || defaultTagCategories
+  );
 
   // Pagination state
   const PAGINATION_STORAGE_KEY = "packs-items-per-page";
@@ -902,6 +932,7 @@
           parentId: "Pack",
           createdAt: Date.now(),
         };
+        await addTag(packTag);
         allTags = [...allTags, packTag];
       }
 
@@ -1029,19 +1060,41 @@
     imageSpecificTags = new Map(imageSpecificTags);
   }
 
-  async function handleDeleteTag(tagId: string, tagName: string) {
+  async function handleDeleteTag(
+    tagId: string,
+    tagName: string,
+    categoryName?: string
+  ) {
     if (
       !confirm(`Delete tag "${tagName}"? This will remove it from all images.`)
     ) {
       return;
     }
     try {
-      await deleteTag(tagId);
-      allTags = await getAllTags();
-      // Remove from selection if selected
-      if (selectedTags.has(tagId)) {
-        selectedTags.delete(tagId);
-        selectedTags = new Set(selectedTags);
+      // Delete from database if it exists
+      if (tagId) {
+        await deleteTag(tagId);
+        allTags = await getAllTags();
+        // Remove from selection if selected
+        if (selectedTags.has(tagId)) {
+          selectedTags.delete(tagId);
+          selectedTags = new Set(selectedTags);
+        }
+      }
+
+      // Remove from template category if specified
+      if (categoryName) {
+        const categoryIndex = tagCategories.findIndex(
+          (c) => c.name === categoryName
+        );
+        if (categoryIndex !== -1) {
+          const tagIndex = tagCategories[categoryIndex].tags.indexOf(tagName);
+          if (tagIndex !== -1) {
+            tagCategories[categoryIndex].tags.splice(tagIndex, 1);
+            tagCategories = [...tagCategories];
+            saveTagCategories(tagCategories);
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to delete tag:", err);
@@ -2385,16 +2438,13 @@
                             class="btn btn-ghost btn-xs btn-square"
                             onclick={(e) => {
                               e.stopPropagation();
-                              if (existingTag) {
-                                handleDeleteTag(
-                                  existingTag.id,
-                                  existingTag.name
-                                );
-                              }
+                              handleDeleteTag(
+                                existingTag?.id || "",
+                                tagName,
+                                category.name
+                              );
                             }}
-                            title={existingTag
-                              ? "Delete tag"
-                              : "Tag not in database yet"}
+                            title="Delete tag"
                           >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"

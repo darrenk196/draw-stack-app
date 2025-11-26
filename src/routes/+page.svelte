@@ -73,6 +73,29 @@
   }
   let customCategories = $state<Set<string>>(loadCustomCategories());
 
+  // Tag categories persistence
+  const TAG_CATEGORIES_KEY = "tagCategories";
+  function loadTagCategories() {
+    try {
+      const raw = localStorage.getItem(TAG_CATEGORIES_KEY);
+      if (!raw) return null;
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : null;
+    } catch (e) {
+      console.warn("Failed to load tag categories", e);
+      return null;
+    }
+  }
+  function saveTagCategories(
+    categories: Array<{ name: string; tags: string[] }>
+  ) {
+    try {
+      localStorage.setItem(TAG_CATEGORIES_KEY, JSON.stringify(categories));
+    } catch (e) {
+      console.warn("Failed to save tag categories", e);
+    }
+  }
+
   // Hidden categories persistence
   const HIDDEN_CATEGORIES_KEY = "hiddenCategories";
   function loadHiddenCategories(): Set<string> {
@@ -202,7 +225,7 @@
   });
 
   // Predefined tag categories with subcategories
-  const tagCategories = [
+  const defaultTagCategories = [
     {
       name: "Gender",
       tags: ["Male", "Female"],
@@ -291,6 +314,10 @@
       ],
     },
   ];
+
+  let tagCategories = $state<Array<{ name: string; tags: string[] }>>(
+    loadTagCategories() || defaultTagCategories
+  );
 
   // Quick tag presets for bulk operations
   const quickTagPresets = [
@@ -707,15 +734,37 @@
     expandedCategories = newExpanded;
   }
 
-  async function handleDeleteTag(tagId: string, tagName: string) {
+  async function handleDeleteTag(
+    tagId: string,
+    tagName: string,
+    categoryName?: string
+  ) {
     if (
       !confirm(`Delete tag "${tagName}"? This will remove it from all images.`)
     ) {
       return;
     }
     try {
-      await deleteTag(tagId);
-      await loadAllTags();
+      // Delete from database if it exists
+      if (tagId) {
+        await deleteTag(tagId);
+        await loadAllTags();
+      }
+
+      // Remove from template category if specified
+      if (categoryName) {
+        const categoryIndex = tagCategories.findIndex(
+          (c) => c.name === categoryName
+        );
+        if (categoryIndex !== -1) {
+          const tagIndex = tagCategories[categoryIndex].tags.indexOf(tagName);
+          if (tagIndex !== -1) {
+            tagCategories[categoryIndex].tags.splice(tagIndex, 1);
+            tagCategories = [...tagCategories];
+            saveTagCategories(tagCategories);
+          }
+        }
+      }
     } catch (err) {
       console.error("Failed to delete tag:", err);
       alert("Failed to delete tag");
@@ -1858,11 +1907,13 @@
                         class="btn btn-ghost btn-xs btn-square"
                         onclick={(e) => {
                           e.stopPropagation();
-                          if (dbTag) {
-                            handleDeleteTag(dbTag.id, dbTag.name);
-                          }
+                          handleDeleteTag(
+                            dbTag?.id || "",
+                            tagName,
+                            category.name
+                          );
                         }}
-                        title={dbTag ? "Delete tag" : "Tag not in database yet"}
+                        title="Delete tag"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
