@@ -98,6 +98,46 @@
   }
 
   let customSessions = $state<CustomSession[]>(loadCustomSessions());
+  let classroomPresets = $state<ClassroomPreset[]>([]);
+
+  function loadClassroomPresets(): ClassroomPreset[] {
+    if (typeof localStorage === "undefined") return defaultClassroomPresets;
+    try {
+      const stored = localStorage.getItem(CLASSROOM_PRESETS_KEY);
+      if (!stored) return defaultClassroomPresets;
+      return JSON.parse(stored);
+    } catch {
+      return defaultClassroomPresets;
+    }
+  }
+
+  function saveClassroomPresets(presets: ClassroomPreset[]) {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(CLASSROOM_PRESETS_KEY, JSON.stringify(presets));
+    } catch (e) {
+      console.error("Failed to save classroom presets", e);
+    }
+  }
+
+  function deleteClassroomPreset(presetId: string) {
+    classroomPresets = classroomPresets.filter((p) => p.id !== presetId);
+    saveClassroomPresets(classroomPresets);
+    toast.success("Preset deleted");
+  }
+
+  function convertCustomSessionToPreset(session: CustomSession): ClassroomPreset {
+    const totalMinutes = Math.ceil(
+      session.stages.reduce((sum, s) => sum + s.imageCount * s.duration, 0) / 60,
+    );
+    return {
+      id: session.id,
+      name: session.name,
+      totalDuration: `~${totalMinutes} min`,
+      description: "Custom session",
+      stages: session.stages,
+    };
+  }
 
   let practiceImages = $state<Image[]>([]);
   let timerEntries = $state<TimerEntry[]>([]);
@@ -241,8 +281,10 @@
   // Default timer durations
   const presetDurations = [30, 60, 120, 300, 600]; // 30s, 1m, 2m, 5m, 10m
 
-  // Classroom Mode Presets
-  const classroomPresets: ClassroomPreset[] = [
+  const CLASSROOM_PRESETS_KEY = "classroomPresets";
+
+  // Default Classroom Mode Presets
+  const defaultClassroomPresets: ClassroomPreset[] = [
     {
       id: "classic-warmup",
       name: "Classic Warm-Up",
@@ -329,6 +371,17 @@
   onMount(async () => {
     allTags = await getAllTags();
     recentTagIds = loadRecentTags();
+    classroomPresets = loadClassroomPresets();
+    
+    // Merge custom sessions into classroom presets
+    const customPresets = customSessions.map(convertCustomSessionToPreset);
+    const existingIds = new Set(classroomPresets.map(p => p.id));
+    const newCustomPresets = customPresets.filter(p => !existingIds.has(p.id));
+    if (newCustomPresets.length > 0) {
+      classroomPresets = [...classroomPresets, ...newCustomPresets];
+      saveClassroomPresets(classroomPresets);
+    }
+    
     await loadPracticeImages();
   });
 
@@ -1037,6 +1090,13 @@
     customSessions.push(newSession);
     customSessions = [...customSessions];
     saveCustomSessions(customSessions);
+    
+    // Also add to classroom presets
+    const newPreset = convertCustomSessionToPreset(newSession);
+    classroomPresets.push(newPreset);
+    classroomPresets = [...classroomPresets];
+    saveClassroomPresets(classroomPresets);
+    
     toast.success(`Session "${sessionName}" saved!`);
   }
 
@@ -1054,7 +1114,9 @@
 
     customSessions = customSessions.filter((s) => s.id !== sessionId);
     saveCustomSessions(customSessions);
-    toast.success("Session deleted");
+    
+    // Also remove from classroom presets
+    deleteClassroomPreset(sessionId);
   }
 
   function toggleQuickTag(tagId: string) {
@@ -1360,73 +1422,11 @@
             </button>
           </div>
 
-          <!-- Saved Custom Sessions -->
-          {#if customSessions.length > 0}
-            <div class="card bg-base-200 mb-6">
-              <div class="card-body">
-                <h3 class="text-lg font-semibold mb-3">Your Saved Sessions</h3>
-                <div class="space-y-2">
-                  {#each customSessions as session}
-                    <div
-                      class="flex items-center justify-between bg-base-300 p-3 rounded-lg"
-                    >
-                      <div class="flex-1">
-                        <p class="font-medium">{session.name}</p>
-                        <p class="text-sm text-base-content/60">
-                          {session.stages.length} stages •
-                          {session.stages.reduce(
-                            (acc, s) => acc + s.imageCount,
-                            0
-                          )} images total
-                        </p>
-                      </div>
-                      <div class="flex gap-2">
-                        <button
-                          class="btn btn-sm btn-primary"
-                          onclick={() => {
-                            loadCustomSession(session);
-                            setupMode = "quick";
-                          }}
-                        >
-                          Load
-                        </button>
-                        <button
-                          class="btn btn-sm btn-ghost"
-                          onclick={() => deleteCustomSession(session.id)}
-                          aria-label="Delete session"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              </div>
-            </div>
-          {/if}
-
-          <h2 class="text-xl font-semibold mb-4 text-base-content">
-            Classroom Presets
-          </h2>
-
           <div class="grid gap-4">
             {#each classroomPresets as preset (preset.id)}
               <div class="card bg-base-200 border border-base-300">
                 <div class="card-body">
-                  <div class="flex items-start justify-between">
+                  <div class="flex items-start justify-between gap-4">
                     <div class="flex-1">
                       <div class="flex items-center gap-3 mb-2">
                         <h3 class="card-title text-xl">{preset.name}</h3>
@@ -1453,35 +1453,57 @@
                       </div>
                     </div>
 
-                    <button
-                      class="btn btn-primary"
-                      onclick={() => {
-                        selectedPreset = preset;
-                        generateSessionFromPreset(preset);
-                      }}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
+                    <div class="flex gap-2">
+                      <button
+                        class="btn btn-primary"
+                        onclick={() => {
+                          selectedPreset = preset;
+                          generateSessionFromPreset(preset);
+                        }}
                       >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                        />
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      Start Session
-                    </button>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                          />
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        Start Session
+                      </button>
+                      <button
+                        class="btn btn-ghost btn-square"
+                        onclick={() => deleteClassroomPreset(preset.id)}
+                        aria-label="Delete preset"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1957,58 +1979,6 @@
               {/if}
             </div>
           </div>
-
-          <!-- Saved Sessions Section -->
-          {#if customSessions.length > 0}
-            <div class="bg-base-200 rounded-lg p-4">
-              <h3 class="text-lg font-semibold mb-3">Saved Sessions</h3>
-              <div class="space-y-2">
-                {#each customSessions as session}
-                  <div
-                    class="flex items-center justify-between bg-base-300 p-3 rounded-lg"
-                  >
-                    <div class="flex-1">
-                      <p class="font-medium">{session.name}</p>
-                      <p class="text-sm text-base-content/60">
-                        {session.stages.length} stages • {session.stages.reduce(
-                          (acc, s) => acc + s.imageCount,
-                          0
-                        )} images total
-                      </p>
-                    </div>
-                    <div class="flex gap-2">
-                      <button
-                        class="btn btn-sm btn-primary"
-                        onclick={() => loadCustomSession(session)}
-                      >
-                        Load
-                      </button>
-                      <button
-                        class="btn btn-sm btn-ghost"
-                        onclick={() => deleteCustomSession(session.id)}
-                        aria-label="Delete session"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
 
           <!-- Start Button -->
           <div class="flex justify-end gap-3">
