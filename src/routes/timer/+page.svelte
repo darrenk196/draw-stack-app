@@ -1497,7 +1497,9 @@
 
                       <!-- Per-stage tag filtering -->
                       <details class="collapse collapse-arrow bg-base-200">
-                        <summary class="collapse-title text-sm min-h-0 py-2 px-3">
+                        <summary
+                          class="collapse-title text-sm min-h-0 py-2 px-3"
+                        >
                           <div class="flex items-center gap-2">
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
@@ -1529,7 +1531,9 @@
                           {#if stage.tagIds && stage.tagIds.length > 0}
                             <div class="flex flex-wrap gap-1 mt-1">
                               {#each stage.tagIds.slice(0, 3) as tagId}
-                                {@const tag = allTags.find((t) => t.id === tagId)}
+                                {@const tag = allTags.find(
+                                  (t) => t.id === tagId
+                                )}
                                 {#if tag}
                                   <span class="badge badge-xs badge-primary"
                                     >{tag.name}</span
@@ -1550,15 +1554,17 @@
                               Select tags to filter images for this stage only.
                               Leave empty to use global tags.
                             </p>
-                            <div class="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
+                            <div
+                              class="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto"
+                            >
                               {#each allTags as tag}
                                 <button
                                   class="btn btn-xs"
                                   class:btn-primary={stage.tagIds?.includes(
-                                    tag.id,
+                                    tag.id
                                   )}
                                   class:btn-ghost={!stage.tagIds?.includes(
-                                    tag.id,
+                                    tag.id
                                   )}
                                   onclick={() => toggleStageTag(index, tag.id)}
                                 >
