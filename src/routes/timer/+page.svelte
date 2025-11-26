@@ -1496,24 +1496,89 @@
                       </div>
 
                       <!-- Per-stage tag filtering -->
-                      <div class="pl-4 border-l-2 border-primary/30">
-                        <p class="text-xs text-base-content/60 mb-2">
-                          Stage-specific tags (optional - overrides global
-                          tags):
-                        </p>
-                        <div class="flex flex-wrap gap-1">
-                          {#each allTags as tag}
-                            <button
-                              class="btn btn-xs"
-                              class:btn-primary={stage.tagIds?.includes(tag.id)}
-                              class:btn-ghost={!stage.tagIds?.includes(tag.id)}
-                              onclick={() => toggleStageTag(index, tag.id)}
+                      <details class="collapse collapse-arrow bg-base-200">
+                        <summary class="collapse-title text-sm min-h-0 py-2 px-3">
+                          <div class="flex items-center gap-2">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-4 w-4 text-primary"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
                             >
-                              {tag.name}
-                            </button>
-                          {/each}
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                              />
+                            </svg>
+                            <span class="text-base-content/70">
+                              Stage-specific tags
+                              {#if stage.tagIds && stage.tagIds.length > 0}
+                                <span class="badge badge-primary badge-sm ml-2"
+                                  >{stage.tagIds.length}</span
+                                >
+                              {:else}
+                                <span class="text-xs opacity-60 ml-2"
+                                  >(uses global tags)</span
+                                >
+                              {/if}
+                            </span>
+                          </div>
+                          {#if stage.tagIds && stage.tagIds.length > 0}
+                            <div class="flex flex-wrap gap-1 mt-1">
+                              {#each stage.tagIds.slice(0, 3) as tagId}
+                                {@const tag = allTags.find((t) => t.id === tagId)}
+                                {#if tag}
+                                  <span class="badge badge-xs badge-primary"
+                                    >{tag.name}</span
+                                  >
+                                {/if}
+                              {/each}
+                              {#if stage.tagIds.length > 3}
+                                <span class="badge badge-xs">
+                                  +{stage.tagIds.length - 3} more
+                                </span>
+                              {/if}
+                            </div>
+                          {/if}
+                        </summary>
+                        <div class="collapse-content">
+                          <div class="pt-2">
+                            <p class="text-xs text-base-content/60 mb-2">
+                              Select tags to filter images for this stage only.
+                              Leave empty to use global tags.
+                            </p>
+                            <div class="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
+                              {#each allTags as tag}
+                                <button
+                                  class="btn btn-xs"
+                                  class:btn-primary={stage.tagIds?.includes(
+                                    tag.id,
+                                  )}
+                                  class:btn-ghost={!stage.tagIds?.includes(
+                                    tag.id,
+                                  )}
+                                  onclick={() => toggleStageTag(index, tag.id)}
+                                >
+                                  {tag.name}
+                                </button>
+                              {/each}
+                            </div>
+                            {#if stage.tagIds && stage.tagIds.length > 0}
+                              <button
+                                class="btn btn-xs btn-ghost mt-2"
+                                onclick={() => {
+                                  stage.tagIds = [];
+                                }}
+                              >
+                                Clear all stage tags
+                              </button>
+                            {/if}
+                          </div>
                         </div>
-                      </div>
+                      </details>
                     </div>
                   {/each}
                 </div>
