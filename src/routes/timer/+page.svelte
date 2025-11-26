@@ -59,6 +59,35 @@
     }
   }
 
+  function loadRecentTags(): string[] {
+    if (typeof localStorage === "undefined") return [];
+    try {
+      const stored = localStorage.getItem(RECENT_TAGS_KEY);
+      if (!stored) return [];
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
+  }
+
+  function saveRecentTags(tagIds: string[]) {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(RECENT_TAGS_KEY, JSON.stringify(tagIds));
+    } catch (e) {
+      console.error("Failed to save recent tags", e);
+    }
+  }
+
+  function markTagAsRecent(tagId: string) {
+    const updated = [tagId, ...recentTagIds.filter((id) => id !== tagId)].slice(
+      0,
+      MAX_RECENT_TAGS,
+    );
+    recentTagIds = updated;
+    saveRecentTags(updated);
+  }
+
   function saveCustomSessions(sessions: CustomSession[]) {
     if (typeof localStorage === "undefined") return;
     try {
@@ -82,6 +111,51 @@
   });
   let allTags = $state<any[]>([]);
   let currentStageIndex = $state(0);
+
+  // Tag UI state
+  let tagSearchQuery = $state("");
+  let recentTagIds = $state<string[]>([]);
+  const RECENT_TAGS_KEY = "recentlyUsedTags";
+  const MAX_RECENT_TAGS = 12;
+
+  // Derived tag organization
+  const tagsByCategory = $derived.by(() => {
+    const categories = new Map<string, typeof allTags>();
+    
+    for (const tag of allTags) {
+      const category = tag.parentId || "Uncategorized";
+      if (!categories.has(category)) {
+        categories.set(category, []);
+      }
+      categories.get(category)!.push(tag);
+    }
+    
+    // Sort categories alphabetically, but keep "Uncategorized" last
+    return Array.from(categories.entries())
+      .sort(([a], [b]) => {
+        if (a === "Uncategorized") return 1;
+        if (b === "Uncategorized") return -1;
+        return a.localeCompare(b);
+      })
+      .map(([category, tags]) => ({
+        name: category,
+        tags: tags.sort((a, b) => a.name.localeCompare(b.name)),
+      }));
+  });
+
+  const filteredTags = $derived.by(() => {
+    if (!tagSearchQuery.trim()) return allTags;
+    const query = tagSearchQuery.toLowerCase();
+    return allTags.filter(tag => 
+      tag.name.toLowerCase().includes(query)
+    );
+  });
+
+  const recentTags = $derived.by(() => {
+    return recentTagIds
+      .map(id => allTags.find(t => t.id === id))
+      .filter(Boolean);
+  });
 
   // Practice session state
   let currentIndex = $state(0);
@@ -256,6 +330,7 @@
 
   onMount(async () => {
     allTags = await getAllTags();
+    recentTagIds = loadRecentTags();
     await loadPracticeImages();
   });
 
@@ -940,6 +1015,7 @@
       stage.tagIds.splice(index, 1);
     } else {
       stage.tagIds.push(tagId);
+      markTagAsRecent(tagId);
     }
     quickConfig = { ...quickConfig };
   }
@@ -989,6 +1065,7 @@
       quickConfig.selectedTags.splice(index, 1);
     } else {
       quickConfig.selectedTags.push(tagId);
+      markTagAsRecent(tagId);
     }
     quickConfig = { ...quickConfig };
   }
@@ -1376,28 +1453,206 @@
           <!-- Tag Filters -->
           <div class="card bg-base-200 mb-6">
             <div class="card-body">
-              <h3 class="card-title text-lg mb-3">
-                Filter Images by Tags (optional)
-              </h3>
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="card-title text-lg">
+                  Filter Images by Tags (optional)
+                </h3>
+                {#if quickConfig.selectedTags.length > 0}
+                  <button
+                    class="btn btn-sm btn-ghost"
+                    onclick={() => {
+                      quickConfig.selectedTags = [];
+                    }}
+                  >
+                    Clear all
+                  </button>
+                {/if}
+              </div>
               <p class="text-sm text-base-content/70 mb-4">
                 Select tags to filter which images appear in your session. Leave
                 empty to use all library images.
               </p>
 
-              <div class="flex flex-wrap gap-2">
-                {#each allTags as tag}
-                  <button
-                    class="btn btn-sm"
-                    class:btn-primary={quickConfig.selectedTags.includes(
-                      tag.id
-                    )}
-                    class:btn-ghost={!quickConfig.selectedTags.includes(tag.id)}
-                    onclick={() => toggleQuickTag(tag.id)}
-                  >
-                    {tag.name}
-                  </button>
-                {/each}
+              <!-- Search Bar -->
+              <div class="form-control mb-4">
+                <div class="input-group">
+                  <span class="bg-base-300">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search tags..."
+                    class="input input-bordered w-full"
+                    bind:value={tagSearchQuery}
+                  />
+                  {#if tagSearchQuery}
+                    <button
+                      class="btn btn-square"
+                      onclick={() => (tagSearchQuery = "")}
+                      aria-label="Clear search"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  {/if}
+                </div>
               </div>
+
+              <!-- Recent Tags -->
+              {#if recentTags.length > 0 && !tagSearchQuery}
+                <div class="mb-4">
+                  <div class="flex items-center gap-2 mb-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4 text-base-content/60"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span class="text-sm font-semibold text-base-content/70"
+                      >Recently Used</span
+                    >
+                  </div>
+                  <div class="flex flex-wrap gap-1.5">
+                    {#each recentTags as tag}
+                      <button
+                        class="btn btn-sm"
+                        class:btn-primary={quickConfig.selectedTags.includes(
+                          tag.id,
+                        )}
+                        class:btn-ghost={!quickConfig.selectedTags.includes(
+                          tag.id,
+                        )}
+                        onclick={() => toggleQuickTag(tag.id)}
+                      >
+                        {tag.name}
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+                <div class="divider my-2"></div>
+              {/if}
+
+              <!-- Tags by Category or Filtered -->
+              {#if tagSearchQuery}
+                <!-- Search Results -->
+                {#if filteredTags.length > 0}
+                  <div class="flex flex-wrap gap-1.5 max-h-64 overflow-y-auto">
+                    {#each filteredTags as tag}
+                      <button
+                        class="btn btn-sm"
+                        class:btn-primary={quickConfig.selectedTags.includes(
+                          tag.id,
+                        )}
+                        class:btn-ghost={!quickConfig.selectedTags.includes(
+                          tag.id,
+                        )}
+                        onclick={() => toggleQuickTag(tag.id)}
+                      >
+                        {tag.name}
+                        {#if tag.parentId}
+                          <span class="text-xs opacity-60">
+                            ({tag.parentId})
+                          </span>
+                        {/if}
+                      </button>
+                    {/each}
+                  </div>
+                {:else}
+                  <div
+                    class="text-center py-8 text-base-content/50"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-12 w-12 mx-auto mb-2 opacity-50"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <p>No tags found matching "{tagSearchQuery}"</p>
+                  </div>
+                {/if}
+              {:else}
+                <!-- Categorized Tags -->
+                <div class="space-y-2">
+                  {#each tagsByCategory as category}
+                    <details class="collapse collapse-arrow bg-base-300">
+                      <summary
+                        class="collapse-title text-sm font-medium min-h-0 py-3"
+                      >
+                        {category.name}
+                        <span class="badge badge-sm ml-2"
+                          >{category.tags.length}</span
+                        >
+                        {#if category.tags.some((t) => quickConfig.selectedTags.includes(t.id))}
+                          <span class="badge badge-primary badge-sm ml-1">
+                            {category.tags.filter((t) =>
+                              quickConfig.selectedTags.includes(t.id),
+                            ).length} selected
+                          </span>
+                        {/if}
+                      </summary>
+                      <div class="collapse-content">
+                        <div class="flex flex-wrap gap-1.5 pt-2">
+                          {#each category.tags as tag}
+                            <button
+                              class="btn btn-xs"
+                              class:btn-primary={quickConfig.selectedTags.includes(
+                                tag.id,
+                              )}
+                              class:btn-ghost={!quickConfig.selectedTags.includes(
+                                tag.id,
+                              )}
+                              onclick={() => toggleQuickTag(tag.id)}
+                            >
+                              {tag.name}
+                            </button>
+                          {/each}
+                        </div>
+                      </div>
+                    </details>
+                  {/each}
+                </div>
+              {/if}
             </div>
           </div>
 
@@ -1554,27 +1809,80 @@
                               Select tags to filter images for this stage only.
                               Leave empty to use global tags.
                             </p>
+
+                            <!-- Recent Tags for Stage -->
+                            {#if recentTags.length > 0}
+                              <div class="mb-3">
+                                <p class="text-xs text-base-content/50 mb-1.5">
+                                  Recent:
+                                </p>
+                                <div class="flex flex-wrap gap-1">
+                                  {#each recentTags.slice(0, 8) as tag}
+                                    <button
+                                      class="btn btn-xs"
+                                      class:btn-primary={stage.tagIds?.includes(
+                                        tag.id,
+                                      )}
+                                      class:btn-ghost={!stage.tagIds?.includes(
+                                        tag.id,
+                                      )}
+                                      onclick={() =>
+                                        toggleStageTag(index, tag.id)}
+                                    >
+                                      {tag.name}
+                                    </button>
+                                  {/each}
+                                </div>
+                              </div>
+                              <div class="divider my-2"></div>
+                            {/if}
+
+                            <!-- Categorized Tags for Stage -->
                             <div
-                              class="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto"
+                              class="space-y-1 max-h-64 overflow-y-auto"
                             >
-                              {#each allTags as tag}
-                                <button
-                                  class="btn btn-xs"
-                                  class:btn-primary={stage.tagIds?.includes(
-                                    tag.id
-                                  )}
-                                  class:btn-ghost={!stage.tagIds?.includes(
-                                    tag.id
-                                  )}
-                                  onclick={() => toggleStageTag(index, tag.id)}
-                                >
-                                  {tag.name}
-                                </button>
+                              {#each tagsByCategory as category}
+                                <details class="collapse collapse-arrow bg-base-300">
+                                  <summary
+                                    class="collapse-title text-xs min-h-0 py-1.5 px-2"
+                                  >
+                                    {category.name}
+                                    {#if category.tags.some((t) => stage.tagIds?.includes(t.id))}
+                                      <span
+                                        class="badge badge-primary badge-xs ml-1"
+                                      >
+                                        {category.tags.filter((t) =>
+                                          stage.tagIds?.includes(t.id),
+                                        ).length}
+                                      </span>
+                                    {/if}
+                                  </summary>
+                                  <div class="collapse-content">
+                                    <div class="flex flex-wrap gap-1 pt-1">
+                                      {#each category.tags as tag}
+                                        <button
+                                          class="btn btn-xs"
+                                          class:btn-primary={stage.tagIds?.includes(
+                                            tag.id,
+                                          )}
+                                          class:btn-ghost={!stage.tagIds?.includes(
+                                            tag.id,
+                                          )}
+                                          onclick={() =>
+                                            toggleStageTag(index, tag.id)}
+                                        >
+                                          {tag.name}
+                                        </button>
+                                      {/each}
+                                    </div>
+                                  </div>
+                                </details>
                               {/each}
                             </div>
+
                             {#if stage.tagIds && stage.tagIds.length > 0}
                               <button
-                                class="btn btn-xs btn-ghost mt-2"
+                                class="btn btn-xs btn-ghost mt-2 w-full"
                                 onclick={() => {
                                   stage.tagIds = [];
                                 }}
