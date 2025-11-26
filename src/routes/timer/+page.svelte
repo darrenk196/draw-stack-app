@@ -123,6 +123,14 @@
   function deleteClassroomPreset(presetId: string) {
     classroomPresets = classroomPresets.filter((p) => p.id !== presetId);
     saveClassroomPresets(classroomPresets);
+    
+    // Also check if this is a custom session and remove from there too
+    const isCustomSession = customSessions.some((s) => s.id === presetId);
+    if (isCustomSession) {
+      customSessions = customSessions.filter((s) => s.id !== presetId);
+      saveCustomSessions(customSessions);
+    }
+    
     toast.success("Preset deleted");
   }
 
@@ -1354,7 +1362,10 @@
                   <div>
                     <h2 class="card-title text-2xl">Classroom Mode</h2>
                     <p class="text-sm text-base-content/70">
-                      {classroomPresets.length} preset{classroomPresets.length === 1 ? "" : "s"}
+                      {classroomPresets.length} preset{classroomPresets.length ===
+                      1
+                        ? ""
+                        : "s"}
                     </p>
                   </div>
                 </div>
