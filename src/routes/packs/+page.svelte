@@ -1022,7 +1022,9 @@
       // Dispatch event to notify Library page to refresh
       window.dispatchEvent(new CustomEvent("library-updated"));
 
-      toast.success(`Successfully added ${imageCount} images to library with tags!`);
+      toast.success(
+        `Successfully added ${imageCount} images to library with tags!`
+      );
     } catch (error) {
       console.error("Failed to apply tags:", error);
       toast.error(`Failed to apply tags: ${error}`);
@@ -1529,9 +1531,14 @@
       </header>
 
       <!-- Image Grid -->
-      <div class="flex-1 overflow-auto p-6 relative" bind:this={scrollContainer}>
+      <div
+        class="flex-1 overflow-auto p-6 relative"
+        bind:this={scrollContainer}
+      >
         {#if isBrowsing}
-          <div class="absolute inset-0 flex items-center justify-center bg-base-100/80 backdrop-blur-sm z-10">
+          <div
+            class="absolute inset-0 flex items-center justify-center bg-base-100/80 backdrop-blur-sm z-10"
+          >
             <div class="flex flex-col items-center gap-4">
               <span class="loading loading-spinner loading-lg"></span>
               <p class="text-base-content/70">Loading folder contents...</p>

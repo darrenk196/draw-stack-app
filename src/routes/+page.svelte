@@ -147,6 +147,23 @@
   let itemsPerPage = $state<number | "all">(loadItemsPerPage());
   let currentPage = $state(1);
 
+  // Sort state
+  const SORT_ORDER_KEY = "library-sort-order";
+  type SortOrder = "newest" | "oldest";
+
+  function loadSortOrder(): SortOrder {
+    if (typeof localStorage === "undefined") return "newest";
+    const stored = localStorage.getItem(SORT_ORDER_KEY);
+    return (stored === "oldest" ? "oldest" : "newest") as SortOrder;
+  }
+
+  function saveSortOrder(order: SortOrder) {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(SORT_ORDER_KEY, order);
+  }
+
+  let sortOrder = $state<SortOrder>(loadSortOrder());
+
   // Debounce search input
   $effect(() => {
     clearTimeout(searchDebounceTimer);
@@ -157,49 +174,58 @@
 
   // Filtered images based on search query and active filters
   let filteredImages = $derived.by(() => {
-    // If no filters or search, show all
-    if (!debouncedSearchQuery.trim() && activeFilters.length === 0) {
-      return libraryImages;
-    }
+    let images = libraryImages;
 
-    return libraryImages.filter((image) => {
-      const imageTags = allImageTags.get(image.id) || [];
-      const imageTagPaths = imageTags.map((tag) =>
-        buildTagPath(tag, allTags).toLowerCase()
-      );
-      const imageTagNames = imageTags.map((tag) => tag.name.toLowerCase());
-
-      // Check if image matches all active filters (AND logic)
-      const matchesFilters = activeFilters.every((filter) => {
-        const filterLower = filter.toLowerCase();
-        return (
-          imageTagPaths.some((path) => path.includes(filterLower)) ||
-          imageTagNames.some((name) => name.includes(filterLower))
+    // Apply filters and search
+    if (debouncedSearchQuery.trim() || activeFilters.length > 0) {
+      images = libraryImages.filter((image) => {
+        const imageTags = allImageTags.get(image.id) || [];
+        const imageTagPaths = imageTags.map((tag) =>
+          buildTagPath(tag, allTags).toLowerCase()
         );
-      });
+        const imageTagNames = imageTags.map((tag) => tag.name.toLowerCase());
 
-      if (!matchesFilters) {
-        return false;
-      }
+        // Check if image matches all active filters (AND logic)
+        const matchesFilters = activeFilters.every((filter) => {
+          const filterLower = filter.toLowerCase();
+          return (
+            imageTagPaths.some((path) => path.includes(filterLower)) ||
+            imageTagNames.some((name) => name.includes(filterLower))
+          );
+        });
 
-      // If there's a search query, also check filename or tags
-      if (debouncedSearchQuery.trim()) {
-        const query = debouncedSearchQuery.toLowerCase().trim();
-
-        // Check if filename matches
-        if (image.filename.toLowerCase().includes(query)) {
-          return true;
+        if (!matchesFilters) {
+          return false;
         }
 
-        // Check if any tag matches
-        return (
-          imageTagPaths.some((path) => path.includes(query)) ||
-          imageTagNames.some((name) => name.includes(query))
-        );
-      }
+        // If there's a search query, also check filename or tags
+        if (debouncedSearchQuery.trim()) {
+          const query = debouncedSearchQuery.toLowerCase().trim();
 
-      return true;
+          // Check if filename matches
+          if (image.filename.toLowerCase().includes(query)) {
+            return true;
+          }
+
+          // Check if any tag matches
+          return (
+            imageTagPaths.some((path) => path.includes(query)) ||
+            imageTagNames.some((name) => name.includes(query))
+          );
+        }
+
+        return true;
+      });
+    }
+
+    // Apply sorting by date added
+    const sorted = [...images].sort((a, b) => {
+      const aTime = a.addedToLibraryAt || 0;
+      const bTime = b.addedToLibraryAt || 0;
+      return sortOrder === "newest" ? bTime - aTime : aTime - bTime;
     });
+
+    return sorted;
   });
 
   // Pagination calculations
@@ -992,7 +1018,9 @@
         : filteredImages;
 
     if (imagesToPractice.length === 0) {
-      toast.warning("No images to practice with. Select images or apply filters.");
+      toast.warning(
+        "No images to practice with. Select images or apply filters."
+      );
       return;
     }
 
@@ -1149,6 +1177,19 @@
             </svg>
           {/if}
         </button>
+
+        <div class="divider divider-horizontal mx-0"></div>
+
+        <!-- Sort Order Dropdown -->
+        <select
+          class="select select-sm select-bordered"
+          bind:value={sortOrder}
+          onchange={() => saveSortOrder(sortOrder)}
+          title="Sort by date added"
+        >
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+        </select>
 
         <!-- Help Button -->
         <button
@@ -2335,8 +2376,18 @@
         </div>
       </div>
       <div class="flex gap-2 justify-end">
-        <button class="btn btn-ghost" onclick={cancelDelete} disabled={isDeletingImages}> Cancel </button>
-        <button class="btn btn-error" onclick={confirmDelete} disabled={isDeletingImages}>
+        <button
+          class="btn btn-ghost"
+          onclick={cancelDelete}
+          disabled={isDeletingImages}
+        >
+          Cancel
+        </button>
+        <button
+          class="btn btn-error"
+          onclick={confirmDelete}
+          disabled={isDeletingImages}
+        >
           {#if isDeletingImages}
             <span class="loading loading-spinner loading-sm"></span>
           {/if}

@@ -835,7 +835,9 @@
     }
 
     if (sourceImages.length === 0) {
-      toast.warning("No images match your filters. Please adjust your selection.");
+      toast.warning(
+        "No images match your filters. Please adjust your selection."
+      );
       return;
     }
 
