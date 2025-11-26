@@ -59,6 +59,10 @@
   let draggedImages = new Set<string>(); // Track images we've dragged over
   let showHelp = $state(false);
 
+  // Loading states
+  let isBrowsing = $state(false);
+  let isAddingToLibrary = $state(false);
+
   // Add to Library popup state
   let showAddPopup = $state(false);
   let imagesToAdd = $state<Image[]>([]);
@@ -454,6 +458,7 @@
       scrollContainer.scrollTop = 0;
     }
 
+    isBrowsing = true;
     try {
       const contents = await invoke<FolderContents>("browse_folder", {
         folderPath,
@@ -485,6 +490,8 @@
       console.error("Failed to browse folder:", error);
       toast.error(`Failed to browse folder: ${error}`);
       currentPath = null;
+    } finally {
+      isBrowsing = false;
     }
   }
 
@@ -741,6 +748,7 @@
     let duplicateCount = 0;
     let successCount = 0;
 
+    isAddingToLibrary = true;
     try {
       console.log(`Quick adding ${selectedPaths.length} images to library...`);
 
@@ -842,6 +850,8 @@
     } catch (error) {
       console.error("Failed to add images to library:", error);
       toast.error(`Failed to add images to library: ${error}`);
+    } finally {
+      isAddingToLibrary = false;
     }
   }
 
@@ -854,6 +864,7 @@
     let duplicateCount = 0;
     let successCount = 0;
 
+    isAddingToLibrary = true;
     try {
       console.log(`Preparing ${selectedPaths.length} images for library...`);
 
@@ -959,6 +970,8 @@
     } catch (error) {
       console.error("Failed to prepare images:", error);
       toast.error(`Failed to prepare images: ${error}`);
+    } finally {
+      isAddingToLibrary = false;
     }
   }
 
@@ -1459,46 +1472,54 @@
               <div class="flex gap-2">
                 <button
                   class="btn btn-sm btn-ghost"
-                  disabled={selectedImages.size === 0}
+                  disabled={selectedImages.size === 0 || isAddingToLibrary}
                   onclick={quickAddToLibrary}
                   title="Quick add with auto-tagging"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
+                  {#if isAddingToLibrary}
+                    <span class="loading loading-spinner loading-xs"></span>
+                  {:else}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                      />
+                    </svg>
+                  {/if}
                   Quick Add ({selectedImages.size})
                 </button>
                 <button
                   class="btn btn-sm btn-primary"
-                  disabled={selectedImages.size === 0}
+                  disabled={selectedImages.size === 0 || isAddingToLibrary}
                   onclick={addToLibrary}
                   title="Add with tag customization"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                    />
-                  </svg>
+                  {#if isAddingToLibrary}
+                    <span class="loading loading-spinner loading-xs"></span>
+                  {:else}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                      />
+                    </svg>
+                  {/if}
                   Add to Library ({selectedImages.size})
                 </button>
               </div>
@@ -1508,7 +1529,15 @@
       </header>
 
       <!-- Image Grid -->
-      <div class="flex-1 overflow-auto p-6" bind:this={scrollContainer}>
+      <div class="flex-1 overflow-auto p-6 relative" bind:this={scrollContainer}>
+        {#if isBrowsing}
+          <div class="absolute inset-0 flex items-center justify-center bg-base-100/80 backdrop-blur-sm z-10">
+            <div class="flex flex-col items-center gap-4">
+              <span class="loading loading-spinner loading-lg"></span>
+              <p class="text-base-content/70">Loading folder contents...</p>
+            </div>
+          </div>
+        {/if}
         {#if displayedImages.length > 0}
           <!-- Pagination Controls -->
           <div

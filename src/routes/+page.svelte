@@ -48,6 +48,8 @@
   let showDeleteConfirm = $state(false);
   let deleteCount = $state(0);
   let skipDeleteWarning = $state(false);
+  let isDeletingImages = $state(false);
+  let isApplyingBulkTags = $state(false);
 
   // Custom categories persistence
   const CUSTOM_CATEGORIES_KEY = "customCategories";
@@ -905,6 +907,7 @@
   async function applyBulkTags() {
     if (selectedImages.size === 0 || imageTags.length === 0) return;
 
+    isApplyingBulkTags = true;
     try {
       const imageCount = selectedImages.size;
       const tagCount = imageTags.length;
@@ -930,6 +933,8 @@
       await loadAllImageTags();
     } catch (error) {
       console.error("Failed to apply bulk tags:", error);
+    } finally {
+      isApplyingBulkTags = false;
     }
   }
 
@@ -968,6 +973,8 @@
     } catch (error) {
       console.error("Failed to delete images:", error);
       toast.error(`Failed to delete images: ${error}`);
+    } finally {
+      isDeletingImages = false;
     }
   }
 
@@ -2253,22 +2260,26 @@
           <button
             class="btn btn-primary flex-1"
             onclick={applyBulkTags}
-            disabled={imageTags.length === 0}
+            disabled={imageTags.length === 0 || isApplyingBulkTags}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
+            {#if isApplyingBulkTags}
+              <span class="loading loading-spinner loading-sm"></span>
+            {:else}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            {/if}
             Apply {imageTags.length > 0 ? imageTags.length : ""}
             {imageTags.length === 1
               ? "Tag"
@@ -2324,8 +2335,13 @@
         </div>
       </div>
       <div class="flex gap-2 justify-end">
-        <button class="btn btn-ghost" onclick={cancelDelete}> Cancel </button>
-        <button class="btn btn-error" onclick={confirmDelete}> Delete </button>
+        <button class="btn btn-ghost" onclick={cancelDelete} disabled={isDeletingImages}> Cancel </button>
+        <button class="btn btn-error" onclick={confirmDelete} disabled={isDeletingImages}>
+          {#if isDeletingImages}
+            <span class="loading loading-spinner loading-sm"></span>
+          {/if}
+          Delete
+        </button>
       </div>
     </div>
   </div>
