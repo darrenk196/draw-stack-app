@@ -963,7 +963,7 @@
         stageImages = await getImagesByTags(stage.tagIds);
         if (stageImages.length === 0) {
           toast.warning(
-            `No images found for stage ${stageIndex + 1} tags. Using all library images.`,
+            `No images found for stage ${stageIndex + 1} tags. Using all library images.`
           );
           stageImages = await getLibraryImages();
         }
@@ -1353,7 +1353,9 @@
                   </svg>
                   <div>
                     <h2 class="card-title text-2xl">Classroom Mode</h2>
-                    <p class="text-sm text-base-content/70">6 presets</p>
+                    <p class="text-sm text-base-content/70">
+                      {classroomPresets.length} preset{classroomPresets.length === 1 ? "" : "s"}
+                    </p>
                   </div>
                 </div>
                 <p class="text-base-content/80 mb-4">
