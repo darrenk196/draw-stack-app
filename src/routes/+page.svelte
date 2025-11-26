@@ -1182,7 +1182,7 @@
 
         <!-- Sort Order Dropdown -->
         <select
-          class="select select-sm select-bordered"
+          class="select select-sm select-bordered w-36"
           bind:value={sortOrder}
           onchange={() => saveSortOrder(sortOrder)}
           title="Sort by date added"
