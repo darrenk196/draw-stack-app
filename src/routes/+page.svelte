@@ -473,24 +473,6 @@
   async function loadAllTags() {
     try {
       allTags = await getAllTags();
-
-      // Clean up orphaned custom categories (categories with no tags)
-      const categoriesWithTags = new Set(
-        allTags.map((t) => t.parentId).filter((p) => p !== null)
-      );
-
-      let needsSave = false;
-      for (const customCat of customCategories) {
-        if (!categoriesWithTags.has(customCat)) {
-          customCategories.delete(customCat);
-          needsSave = true;
-        }
-      }
-
-      if (needsSave) {
-        customCategories = new Set(customCategories);
-        saveCustomCategories(customCategories);
-      }
     } catch (error) {
       console.error("Failed to load tags:", error);
     }
