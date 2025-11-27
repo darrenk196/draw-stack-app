@@ -139,13 +139,20 @@
   // Pagination state
   const PAGINATION_STORAGE_KEY = "library-items-per-page";
   const DELETE_WARNING_KEY = "library-skip-delete-warning";
+  const TAG_DELETE_WARNING_KEY = "library-skip-tag-delete-warning";
 
   function loadDeleteWarningPreference(): boolean {
     if (typeof localStorage === "undefined") return false;
     return localStorage.getItem(DELETE_WARNING_KEY) === "true";
   }
 
+  function loadTagDeleteWarningPreference(): boolean {
+    if (typeof localStorage === "undefined") return false;
+    return localStorage.getItem(TAG_DELETE_WARNING_KEY) === "true";
+  }
+
   let skipDeleteWarningPref = $state(loadDeleteWarningPreference());
+  let skipTagDeleteWarningPref = $state(loadTagDeleteWarningPreference());
 
   function loadItemsPerPage(): number | "all" {
     if (typeof localStorage === "undefined") return 50;
@@ -780,13 +787,33 @@
     tagName: string,
     categoryName?: string
   ) {
-    deleteTagModal = { tagId, tagName, categoryName };
+    if (skipTagDeleteWarningPref) {
+      // Skip modal, delete directly
+      await confirmDeleteTag(tagId, tagName, categoryName);
+    } else {
+      deleteTagModal = { tagId, tagName, categoryName };
+    }
   }
 
-  async function confirmDeleteTag() {
-    if (!deleteTagModal) return;
-    const { tagId, tagName, categoryName } = deleteTagModal;
-    deleteTagModal = null;
+  async function confirmDeleteTag(
+    paramTagId?: string,
+    paramTagName?: string,
+    paramCategoryName?: string
+  ) {
+    let tagId: string, tagName: string, categoryName: string | undefined;
+
+    if (paramTagId && paramTagName) {
+      // Called directly with parameters
+      tagId = paramTagId;
+      tagName = paramTagName;
+      categoryName = paramCategoryName;
+    } else if (deleteTagModal) {
+      // Called from modal
+      ({ tagId, tagName, categoryName } = deleteTagModal);
+      deleteTagModal = null;
+    } else {
+      return;
+    }
 
     try {
       // Delete from database if it exists
@@ -822,13 +849,34 @@
   ) {
     const tagsInCategory = allTags.filter((t) => t.parentId === categoryName);
     const tagCount = tagsInCategory.length;
-    deleteCategoryModal = { categoryName, isDefault, tagCount };
+    
+    if (skipTagDeleteWarningPref) {
+      // Skip modal, delete directly
+      await confirmDeleteCategory(categoryName, isDefault, tagCount);
+    } else {
+      deleteCategoryModal = { categoryName, isDefault, tagCount };
+    }
   }
 
-  async function confirmDeleteCategory() {
-    if (!deleteCategoryModal) return;
-    const { categoryName, isDefault, tagCount } = deleteCategoryModal;
-    deleteCategoryModal = null;
+  async function confirmDeleteCategory(
+    paramCategoryName?: string,
+    paramIsDefault?: boolean,
+    paramTagCount?: number
+  ) {
+    let categoryName: string, isDefault: boolean, tagCount: number;
+
+    if (paramCategoryName !== undefined) {
+      // Called directly with parameters
+      categoryName = paramCategoryName;
+      isDefault = paramIsDefault ?? false;
+      tagCount = paramTagCount ?? 0;
+    } else if (deleteCategoryModal) {
+      // Called from modal
+      ({ categoryName, isDefault, tagCount } = deleteCategoryModal);
+      deleteCategoryModal = null;
+    } else {
+      return;
+    }
 
     try {
       await deleteTagsByCategory(categoryName);
@@ -848,7 +896,7 @@
       expandedCategories.delete(categoryName);
       expandedCategories = new Set(expandedCategories);
       await loadAllTags();
-      
+
       const action = isDefault ? "hidden" : "deleted";
       toast.success(`Category "${categoryName}" ${action}`);
     } catch (err) {
@@ -2588,7 +2636,26 @@
                     }
                   }}
                 />
-                <span class="label-text">Show delete confirmation warning</span>
+                <span class="label-text">Show image delete confirmation</span>
+              </label>
+            </div>
+            <div class="form-control">
+              <label class="label cursor-pointer justify-start gap-3">
+                <input
+                  type="checkbox"
+                  class="checkbox checkbox-sm"
+                  checked={!skipTagDeleteWarningPref}
+                  onchange={(e) => {
+                    const showWarning = e.currentTarget.checked;
+                    skipTagDeleteWarningPref = !showWarning;
+                    if (showWarning) {
+                      localStorage.removeItem(TAG_DELETE_WARNING_KEY);
+                    } else {
+                      localStorage.setItem(TAG_DELETE_WARNING_KEY, "true");
+                    }
+                  }}
+                />
+                <span class="label-text">Show tag/category delete confirmation</span>
               </label>
             </div>
           </div>
@@ -2617,16 +2684,10 @@
         <span class="text-warning">This will remove it from all images.</span>
       </p>
       <div class="modal-action">
-        <button
-          class="btn btn-ghost"
-          onclick={() => (deleteTagModal = null)}
-        >
+        <button class="btn btn-ghost" onclick={() => (deleteTagModal = null)}>
           Cancel
         </button>
-        <button
-          class="btn btn-error"
-          onclick={confirmDeleteTag}
-        >
+        <button class="btn btn-error" onclick={() => confirmDeleteTag()}>
           Delete Tag
         </button>
       </div>
@@ -2643,11 +2704,15 @@
         {deleteCategoryModal.isDefault ? "Hide" : "Delete"} Category
       </h3>
       <p class="py-4">
-        {deleteCategoryModal.isDefault ? "Hide" : "Delete"} category <strong>"{deleteCategoryModal.categoryName}"</strong>
+        {deleteCategoryModal.isDefault ? "Hide" : "Delete"} category
+        <strong>"{deleteCategoryModal.categoryName}"</strong>
         {#if deleteCategoryModal.tagCount > 0}
-          and its <strong>{deleteCategoryModal.tagCount}</strong> tag{deleteCategoryModal.tagCount > 1 ? "s" : ""}?
+          and its <strong>{deleteCategoryModal.tagCount}</strong>
+          tag{deleteCategoryModal.tagCount > 1 ? "s" : ""}?
           <br />
-          <span class="text-warning">This will remove all tags from images.</span>
+          <span class="text-warning"
+            >This will remove all tags from images.</span
+          >
         {:else}
           ?
         {/if}
@@ -2659,14 +2724,14 @@
         >
           Cancel
         </button>
-        <button
-          class="btn btn-error"
-          onclick={confirmDeleteCategory}
-        >
+        <button class="btn btn-error" onclick={() => confirmDeleteCategory()}>
           {deleteCategoryModal.isDefault ? "Hide" : "Delete"} Category
         </button>
       </div>
     </div>
-    <div class="modal-backdrop" onclick={() => (deleteCategoryModal = null)}></div>
+    <div
+      class="modal-backdrop"
+      onclick={() => (deleteCategoryModal = null)}
+    ></div>
   </div>
 {/if}
