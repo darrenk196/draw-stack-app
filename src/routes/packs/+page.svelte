@@ -488,7 +488,9 @@
       }
     } catch (error) {
       console.error("Failed to browse folder:", error);
-      toast.error(`Failed to browse folder: ${error}`);
+      toast.error(
+        "Unable to access this folder. It may have been moved, renamed, or you may not have permission to access it."
+      );
       currentPath = null;
     } finally {
       isBrowsing = false;
@@ -545,6 +547,9 @@
       addToHistory(historyEntry.path); // Update last visited time
     } catch (error) {
       console.error("Failed to browse from history:", error);
+      toast.error(
+        "Unable to open this folder. It may have been moved or deleted."
+      );
     }
 
     showHistory = false;
@@ -849,7 +854,9 @@
       }
     } catch (error) {
       console.error("Failed to add images to library:", error);
-      toast.error(`Failed to add images to library: ${error}`);
+      toast.error(
+        "Unable to add images to library. Please check that the files still exist and try again."
+      );
     } finally {
       isAddingToLibrary = false;
     }
@@ -969,7 +976,9 @@
       }
     } catch (error) {
       console.error("Failed to prepare images:", error);
-      toast.error(`Failed to prepare images: ${error}`);
+      toast.error(
+        "Unable to prepare images for library. The files may have been moved or are inaccessible."
+      );
     } finally {
       isAddingToLibrary = false;
     }
@@ -1546,6 +1555,27 @@
           </div>
         {/if}
         {#if displayedImages.length > 0}
+          <!-- Selection Tip -->
+          {#if selectedImages.size === 0}
+            <div class="alert alert-info mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5 stroke-current shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <div class="text-sm">
+                <strong>💡 Tip:</strong> <strong>Right-click</strong> on an image to select it, then drag across others to select multiple images quickly!
+              </div>
+            </div>
+          {/if}
           <!-- Pagination Controls -->
           <div
             class="mb-4 flex items-center justify-between border-b border-base-300 pb-4"
@@ -2322,12 +2352,28 @@
             <div class="mb-3">
               <span class="text-base font-semibold">Pack Name</span>
             </div>
-            <input
-              type="text"
-              class="input input-bordered input-lg w-full text-base"
-              bind:value={customPackName}
-              placeholder="Enter pack name..."
-            />
+            <div class="relative">
+              <input
+                type="text"
+                class="input input-bordered input-lg w-full text-base pr-12"
+                bind:value={customPackName}
+                placeholder="Click to edit pack name"
+              />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5 absolute right-4 top-1/2 -translate-y-1/2 text-base-content/40 pointer-events-none"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                />
+              </svg>
+            </div>
             <div class="mt-2">
               <span class="text-sm text-base-content/60">
                 Images will be tagged with this pack name

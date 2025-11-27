@@ -39,7 +39,16 @@
       showOnboarding = true;
     }
 
-    return () => window.removeEventListener("library-updated", handler);
+    // Listen for onboarding replay request
+    const replayHandler = () => {
+      showOnboarding = true;
+    };
+    window.addEventListener("replay-onboarding", replayHandler);
+
+    return () => {
+      window.removeEventListener("library-updated", handler);
+      window.removeEventListener("replay-onboarding", replayHandler);
+    };
   });
 </script>
 

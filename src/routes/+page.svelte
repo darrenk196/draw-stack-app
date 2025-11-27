@@ -1070,7 +1070,9 @@
       window.dispatchEvent(new CustomEvent("library-updated"));
     } catch (error) {
       console.error("Failed to delete images:", error);
-      toast.error(`Failed to delete images: ${error}`);
+      toast.error(
+        "Unable to delete images. Please check that the files are not in use and try again."
+      );
     } finally {
       isDeletingImages = false;
     }
@@ -1127,7 +1129,29 @@
   <!-- Header -->
   <header class="p-6 border-b border-base-300 bg-base-100">
     <div class="flex items-center justify-between mb-4">
-      <h1 class="text-2xl font-semibold text-base-content">Library</h1>
+      <div class="flex items-center gap-3">
+        <h1 class="text-2xl font-semibold text-base-content">Library</h1>
+        <button
+          class="btn btn-sm btn-circle btn-ghost"
+          onclick={() => (showHelpModal = true)}
+          title="Show keyboard shortcuts and help"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        </button>
+      </div>
 
       <div class="flex items-center gap-3">
         <!-- (Select Mode toggle removed; selection activates automatically) -->
