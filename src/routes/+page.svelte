@@ -2297,7 +2297,9 @@
             bind:value={selectedCategoryForNewTag}
           >
             <option value="" disabled>Select category...</option>
-            {#each [...tagCategories.map((c) => c.name).filter(name => !hiddenCategories.has(name)), ...Array.from(customCategories)] as categoryName}
+            {#each [...tagCategories
+                .map((c) => c.name)
+                .filter((name) => !hiddenCategories.has(name)), ...Array.from(customCategories)] as categoryName}
               <option value={categoryName}>{categoryName}</option>
             {/each}
           </select>
@@ -2315,13 +2317,15 @@
                   selectedCategoryForNewTag
                 ) {
                   e.preventDefault();
-                  
+
                   // Prevent adding to hidden categories
                   if (hiddenCategories.has(selectedCategoryForNewTag)) {
-                    toast.error(`Cannot add tags to hidden category "${selectedCategoryForNewTag}"`);
+                    toast.error(
+                      `Cannot add tags to hidden category "${selectedCategoryForNewTag}"`
+                    );
                     return;
                   }
-                  
+
                   const tagId = generateId();
                   const newTag = {
                     id: tagId,
@@ -2333,7 +2337,9 @@
                     .then(() => {
                       allTags = [...allTags, newTag];
                       newTagName = "";
-                      toast.success(`Tag "${newTag.name}" added to ${selectedCategoryForNewTag}`);
+                      toast.success(
+                        `Tag "${newTag.name}" added to ${selectedCategoryForNewTag}`
+                      );
                     })
                     .catch((err) => {
                       console.error("Failed to add tag:", err);
@@ -2348,10 +2354,12 @@
                 if (newTagName.trim() && selectedCategoryForNewTag) {
                   // Prevent adding to hidden categories
                   if (hiddenCategories.has(selectedCategoryForNewTag)) {
-                    toast.error(`Cannot add tags to hidden category "${selectedCategoryForNewTag}"`);
+                    toast.error(
+                      `Cannot add tags to hidden category "${selectedCategoryForNewTag}"`
+                    );
                     return;
                   }
-                  
+
                   const tagId = generateId();
                   const newTag = {
                     id: tagId,
@@ -2363,7 +2371,9 @@
                     .then(() => {
                       allTags = [...allTags, newTag];
                       newTagName = "";
-                      toast.success(`Tag "${newTag.name}" added to ${selectedCategoryForNewTag}`);
+                      toast.success(
+                        `Tag "${newTag.name}" added to ${selectedCategoryForNewTag}`
+                      );
                     })
                     .catch((err) => {
                       console.error("Failed to add tag:", err);
@@ -2721,6 +2731,25 @@
         <br />
         <span class="text-warning">This will remove it from all images.</span>
       </p>
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-3">
+          <input
+            type="checkbox"
+            class="checkbox checkbox-sm"
+            checked={skipTagDeleteWarningPref}
+            onchange={(e) => {
+              const skip = e.currentTarget.checked;
+              skipTagDeleteWarningPref = skip;
+              if (skip) {
+                localStorage.setItem(TAG_DELETE_WARNING_KEY, "true");
+              } else {
+                localStorage.removeItem(TAG_DELETE_WARNING_KEY);
+              }
+            }}
+          />
+          <span class="label-text text-sm">Don't show this again</span>
+        </label>
+      </div>
       <div class="modal-action">
         <button class="btn btn-ghost" onclick={() => (deleteTagModal = null)}>
           Cancel
@@ -2755,6 +2784,25 @@
           ?
         {/if}
       </p>
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-3">
+          <input
+            type="checkbox"
+            class="checkbox checkbox-sm"
+            checked={skipTagDeleteWarningPref}
+            onchange={(e) => {
+              const skip = e.currentTarget.checked;
+              skipTagDeleteWarningPref = skip;
+              if (skip) {
+                localStorage.setItem(TAG_DELETE_WARNING_KEY, "true");
+              } else {
+                localStorage.removeItem(TAG_DELETE_WARNING_KEY);
+              }
+            }}
+          />
+          <span class="label-text text-sm">Don't show this again</span>
+        </label>
+      </div>
       <div class="modal-action">
         <button
           class="btn btn-ghost"
