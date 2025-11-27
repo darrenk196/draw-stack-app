@@ -347,12 +347,10 @@ async fn copy_to_library(
     source_path: String,
     image_id: String,
 ) -> Result<String, String> {
-    let app_data = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-
-    let library_dir = app_data.join("library");
+    // Get the configured library path (or default)
+    let library_path = get_library_path(app)?;
+    let library_dir = Path::new(&library_path);
+    
     fs::create_dir_all(&library_dir)
         .map_err(|e| format!("Failed to create library directory: {}", e))?;
 
@@ -373,13 +371,13 @@ fn generate_uuid() -> String {
 
 #[tauri::command]
 fn get_library_path(app: AppHandle) -> Result<String, String> {
-    let app_dir = app
+    let app_data_dir = app
         .path()
         .app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
 
     // Check if custom path is stored in config
-    let config_path = app_dir.join("config.json");
+    let config_path = app_data_dir.join("config.json");
     if config_path.exists() {
         if let Ok(config_str) = fs::read_to_string(&config_path) {
             if let Ok(config) = serde_json::from_str::<serde_json::Value>(&config_str) {
@@ -390,8 +388,12 @@ fn get_library_path(app: AppHandle) -> Result<String, String> {
         }
     }
 
-    // Return default path
-    let library_dir = app_dir.join("library");
+    // Return default path in Documents folder
+    let document_dir = app
+        .path()
+        .document_dir()
+        .map_err(|e| format!("Failed to get documents dir: {}", e))?;
+    let library_dir = document_dir.join("DrawStack").join("Library");
     Ok(library_dir.to_string_lossy().to_string())
 }
 
@@ -415,12 +417,12 @@ fn set_library_path(app: AppHandle, path: String) -> Result<(), String> {
 
 #[tauri::command]
 fn get_default_library_path(app: AppHandle) -> Result<String, String> {
-    let app_dir = app
+    let document_dir = app
         .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+        .document_dir()
+        .map_err(|e| format!("Failed to get documents dir: {}", e))?;
 
-    let library_dir = app_dir.join("library");
+    let library_dir = document_dir.join("DrawStack").join("Library");
     Ok(library_dir.to_string_lossy().to_string())
 }
 
