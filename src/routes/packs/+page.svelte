@@ -1572,7 +1572,8 @@
                 />
               </svg>
               <div class="text-sm">
-                <strong>💡 Tip:</strong> <strong>Right-click</strong> on an image to select it, then drag across others to select multiple images quickly!
+                <strong>💡 Tip:</strong> <strong>Right-click</strong> on an image
+                to select it, then drag across others to select multiple images quickly!
               </div>
             </div>
           {/if}
