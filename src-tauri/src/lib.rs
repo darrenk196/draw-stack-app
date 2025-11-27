@@ -456,7 +456,7 @@ pub fn run() {
             set_library_path,
             get_default_library_path,
             write_file,
-                read_file_contents,
+            read_file_contents,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

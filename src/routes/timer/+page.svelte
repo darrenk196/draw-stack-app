@@ -208,6 +208,16 @@
   // Practice session state
   let currentIndex = $state(0);
   let isPaused = $state(false);
+  // Audio cues mute toggle (persisted)
+  const TIMER_MUTE_KEY = "timerMuted";
+  let isMuted = $state<boolean>(() => {
+    try {
+      const v = typeof localStorage !== "undefined" && localStorage.getItem(TIMER_MUTE_KEY);
+      return v === "true";
+    } catch {
+      return false;
+    }
+  });
   let timeRemaining = $state(0);
   let timerInterval: number | null = null;
   let isFullscreen = $state(false);
@@ -216,6 +226,7 @@
   const uiHideDelay = 2000; // ms
   let uiLocked = $state(true);
   let showCompletion = $state(false);
+  let showHelpModal = $state(false);
 
   // Plumb line and angle measurement tool state
   interface Point {
@@ -841,6 +852,12 @@
         revealUI();
         toggleFullscreen();
         break;
+      case "m":
+      case "M":
+        e.preventDefault();
+        revealUI();
+        toggleMute();
+        break;
       case "Escape":
         if (isFullscreen) {
           toggleFullscreen();
@@ -883,6 +900,18 @@
       }
     } catch (error) {
       console.error("Failed to toggle fullscreen:", error);
+    }
+  }
+
+  function toggleMute(showToast = true) {
+    isMuted = !isMuted;
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(TIMER_MUTE_KEY, String(isMuted));
+      }
+    } catch {}
+    if (showToast) {
+      toast.info(isMuted ? "Audio cues muted" : "Audio cues unmuted");
     }
   }
 
@@ -1244,6 +1273,7 @@
 
   // Audio functions using Web Audio API
   function playChime() {
+    if (isMuted) return;
     try {
       const audioContext = new AudioContext();
       const oscillator = audioContext.createOscillator();
@@ -1271,6 +1301,7 @@
   }
 
   function playVictory() {
+    if (isMuted) return;
     try {
       const audioContext = new AudioContext();
 
@@ -2324,6 +2355,52 @@
             {/if}
           </button>
 
+          <!-- Mute Toggle -->
+          <button
+            class="btn btn-sm"
+            class:btn-active={!isMuted}
+            onclick={() => toggleMute()}
+            title={isMuted ? "Unmute audio cues (M)" : "Mute audio cues (M)"}
+          >
+            {#if isMuted}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                  clip-rule="evenodd"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+                />
+              </svg>
+            {:else}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                />
+              </svg>
+            {/if}
+          </button>
+
           <!-- Teacher Controls: Extend Pose -->
           <div class="dropdown dropdown-end">
             <button tabindex="0" class="btn btn-sm" title="Extend current pose">
@@ -2634,6 +2711,12 @@
                   <div><strong>C</strong> - Cycle line/grid color</div>
                   <div><strong>+/-</strong> - Grid line width</div>
                   <div><strong>Delete</strong> - Remove last angle</div>
+                  <div class="divider my-1"></div>
+                  <div><strong>Space</strong> - Pause/Resume</div>
+                  <div><strong>R</strong> - Reset timer</div>
+                  <div><strong>F</strong> - Fullscreen</div>
+                  <div><strong>M</strong> - Mute/Unmute audio</div>
+                  <div><strong>L</strong> - Lock/Unlock UI</div>
                 </div>
               </div>
             </div>
@@ -3435,6 +3518,7 @@
           <span>Space Pause/Resume</span>
           <span>R Reset</span>
           <span>F Fullscreen</span>
+          <span>M Mute</span>
           <span>L Lock UI</span>
           <span>Esc Exit</span>
         </div>
