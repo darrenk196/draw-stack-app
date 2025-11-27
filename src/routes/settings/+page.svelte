@@ -13,10 +13,20 @@
 
   const APP_VERSION = "0.1.0-beta";
 
-  onMount(async () => {
-    await loadSettings();
-    await loadStats();
+  onMount(() => {
+    loadSettings();
+    loadStats();
     isLoading = false;
+
+    // Listen for library updates from other pages
+    const handleLibraryUpdate = () => {
+      loadStats();
+    };
+    window.addEventListener("library-updated", handleLibraryUpdate);
+
+    return () => {
+      window.removeEventListener("library-updated", handleLibraryUpdate);
+    };
   });
 
   async function loadSettings() {

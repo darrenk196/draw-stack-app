@@ -350,7 +350,7 @@ async fn copy_to_library(
     // Get the configured library path (or default)
     let library_path = get_library_path(app)?;
     let library_dir = Path::new(&library_path);
-    
+
     fs::create_dir_all(&library_dir)
         .map_err(|e| format!("Failed to create library directory: {}", e))?;
 

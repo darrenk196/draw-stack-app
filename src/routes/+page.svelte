@@ -51,6 +51,18 @@
   let isDeletingImages = $state(false);
   let isApplyingBulkTags = $state(false);
 
+  // Delete confirmation modals
+  let deleteTagModal = $state<{
+    tagId: string;
+    tagName: string;
+    categoryName?: string;
+  } | null>(null);
+  let deleteCategoryModal = $state<{
+    categoryName: string;
+    isDefault: boolean;
+    tagCount: number;
+  } | null>(null);
+
   // Custom categories persistence
   const CUSTOM_CATEGORIES_KEY = "customCategories";
   function loadCustomCategories(): Set<string> {
@@ -768,11 +780,14 @@
     tagName: string,
     categoryName?: string
   ) {
-    if (
-      !confirm(`Delete tag "${tagName}"? This will remove it from all images.`)
-    ) {
-      return;
-    }
+    deleteTagModal = { tagId, tagName, categoryName };
+  }
+
+  async function confirmDeleteTag() {
+    if (!deleteTagModal) return;
+    const { tagId, tagName, categoryName } = deleteTagModal;
+    deleteTagModal = null;
+
     try {
       // Delete from database if it exists
       if (tagId) {
@@ -794,6 +809,7 @@
           }
         }
       }
+      toast.success(`Tag "${tagName}" deleted`);
     } catch (err) {
       console.error("Failed to delete tag:", err);
       toast.error("Failed to delete tag");
@@ -806,14 +822,14 @@
   ) {
     const tagsInCategory = allTags.filter((t) => t.parentId === categoryName);
     const tagCount = tagsInCategory.length;
-    const message =
-      tagCount > 0
-        ? `Delete category "${categoryName}" and its ${tagCount} tag${tagCount > 1 ? "s" : ""}? This will remove all tags from images.`
-        : `Delete category "${categoryName}"?`;
+    deleteCategoryModal = { categoryName, isDefault, tagCount };
+  }
 
-    if (!confirm(message)) {
-      return;
-    }
+  async function confirmDeleteCategory() {
+    if (!deleteCategoryModal) return;
+    const { categoryName, isDefault, tagCount } = deleteCategoryModal;
+    deleteCategoryModal = null;
+
     try {
       await deleteTagsByCategory(categoryName);
 
@@ -832,6 +848,9 @@
       expandedCategories.delete(categoryName);
       expandedCategories = new Set(expandedCategories);
       await loadAllTags();
+      
+      const action = isDefault ? "hidden" : "deleted";
+      toast.success(`Category "${categoryName}" ${action}`);
     } catch (err) {
       console.error("Failed to delete category:", err);
       toast.error("Failed to delete category");
@@ -2584,5 +2603,70 @@
         </p>
       </div>
     </div>
+  </div>
+{/if}
+
+<!-- Delete Tag Confirmation Modal -->
+{#if deleteTagModal}
+  <div class="modal modal-open">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-4">Delete Tag</h3>
+      <p class="py-4">
+        Delete tag <strong>"{deleteTagModal.tagName}"</strong>?
+        <br />
+        <span class="text-warning">This will remove it from all images.</span>
+      </p>
+      <div class="modal-action">
+        <button
+          class="btn btn-ghost"
+          onclick={() => (deleteTagModal = null)}
+        >
+          Cancel
+        </button>
+        <button
+          class="btn btn-error"
+          onclick={confirmDeleteTag}
+        >
+          Delete Tag
+        </button>
+      </div>
+    </div>
+    <div class="modal-backdrop" onclick={() => (deleteTagModal = null)}></div>
+  </div>
+{/if}
+
+<!-- Delete Category Confirmation Modal -->
+{#if deleteCategoryModal}
+  <div class="modal modal-open">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-4">
+        {deleteCategoryModal.isDefault ? "Hide" : "Delete"} Category
+      </h3>
+      <p class="py-4">
+        {deleteCategoryModal.isDefault ? "Hide" : "Delete"} category <strong>"{deleteCategoryModal.categoryName}"</strong>
+        {#if deleteCategoryModal.tagCount > 0}
+          and its <strong>{deleteCategoryModal.tagCount}</strong> tag{deleteCategoryModal.tagCount > 1 ? "s" : ""}?
+          <br />
+          <span class="text-warning">This will remove all tags from images.</span>
+        {:else}
+          ?
+        {/if}
+      </p>
+      <div class="modal-action">
+        <button
+          class="btn btn-ghost"
+          onclick={() => (deleteCategoryModal = null)}
+        >
+          Cancel
+        </button>
+        <button
+          class="btn btn-error"
+          onclick={confirmDeleteCategory}
+        >
+          {deleteCategoryModal.isDefault ? "Hide" : "Delete"} Category
+        </button>
+      </div>
+    </div>
+    <div class="modal-backdrop" onclick={() => (deleteCategoryModal = null)}></div>
   </div>
 {/if}
