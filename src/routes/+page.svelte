@@ -473,12 +473,12 @@
   async function loadAllTags() {
     try {
       allTags = await getAllTags();
-      
+
       // Clean up orphaned custom categories (categories with no tags)
       const categoriesWithTags = new Set(
-        allTags.map(t => t.parentId).filter(p => p !== null)
+        allTags.map((t) => t.parentId).filter((p) => p !== null)
       );
-      
+
       let needsSave = false;
       for (const customCat of customCategories) {
         if (!categoriesWithTags.has(customCat)) {
@@ -486,7 +486,7 @@
           needsSave = true;
         }
       }
-      
+
       if (needsSave) {
         customCategories = new Set(customCategories);
         saveCustomCategories(customCategories);
@@ -2297,7 +2297,7 @@
             bind:value={selectedCategoryForNewTag}
           >
             <option value="" disabled>Select category...</option>
-            {#each [...tagCategories.map((c) => c.name), ...Array.from(customCategories)] as categoryName}
+            {#each [...tagCategories.map((c) => c.name).filter(name => !hiddenCategories.has(name)), ...Array.from(customCategories)] as categoryName}
               <option value={categoryName}>{categoryName}</option>
             {/each}
           </select>
@@ -2315,6 +2315,13 @@
                   selectedCategoryForNewTag
                 ) {
                   e.preventDefault();
+                  
+                  // Prevent adding to hidden categories
+                  if (hiddenCategories.has(selectedCategoryForNewTag)) {
+                    toast.error(`Cannot add tags to hidden category "${selectedCategoryForNewTag}"`);
+                    return;
+                  }
+                  
                   const tagId = generateId();
                   const newTag = {
                     id: tagId,
@@ -2326,7 +2333,7 @@
                     .then(() => {
                       allTags = [...allTags, newTag];
                       newTagName = "";
-                      console.log("Tag added:", newTag);
+                      toast.success(`Tag "${newTag.name}" added to ${selectedCategoryForNewTag}`);
                     })
                     .catch((err) => {
                       console.error("Failed to add tag:", err);
@@ -2339,6 +2346,12 @@
               class="btn btn-primary btn-sm"
               onclick={() => {
                 if (newTagName.trim() && selectedCategoryForNewTag) {
+                  // Prevent adding to hidden categories
+                  if (hiddenCategories.has(selectedCategoryForNewTag)) {
+                    toast.error(`Cannot add tags to hidden category "${selectedCategoryForNewTag}"`);
+                    return;
+                  }
+                  
                   const tagId = generateId();
                   const newTag = {
                     id: tagId,
@@ -2350,7 +2363,7 @@
                     .then(() => {
                       allTags = [...allTags, newTag];
                       newTagName = "";
-                      console.log("Tag added:", newTag);
+                      toast.success(`Tag "${newTag.name}" added to ${selectedCategoryForNewTag}`);
                     })
                     .catch((err) => {
                       console.error("Failed to add tag:", err);
