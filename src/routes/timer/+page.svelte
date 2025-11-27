@@ -123,14 +123,14 @@
   function deleteClassroomPreset(presetId: string) {
     classroomPresets = classroomPresets.filter((p) => p.id !== presetId);
     saveClassroomPresets(classroomPresets);
-    
+
     // Also check if this is a custom session and remove from there too
     const isCustomSession = customSessions.some((s) => s.id === presetId);
     if (isCustomSession) {
       customSessions = customSessions.filter((s) => s.id !== presetId);
       saveCustomSessions(customSessions);
     }
-    
+
     toast.success("Preset deleted");
   }
 
