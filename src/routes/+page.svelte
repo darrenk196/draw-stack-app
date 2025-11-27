@@ -473,6 +473,24 @@
   async function loadAllTags() {
     try {
       allTags = await getAllTags();
+      
+      // Clean up orphaned custom categories (categories with no tags)
+      const categoriesWithTags = new Set(
+        allTags.map(t => t.parentId).filter(p => p !== null)
+      );
+      
+      let needsSave = false;
+      for (const customCat of customCategories) {
+        if (!categoriesWithTags.has(customCat)) {
+          customCategories.delete(customCat);
+          needsSave = true;
+        }
+      }
+      
+      if (needsSave) {
+        customCategories = new Set(customCategories);
+        saveCustomCategories(customCategories);
+      }
     } catch (error) {
       console.error("Failed to load tags:", error);
     }
@@ -849,7 +867,7 @@
   ) {
     const tagsInCategory = allTags.filter((t) => t.parentId === categoryName);
     const tagCount = tagsInCategory.length;
-    
+
     if (skipTagDeleteWarningPref) {
       // Skip modal, delete directly
       await confirmDeleteCategory(categoryName, isDefault, tagCount);
@@ -926,7 +944,10 @@
         imageTags = imageTags.filter((t) => t.id !== existingTag.id);
       } else {
         // Add to selected tags list
-        let tag = allTags.find((t) => t.name === tagName);
+        // Find tag by name AND category to avoid reusing deleted tags
+        let tag = allTags.find(
+          (t) => t.name === tagName && t.parentId === (categoryName || null)
+        );
 
         if (!tag) {
           const tagId = generateId();
@@ -957,8 +978,10 @@
       // Update the image tags map
       allImageTags.set(viewingImage.id, imageTags);
     } else {
-      // Find or create tag
-      let tag = allTags.find((t) => t.name === tagName);
+      // Find or create tag - match by name AND category to avoid reusing deleted tags
+      let tag = allTags.find(
+        (t) => t.name === tagName && t.parentId === (categoryName || null)
+      );
 
       if (!tag) {
         // Create new tag
@@ -2655,7 +2678,9 @@
                     }
                   }}
                 />
-                <span class="label-text">Show tag/category delete confirmation</span>
+                <span class="label-text"
+                  >Show tag/category delete confirmation</span
+                >
               </label>
             </div>
           </div>
