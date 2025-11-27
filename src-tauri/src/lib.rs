@@ -432,6 +432,11 @@ fn write_file(path: String, contents: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn read_file_contents(path: String) -> Result<String, String> {
+    fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -451,6 +456,7 @@ pub fn run() {
             set_library_path,
             get_default_library_path,
             write_file,
+                read_file_contents,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

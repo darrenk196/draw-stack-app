@@ -2,7 +2,15 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { toast } from "$lib/toast";
-  import { getLibraryImages, getAllTags, clearAllData } from "$lib/db";
+  import {
+    getLibraryImages,
+    getAllTags,
+    clearAllData,
+    addImages,
+    addTag,
+    type Image,
+    type Tag,
+  } from "$lib/db";
   import { onMount } from "svelte";
 
   let libraryPath = $state("");
@@ -148,6 +156,74 @@
     } catch (error) {
       console.error("Failed to export library:", error);
       toast.error("Failed to export library");
+    }
+  }
+
+  async function importLibrary() {
+    const filePath = await open({
+      multiple: false,
+      filters: [
+        {
+          name: "JSON",
+          extensions: ["json"],
+        },
+      ],
+    });
+
+    if (!filePath || typeof filePath !== "string") return;
+
+    try {
+      // Read the file using Tauri
+      const contents = await invoke<string>("read_file_contents", {
+        path: filePath,
+      });
+
+      const importData = JSON.parse(contents);
+
+      // Validate the data structure
+      if (!importData.images || !importData.tags) {
+        toast.error(
+          "Invalid backup file format. Missing images or tags data."
+        );
+        return;
+      }
+
+      // Confirm with user
+      const confirm = window.confirm(
+        `Import ${importData.images.length} images and ${importData.tags.length} tags?\n\nThis will add to your existing library. To replace your library completely, clear it first.`
+      );
+
+      if (!confirm) return;
+
+      // Import tags first
+      for (const tag of importData.tags) {
+        try {
+          await addTag(tag as Tag);
+        } catch (err) {
+          // Tag might already exist, continue
+          console.warn("Failed to import tag:", tag.name, err);
+        }
+      }
+
+      // Import images
+      const validImages = importData.images.filter(
+        (img: any) => img.id && img.filename && img.fullPath
+      );
+      
+      if (validImages.length > 0) {
+        await addImages(validImages as Image[]);
+      }
+
+      await loadStats();
+      window.dispatchEvent(new CustomEvent("library-updated"));
+      toast.success(
+        `Successfully imported ${validImages.length} images and ${importData.tags.length} tags!`
+      );
+    } catch (error) {
+      console.error("Failed to import library:", error);
+      toast.error(
+        "Failed to import library. Please check the file format and try again."
+      );
     }
   }
 
@@ -308,6 +384,24 @@
               </svg>
               Export Library Backup
             </button>
+
+              <button class="btn btn-outline gap-2" onclick={importLibrary}>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                  />
+                </svg>
+                Import Library Backup
+              </button>
 
             <button
               class="btn btn-outline gap-2"
