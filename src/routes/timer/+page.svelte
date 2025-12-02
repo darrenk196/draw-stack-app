@@ -11,6 +11,7 @@
   } from "$lib/db";
   import { convertFileSrc } from "@tauri-apps/api/core";
   import { toast } from "$lib/toast";
+  import TimeInput from "$lib/components/TimeInput.svelte";
 
   interface TimerEntry {
     imageId: string;
@@ -210,16 +211,18 @@
   let isPaused = $state(false);
   // Audio cues mute toggle (persisted)
   const TIMER_MUTE_KEY = "timerMuted";
-  let isMuted = $state<boolean>(() => {
+  let isMuted = $state<boolean>(false);
+
+  // Initialize muted state from localStorage
+  if (typeof localStorage !== "undefined") {
     try {
-      const v =
-        typeof localStorage !== "undefined" &&
-        localStorage.getItem(TIMER_MUTE_KEY);
-      return v === "true";
+      const v = localStorage.getItem(TIMER_MUTE_KEY);
+      isMuted = v === "true";
     } catch {
-      return false;
+      isMuted = false;
     }
-  });
+  }
+
   let timeRemaining = $state(0);
   let timerInterval: number | null = null;
   let isFullscreen = $state(false);
@@ -532,7 +535,7 @@
       setAllDurations(seconds);
       customTimeSetAll = "";
     } else {
-      toast("Please enter a valid time (e.g., 90, 1:30, 1m 30s)", "error");
+      toast.error("Please enter a valid time (e.g., 90, 1:30, 1m 30s)");
     }
   }
 
@@ -1975,26 +1978,11 @@
                             {/each}
                           </div>
                           <div class="flex items-center gap-1">
-                            <label class="text-xs text-base-content/70"
-                              >or</label
-                            >
-                            <input
-                              type="text"
-                              class="input input-xs input-bordered w-24"
-                              placeholder="1:30"
+                            <span class="text-xs text-base-content/70">or</span>
+                            <TimeInput
                               value={stage.duration}
-                              onchange={(e) => {
-                                const seconds = parseTimeInput(
-                                  e.currentTarget.value
-                                );
-                                if (
-                                  seconds !== null &&
-                                  seconds > 0 &&
-                                  seconds <= 3600
-                                ) {
-                                  stage.duration = seconds;
-                                }
-                              }}
+                              onchange={(seconds) => (stage.duration = seconds)}
+                              size="xs"
                             />
                           </div>
                         </div>
@@ -2278,24 +2266,12 @@
             </button>
           {/each}
           <div class="flex items-center gap-2">
-            <input
-              type="text"
-              class="input input-sm input-bordered w-28"
-              placeholder="e.g. 90 or 1:30"
-              bind:value={customTimeSetAll}
-              onkeydown={(e) => {
-                if (e.key === "Enter") {
-                  applyCustomTimeToAll();
-                }
-              }}
+            <span class="text-sm text-base-content/70">or</span>
+            <TimeInput
+              value={60}
+              onchange={(seconds) => setAllDurations(seconds)}
+              size="sm"
             />
-            <button
-              class="btn btn-sm btn-primary"
-              onclick={applyCustomTimeToAll}
-              disabled={!customTimeSetAll}
-            >
-              Apply
-            </button>
           </div>
         </div>
       </header>
@@ -2348,18 +2324,11 @@
 
               <!-- Custom Duration Input -->
               <div class="flex-shrink-0 flex items-center gap-2">
-                <label class="text-xs text-base-content/70">or</label>
-                <input
-                  type="text"
-                  class="input input-sm input-bordered w-24"
-                  placeholder="1:30"
-                  value={formatTime(entry?.duration || 60)}
-                  onchange={(e) => {
-                    const seconds = parseTimeInput(e.currentTarget.value);
-                    if (seconds !== null && seconds > 0 && seconds <= 3600) {
-                      updateDuration(image.id, seconds);
-                    }
-                  }}
+                <span class="text-xs text-base-content/70">or</span>
+                <TimeInput
+                  value={entry?.duration || 60}
+                  onchange={(seconds) => updateDuration(image.id, seconds)}
+                  size="sm"
                 />
               </div>
             </div>
