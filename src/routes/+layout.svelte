@@ -52,25 +52,27 @@
   });
 </script>
 
-<div class="flex h-screen bg-base-100">
+<div class="flex h-screen bg-cream">
   <!-- Sidebar -->
   <aside
-    class="app-sidebar w-60 bg-base-200 flex flex-col border-r border-base-300"
+    class="app-sidebar w-60 bg-white flex flex-col border-r border-warm-beige shadow-sm"
   >
     <!-- Navigation Header -->
-    <div class="p-4 text-xs text-base-content/60 font-medium tracking-wider">
+    <div class="p-6 text-xs text-warm-gray-light font-medium tracking-wider">
       NAVIGATION
     </div>
 
     <!-- Navigation Links -->
-    <nav class="flex-1 px-2">
+    <nav class="flex-1 px-3">
       <a
         href="/"
-        class="flex items-center gap-3 px-3 py-2 rounded-lg mb-1 transition-colors text-base-content"
-        class:bg-primary={$page.url.pathname === "/"}
-        class:text-primary-content={$page.url.pathname === "/"}
-        class:hover:bg-base-300={$page.url.pathname !== "/"}
+        class="flex items-center gap-3 px-4 py-3 rounded-full mb-2 transition-colors"
+        class:bg-terracotta={$page.url.pathname === "/"}
+        class:text-white={$page.url.pathname === "/"}
+        class:text-warm-gray={$page.url.pathname !== "/"}
+        class:hover:bg-cream={$page.url.pathname !== "/"}
       >
+        >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           class="h-5 w-5"
@@ -90,10 +92,11 @@
 
       <a
         href="/packs"
-        class="flex items-center gap-3 px-3 py-2 rounded-lg mb-1 transition-colors text-base-content"
-        class:bg-primary={$page.url.pathname.startsWith("/packs")}
-        class:text-primary-content={$page.url.pathname.startsWith("/packs")}
-        class:hover:bg-base-300={!$page.url.pathname.startsWith("/packs")}
+        class="flex items-center gap-3 px-4 py-3 rounded-full mb-2 transition-colors"
+        class:bg-terracotta={$page.url.pathname.startsWith("/packs")}
+        class:text-white={$page.url.pathname.startsWith("/packs")}
+        class:text-warm-gray={!$page.url.pathname.startsWith("/packs")}
+        class:hover:bg-cream={!$page.url.pathname.startsWith("/packs")}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -114,10 +117,11 @@
 
       <a
         href="/timer"
-        class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-base-content"
-        class:bg-primary={$page.url.pathname === "/timer"}
-        class:text-primary-content={$page.url.pathname === "/timer"}
-        class:hover:bg-base-300={$page.url.pathname !== "/timer"}
+        class="flex items-center gap-3 px-4 py-3 rounded-full mb-2 transition-colors"
+        class:bg-terracotta={$page.url.pathname === "/timer"}
+        class:text-white={$page.url.pathname === "/timer"}
+        class:text-warm-gray={$page.url.pathname !== "/timer"}
+        class:hover:bg-cream={$page.url.pathname !== "/timer"}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -138,10 +142,11 @@
 
       <a
         href="/settings"
-        class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-base-content"
-        class:bg-primary={$page.url.pathname === "/settings"}
-        class:text-primary-content={$page.url.pathname === "/settings"}
-        class:hover:bg-base-300={$page.url.pathname !== "/settings"}
+        class="flex items-center gap-3 px-4 py-3 rounded-full mb-2 transition-colors"
+        class:bg-terracotta={$page.url.pathname === "/settings"}
+        class:text-white={$page.url.pathname === "/settings"}
+        class:text-warm-gray={$page.url.pathname !== "/settings"}
+        class:hover:bg-cream={$page.url.pathname !== "/settings"}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -168,10 +173,10 @@
     </nav>
 
     <!-- Stats Footer -->
-    <div class="p-4 border-t border-base-300 text-sm space-y-1">
-      <div class="flex justify-between text-base-content">
-        <span class="opacity-70">Library Items</span>
-        <span class="font-medium">{libraryCount}</span>
+    <div class="p-4 border-t border-warm-beige text-sm space-y-1">
+      <div class="flex justify-between">
+        <span class="text-warm-gray-light">Library Items</span>
+        <span class="font-semibold text-warm-charcoal">{libraryCount}</span>
       </div>
     </div>
   </aside>
@@ -186,7 +191,7 @@
   <Onboarding onComplete={completeOnboarding} />
 {/if}
 
-<Toaster position="bottom-right" theme="dark" richColors />
+<Toaster position="bottom-right" theme="light" richColors />
 
 <style>
   :global(html.immersive-practice) .app-sidebar {
