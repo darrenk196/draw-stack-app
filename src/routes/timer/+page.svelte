@@ -212,7 +212,9 @@
   const TIMER_MUTE_KEY = "timerMuted";
   let isMuted = $state<boolean>(() => {
     try {
-      const v = typeof localStorage !== "undefined" && localStorage.getItem(TIMER_MUTE_KEY);
+      const v =
+        typeof localStorage !== "undefined" &&
+        localStorage.getItem(TIMER_MUTE_KEY);
       return v === "true";
     } catch {
       return false;
@@ -301,6 +303,10 @@
 
   // Default timer durations
   const presetDurations = [30, 60, 120, 300, 600]; // 30s, 1m, 2m, 5m, 10m
+
+  // Custom time input state
+  let customTimeSetAll = $state("");
+  let customTimeIndividual = $state<{ [key: string]: string }>({});
 
   const CLASSROOM_PRESETS_KEY = "classroomPresets";
 
@@ -472,11 +478,62 @@
     }
   }
 
+  function parseTimeInput(input: string): number | null {
+    if (!input || input.trim() === "") return null;
+
+    const trimmed = input.trim().toLowerCase();
+
+    // Format: "1:30" or "1:30:00" (minutes:seconds or hours:minutes:seconds)
+    if (trimmed.includes(":")) {
+      const parts = trimmed.split(":").map((p) => parseInt(p));
+      if (parts.length === 2 && parts.every((p) => !isNaN(p))) {
+        // minutes:seconds
+        return parts[0] * 60 + parts[1];
+      } else if (parts.length === 3 && parts.every((p) => !isNaN(p))) {
+        // hours:minutes:seconds
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+      return null;
+    }
+
+    // Format: "1m 30s" or "1m30s" or "90s" or "2m"
+    const minutesMatch = trimmed.match(/(\d+)\s*m/);
+    const secondsMatch = trimmed.match(/(\d+)\s*s/);
+
+    if (minutesMatch || secondsMatch) {
+      const minutes = minutesMatch ? parseInt(minutesMatch[1]) : 0;
+      const seconds = secondsMatch ? parseInt(secondsMatch[1]) : 0;
+      return minutes * 60 + seconds;
+    }
+
+    // Format: plain number (assume seconds)
+    const num = parseInt(trimmed);
+    if (!isNaN(num)) {
+      return num;
+    }
+
+    return null;
+  }
+
+  function formatTimeInputPlaceholder(): string {
+    return "e.g. 90 or 1:30";
+  }
+
   function setAllDurations(duration: number) {
     timerEntries = timerEntries.map((entry) => ({
       ...entry,
       duration,
     }));
+  }
+
+  function applyCustomTimeToAll() {
+    const seconds = parseTimeInput(customTimeSetAll);
+    if (seconds !== null && seconds > 0 && seconds <= 3600) {
+      setAllDurations(seconds);
+      customTimeSetAll = "";
+    } else {
+      toast("Please enter a valid time (e.g., 90, 1:30, 1m 30s)", "error");
+    }
   }
 
   function startPractice() {
@@ -1901,24 +1958,45 @@
                           />
                         </div>
 
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 flex-wrap">
                           <span class="text-sm text-base-content/70"
                             >Duration:</span
                           >
-                          <select
-                            class="select select-sm select-bordered w-32"
-                            bind:value={stage.duration}
-                          >
-                            <option value={10}>10 seconds</option>
-                            <option value={20}>20 seconds</option>
-                            <option value={30}>30 seconds</option>
-                            <option value={60}>1 minute</option>
-                            <option value={120}>2 minutes</option>
-                            <option value={300}>5 minutes</option>
-                            <option value={600}>10 minutes</option>
-                            <option value={1200}>20 minutes</option>
-                            <option value={2700}>45 minutes</option>
-                          </select>
+                          <div class="flex items-center gap-1">
+                            {#each [30, 60, 120, 300, 600] as duration}
+                              <button
+                                class="btn btn-xs"
+                                class:btn-primary={stage.duration === duration}
+                                class:btn-ghost={stage.duration !== duration}
+                                onclick={() => (stage.duration = duration)}
+                              >
+                                {formatTime(duration)}
+                              </button>
+                            {/each}
+                          </div>
+                          <div class="flex items-center gap-1">
+                            <label class="text-xs text-base-content/70"
+                              >or</label
+                            >
+                            <input
+                              type="text"
+                              class="input input-xs input-bordered w-24"
+                              placeholder="1:30"
+                              value={stage.duration}
+                              onchange={(e) => {
+                                const seconds = parseTimeInput(
+                                  e.currentTarget.value
+                                );
+                                if (
+                                  seconds !== null &&
+                                  seconds > 0 &&
+                                  seconds <= 3600
+                                ) {
+                                  stage.duration = seconds;
+                                }
+                              }}
+                            />
+                          </div>
                         </div>
 
                         <div class="flex-1"></div>
@@ -2189,7 +2267,7 @@
         </div>
 
         <!-- Quick Set All -->
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
           <span class="text-sm text-base-content/70">Set all timers to:</span>
           {#each presetDurations as duration}
             <button
@@ -2199,6 +2277,26 @@
               {formatTime(duration)}
             </button>
           {/each}
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              class="input input-sm input-bordered w-28"
+              placeholder="e.g. 90 or 1:30"
+              bind:value={customTimeSetAll}
+              onkeydown={(e) => {
+                if (e.key === "Enter") {
+                  applyCustomTimeToAll();
+                }
+              }}
+            />
+            <button
+              class="btn btn-sm btn-primary"
+              onclick={applyCustomTimeToAll}
+              disabled={!customTimeSetAll}
+            >
+              Apply
+            </button>
+          </div>
         </div>
       </header>
 
@@ -2249,19 +2347,19 @@
               </div>
 
               <!-- Custom Duration Input -->
-              <div class="flex-shrink-0">
+              <div class="flex-shrink-0 flex items-center gap-2">
+                <label class="text-xs text-base-content/70">or</label>
                 <input
-                  type="number"
-                  class="input input-sm input-bordered w-20"
-                  placeholder="Sec"
-                  value={entry?.duration}
-                  onchange={(e) =>
-                    updateDuration(
-                      image.id,
-                      parseInt(e.currentTarget.value) || 60
-                    )}
-                  min="1"
-                  max="3600"
+                  type="text"
+                  class="input input-sm input-bordered w-24"
+                  placeholder="1:30"
+                  value={formatTime(entry?.duration || 60)}
+                  onchange={(e) => {
+                    const seconds = parseTimeInput(e.currentTarget.value);
+                    if (seconds !== null && seconds > 0 && seconds <= 3600) {
+                      updateDuration(image.id, seconds);
+                    }
+                  }}
                 />
               </div>
             </div>
