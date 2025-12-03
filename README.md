@@ -1,66 +1,193 @@
-# DrawStack
+# Quick-Sketch Timer
 
-Artist Reference Organizer - A Tauri 2 + SvelteKit desktop application for managing and practicing with reference image packs.
+A professional figure drawing practice application built with Tauri 2 + SvelteKit. Designed for artists who want structured timed practice sessions with their reference image library.
 
-## Features
+## Overview
 
-### Library Management
+Quick-Sketch Timer helps artists organize reference images, create custom practice sessions, and maintain focused drawing practice with built-in timers and professional classroom presets. Features a warm, minimalist art gallery aesthetic that stays out of your way while you work.
 
-- **Image Library** - Browse your reference images in grid or list view
-- **Pack Import** - Import entire image packs from local folders
-- **Hierarchical Tags** - Create custom tag trees for organizing references
-- **Tag Filtering** - Advanced multi-tag filtering with recently used tags
-- **Search & Suggestions** - Smart search with tag suggestions
-- **Selection System** - Right-click selection with visual feedback
-- **Image Viewer** - Full-screen image viewing with navigation
+## Core Features
 
-### Timer Mode - Professional Practice Sessions
+### 📚 Library Management
 
-#### Classroom Mode (6 Built-in Presets)
+**Organize Your References**
 
-Pre-configured professional sessions used by real art schools:
+- **Tag System** - Hierarchical categories and tags for flexible organization
+  - Create categories (e.g., "Poses", "Anatomy", "Lighting")
+  - Add tags within categories (e.g., "Standing", "Sitting", "Dynamic")
+  - Bulk tag editor for efficient organization
+  - Recent tags for quick access
+- **Pack-Based Import** - Add entire folders of images as named packs
+- **Smart Filtering** - Filter by categories, tags, and packs simultaneously
+- **Search** - Find images by filename or metadata
+- **Multiple Views**
+  - Grid view with adjustable thumbnail sizes
+  - Detailed list view with metadata
+  - Full-screen image viewer with keyboard navigation
+- **Selection System**
+  - Multi-select with Ctrl+Click
+  - Range select with Shift+Click
+  - Right-click selection painting
+  - Select mode toggle for easier batch selection
+- **Bulk Operations**
+  - Delete multiple images
+  - Apply tags to selection
+  - Export selections to Timer mode
 
-- **Classic Warm-Up** (~30 min) - 12×30s → 10×1m → 8×2m → 6×5m
-- **Standard 1-Hour Class** (60-75 min) - Full progression from 30s warm-ups to 20m pieces
-- **Beginner Friendly** (~50 min) - Gentle progression for new students
-- **Gesture Bootcamp** (30 min) - Fast-paced 10s to 2m exercises
-- **Long Pose Focus** (90 min) - Extended practice with 45m final piece
-- **Portrait & Features** (60 min) - Face studies + hands/feet detail work
+### ⏱️ Timer Mode - Professional Practice Sessions
 
-#### Quick Custom Session
+**Three Ways to Practice**
 
-Build your own practice sessions on the fly:
+#### 1. Classroom Mode (6 Professional Presets)
 
-- Filter images by tags (any combination)
-- Add multiple timed stages
-- Set custom image counts and durations per stage
-- Uses all library images if no tags selected
+Battle-tested session structures used by art schools:
 
-#### Practice Session Features
+- **Classic Warm-Up** (~30 min)
 
-- **Auto-advance timer** with audio chimes between poses
-- **Victory celebration** with fanfare and stats at session end
-- **Stage-based thumbnails** - Only shows current stage images
-- **Teacher controls** - Extend pose time (+1/+5/+10 minutes)
-- **UI lock mode** - Keep controls visible with adjusted image sizing
-- **Immersive mode** - Auto-hide UI with full-screen images
-- **Fullscreen support** - Use entire screen resolution
-- **Keyboard shortcuts** - ←→ navigate, Space pause/resume, R reset, F fullscreen, Esc exit
-- **Progress tracking** - Shows pose number, stage description, and progress bar
+  - 12 poses × 30 seconds
+  - 10 poses × 1 minute
+  - 8 poses × 2 minutes
+  - 6 poses × 5 minutes
 
-### Storage & Performance
+- **Standard 1-Hour Class** (60-75 min)
 
-- **IndexedDB** - Fast, offline-first data persistence
-- **Image thumbnails** - Quick loading and browsing
-- **Tag usage tracking** - Recently used tags for faster filtering
+  - 10 × 30s → 8 × 1m → 6 × 2m → 5 × 5m → 2 × 10m → 1 × 20m
 
-### UI/UX
+- **Beginner Friendly** (~50 min)
 
-- **Dark theme** - Modern interface with TailwindCSS + daisyUI
-- **Responsive design** - Adapts to different window sizes
-- **Visual feedback** - Selection indicators, hover states, transitions
-- **Accessibility** - Keyboard navigation, ARIA labels
+  - Gentle progression: 10 × 1m → 8 × 2m → 6 × 5m → 2 × 10m
 
-## Recommended IDE Setup
+- **Gesture Bootcamp** (30 min)
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
+  - Fast-paced: 20 × 30s → 15 × 1m → 10 × 2m
+
+- **Long Pose Focus** (90 min)
+
+  - 6 × 1m → 4 × 5m → 2 × 10m → 1 × 45m
+
+- **Portrait & Features** (60 min)
+  - 10 × 1m faces → 8 × 3m portraits → 10 × 2m hands/feet
+
+#### 2. Quick Custom Session
+
+Build your own practice on the fly:
+
+- Select tags from your library (or use all images)
+- Create multiple stages with custom durations
+- Set image count per stage
+- Save custom sessions as reusable presets
+
+#### 3. Legacy Mode
+
+Traditional workflow:
+
+- Select images in Library tab
+- Jump to Timer to set individual durations
+- Perfect for curated practice sets
+
+**During Practice**
+
+- **Auto-Advance Timer** - Counts down and automatically moves to next pose
+- **Audio Cues** - Chime between poses, victory fanfare on completion
+- **Stage Thumbnails** - Visual progress through current stage
+- **Keyboard Shortcuts**
+  - `←` `→` - Navigate between poses
+  - `Space` - Pause/Resume
+  - `R` - Reset current timer
+  - `F` - Toggle fullscreen
+  - `M` - Mute/Unmute audio
+  - `L` - Lock/Unlock UI auto-hide
+  - `Esc` - Exit practice
+- **Teacher Controls** - Extend current pose (+1/+5/+10 minutes)
+- **UI Modes**
+  - Immersive: Auto-hide controls after 2 seconds
+  - Locked: Keep controls visible
+  - Fullscreen: Use entire screen
+
+**Drawing Tools (Optional)**
+
+- **Plumb/Angle Tool** - Draw measurement lines on reference to analyze angles and proportions
+- **Grid Lines** - Horizontal and vertical guide lines (drag to reposition, arrow keys for fine adjustment)
+
+**After Completing a Session**
+
+- **Continue Practice** - Instantly restart with identical settings
+- **Modify & Restart** - Return to setup to change pack/duration
+- **Done** - Back to Timer main menu
+
+### 📦 Packs Tab - Bulk Image Management
+
+**Browse and Add from Folders**
+
+- **Folder Navigation** - Browse your file system with recent packs history
+- **Breadcrumb Navigation** - Quick jumps to parent folders
+- **Image Preview** - Grid and carousel views before importing
+- **Batch Selection**
+  - Left-click: View in carousel
+  - Right-click or Right-drag: Paint selection/deselection
+  - Ctrl+A: Toggle select all
+  - Load 50 more or Load all buttons
+- **Add to Library** - Confirm import with custom pack name and tags
+- **Session State** - Folder, selections, and scroll position persist when switching tabs
+
+### ⚙️ Settings
+
+- **Mute Audio** - Toggle audio cues globally
+- **Delete Confirmations** - Show/hide warnings for destructive actions
+- **Theme** - Warm art gallery aesthetic with terracotta accents
+
+## Design Philosophy
+
+- **Warm, Minimal Aesthetic** - Cream, terracotta, and warm charcoal color palette
+- **Unobtrusive** - Stay focused on your art, not the interface
+- **Keyboard-First** - Everything accessible via keyboard
+- **Offline-First** - All data stored locally in IndexedDB
+- **Fast & Responsive** - Optimized image loading and rendering
+
+## Technical Stack
+
+- **Frontend** - SvelteKit 5 (Svelte Runes API)
+- **Desktop** - Tauri 2
+- **Styling** - TailwindCSS + DaisyUI
+- **Storage** - IndexedDB for images and metadata
+- **Icons** - Heroicons via inline SVG
+
+## Development
+
+### Recommended IDE Setup
+
+[VS Code](https://code.visualstudio.com/) with:
+
+- [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode)
+- [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
+- [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+
+### Running the App
+
+```bash
+# Install dependencies
+npm install
+
+# Run in development mode
+npm run tauri dev
+
+# Build for production
+npm run tauri build
+```
+
+## Use Cases
+
+- **Art Students** - Structured practice with classroom presets
+- **Professional Artists** - Custom sessions targeting specific skills
+- **Life Drawing Groups** - Share session presets and manage pose libraries
+- **Solo Practice** - Disciplined timed practice without distractions
+- **Anatomy Study** - Organize references by body parts/angles with tags
+- **Portfolio Prep** - Quick pose references during sketching sessions
+
+## License
+
+[Add your license here]
+
+## Contributing
+
+[Add contribution guidelines here]

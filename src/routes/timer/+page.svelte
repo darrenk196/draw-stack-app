@@ -233,6 +233,16 @@
   let showCompletion = $state(false);
   let showHelpModal = $state(false);
 
+  // Track last session config for quick restart
+  interface LastSessionConfig {
+    setupMode: "choose" | "classroom" | "quick" | "legacy";
+    selectedPreset: ClassroomPreset | null;
+    quickConfig: QuickSessionConfig;
+    timerEntries: TimerEntry[];
+    practiceImages: Image[];
+  }
+  let lastSessionConfig = $state<LastSessionConfig | null>(null);
+
   // Plumb line and angle measurement tool state
   interface Point {
     x: number;
@@ -540,6 +550,15 @@
   }
 
   function startPractice() {
+    // Save session config for quick restart
+    lastSessionConfig = {
+      setupMode,
+      selectedPreset,
+      quickConfig: JSON.parse(JSON.stringify(quickConfig)),
+      timerEntries: JSON.parse(JSON.stringify(timerEntries)),
+      practiceImages: [...practiceImages], // Shallow copy is fine for images
+    };
+
     showSetup = false;
     currentIndex = 0;
     startTimer();
@@ -632,7 +651,71 @@
     document.documentElement.classList.remove("immersive-practice");
   }
 
-  // Get contrasting outline color (inverse for visibility)
+  function restartSameSession() {
+    if (!lastSessionConfig) return;
+
+    // Restore the saved session config
+    setupMode = lastSessionConfig.setupMode;
+    selectedPreset = lastSessionConfig.selectedPreset;
+    quickConfig = JSON.parse(JSON.stringify(lastSessionConfig.quickConfig));
+    timerEntries = JSON.parse(JSON.stringify(lastSessionConfig.timerEntries));
+    practiceImages = [...lastSessionConfig.practiceImages];
+
+    // Reset and start
+    showCompletion = false;
+    currentIndex = 0;
+    startTimer();
+  }
+
+  function modifyAndRestart() {
+    showCompletion = false;
+
+    // Clear timer but don't exit fullscreen yet
+    if (timerInterval !== null) {
+      clearInterval(timerInterval);
+    }
+
+    // Return to appropriate setup screen based on mode
+    if (setupMode === "quick") {
+      // Stay in quick mode, show the tag selection/stage config
+      showSetup = true;
+    } else if (setupMode === "classroom") {
+      // Go back to preset selection
+      showSetup = true;
+      setupMode = "classroom";
+    } else {
+      // For legacy or other modes, go to main menu
+      showSetup = true;
+      setupMode = "choose";
+    }
+
+    // Exit fullscreen if active
+    if (isFullscreen && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+      isFullscreen = false;
+    }
+    document.documentElement.classList.remove("immersive-practice");
+  }
+
+  function finishSession() {
+    showCompletion = false;
+
+    // Clear timer
+    if (timerInterval !== null) {
+      clearInterval(timerInterval);
+    }
+
+    // Exit fullscreen if active
+    if (isFullscreen && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+      isFullscreen = false;
+    }
+
+    // Return to main timer menu
+    showSetup = true;
+    setupMode = "choose";
+    document.documentElement.classList.remove("immersive-practice");
+  } // Get contrasting outline color (inverse for visibility)
   function getOutlineColor(mainColor: string): string {
     // For common bright colors, use black outline
     const brightColors = [
@@ -2298,11 +2381,16 @@
             </p>
           </div>
           <div class="flex items-center gap-3">
-            <a
-              href="/"
+            <button
               class="btn btn-sm btn-ghost text-warm-charcoal hover:bg-warm-beige/30"
-              >Cancel</a
+              onclick={() => {
+                practiceImages = [];
+                timerEntries = [];
+                setupMode = "choose";
+              }}
             >
+              Cancel
+            </button>
             <button
               class="btn btn-sm rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none"
               onclick={startPractice}
@@ -3646,20 +3734,20 @@
         </div>
       {/if}
 
-      <!-- Session Completion Modal -->
+      <!-- Session Completion Card -->
       {#if showCompletion}
         <div
-          class="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          class="absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
         >
           <div
-            class="card bg-white rounded-2xl shadow-2xl w-96 animate-bounce-in"
+            class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 animate-bounce-in"
           >
-            <div class="card-body text-center">
+            <div class="p-8 text-center">
               <!-- Trophy Icon -->
               <div class="flex justify-center mb-4">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  class="h-24 w-24 text-warning animate-pulse"
+                  class="h-20 w-20 text-terracotta"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -3673,69 +3761,102 @@
                 </svg>
               </div>
 
-              <h2 class="card-title text-3xl justify-center mb-2">
+              <h2 class="text-3xl font-bold text-warm-charcoal mb-2">
                 Session Complete!
               </h2>
-              <p class="text-warm-gray mb-4">
+              <p class="text-warm-gray mb-6">
                 Great work! You completed {timerEntries.length} poses.
               </p>
 
-              <div class="stats shadow mb-4">
-                <div class="stat py-3">
-                  <div class="stat-title text-xs">Total Poses</div>
-                  <div class="stat-value text-2xl text-terracotta">
-                    {timerEntries.length}
+              <!-- Session Stats -->
+              <div class="bg-warm-beige/30 rounded-xl p-4 mb-6">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <div class="text-xs text-warm-gray mb-1">Total Poses</div>
+                    <div class="text-2xl font-bold text-terracotta">
+                      {timerEntries.length}
+                    </div>
                   </div>
+                  {#if selectedPreset}
+                    <div>
+                      <div class="text-xs text-warm-gray mb-1">
+                        Session Type
+                      </div>
+                      <div class="text-lg font-semibold text-warm-charcoal">
+                        {selectedPreset.name}
+                      </div>
+                    </div>
+                  {:else if quickConfig.stages.length > 0}
+                    <div>
+                      <div class="text-xs text-warm-gray mb-1">
+                        Session Type
+                      </div>
+                      <div class="text-lg font-semibold text-warm-charcoal">
+                        Quick Session
+                      </div>
+                    </div>
+                  {/if}
                 </div>
-                {#if selectedPreset}
-                  <div class="stat py-3">
-                    <div class="stat-title text-xs">Session Type</div>
-                    <div class="stat-value text-lg">{selectedPreset.name}</div>
-                  </div>
-                {/if}
               </div>
 
-              <div class="card-actions justify-center gap-3">
-                {#if setupMode === "quick" && quickConfig.stages.length > 0}
-                  <button
-                    class="btn btn-success btn-outline"
-                    onclick={saveCurrentSession}
+              <!-- Action Buttons -->
+              <div class="space-y-3">
+                <!-- Primary: Continue with same settings -->
+                <button
+                  class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none w-full h-auto min-h-0 px-6 py-3 text-base"
+                  onclick={restartSameSession}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-                      />
-                    </svg>
-                    Save Session
-                  </button>
-                {/if}
-                <button
-                  class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-6 py-2.5"
-                  onclick={() => {
-                    showCompletion = false;
-                    exitPractice();
-                  }}
-                >
-                  Finish
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Continue Practice
                 </button>
+
+                <!-- Secondary: Modify settings -->
                 <button
-                  class="btn btn-outline"
-                  onclick={() => {
-                    showCompletion = false;
-                    currentIndex = 0;
-                    startTimer();
-                  }}
+                  class="btn rounded-full btn-outline border-warm-beige hover:bg-warm-beige hover:border-warm-beige text-warm-charcoal w-full h-auto min-h-0 px-6 py-2.5"
+                  onclick={modifyAndRestart}
                 >
-                  Restart Session
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                  Modify & Restart
+                </button>
+
+                <!-- Tertiary: Done -->
+                <button
+                  class="btn btn-ghost rounded-full text-warm-gray hover:bg-warm-beige/30 w-full h-auto min-h-0 px-6 py-2"
+                  onclick={finishSession}
+                >
+                  Done
                 </button>
               </div>
             </div>
@@ -3745,6 +3866,302 @@
     </div>
   {/if}
 </div>
+
+<!-- Help Modal -->
+{#if showHelpModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-8"
+    onclick={() => (showHelpModal = false)}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-auto"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-bold text-warm-charcoal">
+            Timer Mode - Quick Reference
+          </h2>
+          <button
+            class="btn btn-circle btn-ghost btn-sm text-warm-gray hover:bg-warm-beige/30"
+            onclick={() => (showHelpModal = false)}
+            aria-label="Close help"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Session Modes -->
+        <div class="mb-6">
+          <h3
+            class="text-lg font-semibold mb-3 flex items-center gap-2 text-warm-charcoal"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 text-terracotta"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            Session Modes
+          </h3>
+          <div class="space-y-3 text-sm">
+            <div>
+              <div class="font-semibold text-warm-charcoal mb-1">
+                Classroom Mode
+              </div>
+              <div class="text-warm-gray">
+                Professional preset sessions (30s-10min poses) used by art
+                schools. One-click start with proven progressions like Classic
+                Warm-Up, Standard 1-Hour Class, and Gesture Bootcamp.
+              </div>
+            </div>
+            <div>
+              <div class="font-semibold text-warm-charcoal mb-1">
+                Quick Custom Session
+              </div>
+              <div class="text-warm-gray">
+                Build your own practice by selecting tags from your library and
+                creating custom stages with specific durations. Perfect for
+                targeted practice sessions.
+              </div>
+            </div>
+            <div>
+              <div class="font-semibold text-warm-charcoal mb-1">
+                Legacy Mode
+              </div>
+              <div class="text-warm-gray">
+                Start from Library tab by selecting images, then come to Timer
+                to set individual durations. Traditional workflow for maximum
+                control.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- During Practice -->
+        <div class="mb-6">
+          <h3
+            class="text-lg font-semibold mb-3 flex items-center gap-2 text-warm-charcoal"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 text-terracotta"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
+              />
+            </svg>
+            Controls During Practice
+          </h3>
+          <div class="space-y-2 text-sm">
+            <div class="flex">
+              <span
+                class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+                >← →</span
+              >
+              <span class="ml-3 text-warm-gray"
+                >Navigate between poses (skip ahead/back)</span
+              >
+            </div>
+            <div class="flex">
+              <span
+                class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+                >Space</span
+              >
+              <span class="ml-3 text-warm-gray">Pause/Resume timer</span>
+            </div>
+            <div class="flex">
+              <span
+                class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+                >R</span
+              >
+              <span class="ml-3 text-warm-gray">Reset current pose timer</span>
+            </div>
+            <div class="flex">
+              <span
+                class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+                >F</span
+              >
+              <span class="ml-3 text-warm-gray">Toggle fullscreen mode</span>
+            </div>
+            <div class="flex">
+              <span
+                class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+                >M</span
+              >
+              <span class="ml-3 text-warm-gray">Mute/Unmute audio cues</span>
+            </div>
+            <div class="flex">
+              <span
+                class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+                >L</span
+              >
+              <span class="ml-3 text-warm-gray"
+                >Lock/Unlock UI (auto-hide controls)</span
+              >
+            </div>
+            <div class="flex">
+              <span
+                class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+                >Esc</span
+              >
+              <span class="ml-3 text-warm-gray">Exit practice session</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Drawing Tools -->
+        <div class="mb-6">
+          <h3
+            class="text-lg font-semibold mb-3 flex items-center gap-2 text-warm-charcoal"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 text-terracotta"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
+              />
+            </svg>
+            Drawing Tools (Optional)
+          </h3>
+          <div class="space-y-3 text-sm">
+            <div>
+              <div class="font-semibold text-warm-charcoal mb-1">
+                Plumb/Angle Tool
+              </div>
+              <div class="text-warm-gray mb-1">
+                Draw angle measurement lines on reference images to analyze
+                proportions and angles. Click "Plumb Tool" in toolbar to
+                activate.
+              </div>
+            </div>
+            <div>
+              <div class="font-semibold text-warm-charcoal mb-1">
+                Grid Lines (H/V)
+              </div>
+              <div class="text-warm-gray">
+                Overlay horizontal and vertical guide lines. Toggle with "H
+                Line" and "V Line" buttons in toolbar. Drag lines to reposition,
+                use arrow keys for precise adjustments.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Session Completion -->
+        <div class="mb-6">
+          <h3
+            class="text-lg font-semibold mb-3 flex items-center gap-2 text-warm-charcoal"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 text-terracotta"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            After Completing a Session
+          </h3>
+          <div class="space-y-2 text-sm">
+            <div>
+              <div class="font-semibold text-warm-charcoal mb-1">
+                Continue Practice
+              </div>
+              <div class="text-warm-gray">
+                Instantly restart with identical settings (same pack,
+                durations). Perfect for multiple practice rounds.
+              </div>
+            </div>
+            <div>
+              <div class="font-semibold text-warm-charcoal mb-1">
+                Modify & Restart
+              </div>
+              <div class="text-warm-gray">
+                Return to setup screen to adjust settings (change pack,
+                durations, or switch modes).
+              </div>
+            </div>
+            <div>
+              <div class="font-semibold text-warm-charcoal mb-1">Done</div>
+              <div class="text-warm-gray">
+                Exit to Timer main menu to start a different type of session.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tips -->
+        <div class="bg-warm-beige rounded-lg p-4 flex items-start gap-3">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 flex-shrink-0 text-terracotta"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+            />
+          </svg>
+          <div class="text-sm text-warm-charcoal">
+            <strong>Pro Tip:</strong> Use Classroom Mode presets for structured practice,
+            or Quick Custom Session to target specific areas (hands, faces, poses).
+            Lock the UI (L key) during practice to minimize distractions and enter
+            a focused flow state.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   :global(html:fullscreen),
