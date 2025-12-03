@@ -1125,14 +1125,14 @@
   }
 </script>
 
-<div class="h-full flex flex-col bg-base-100">
+<div class="h-full flex flex-col bg-cream">
   <!-- Header -->
-  <header class="p-6 border-b border-base-300 bg-base-100">
+  <header class="p-6 border-b border-warm-beige bg-white">
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-3">
-        <h1 class="text-2xl font-semibold text-base-content">Library</h1>
+        <h1 class="text-2xl font-semibold text-warm-charcoal">Library</h1>
         <button
-          class="btn btn-sm btn-circle btn-ghost"
+          class="btn btn-sm btn-circle btn-ghost text-warm-gray hover:bg-warm-beige/30"
           onclick={() => (showHelpModal = true)}
           title="Show keyboard shortcuts and help"
         >
@@ -1159,11 +1159,13 @@
         <!-- Selection Counter & Clear -->
         {#if selectedImages.size > 0}
           <div class="flex items-center gap-2">
-            <span class="badge badge-primary badge-lg">
+            <span
+              class="badge rounded-full bg-terracotta text-white border-none text-sm font-medium h-auto min-h-0 px-4 py-2.5"
+            >
               {selectedImages.size} selected
             </span>
             <button
-              class="btn btn-sm btn-ghost btn-circle"
+              class="btn btn-sm btn-ghost btn-circle text-warm-gray hover:bg-warm-beige/30"
               onclick={clearSelection}
               title="Clear selection (Esc)"
             >
@@ -1188,7 +1190,7 @@
         <!-- Tag Selected Button (prominent when images are selected) -->
         {#if selectedImages.size > 0}
           <button
-            class="btn btn-sm btn-accent gap-2 animate-pulse"
+            class="btn btn-sm rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none gap-2 animate-pulse px-5 py-2.5 h-auto min-h-0"
             onclick={openBulkTagEditor}
             title="Tag selected images (T)"
           >
@@ -1309,7 +1311,10 @@
           </svg>
         </button>
 
-        <button class="btn btn-sm btn-primary gap-2" onclick={startPractice}>
+        <button
+          class="btn btn-sm rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none gap-2 px-5 py-2.5 h-auto min-h-0"
+          onclick={startPractice}
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             class="h-5 w-5"
@@ -1339,7 +1344,7 @@
     <div class="relative mb-4">
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        class="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-base-content/50"
+        class="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-warm-gray"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -1364,13 +1369,13 @@
 
       {#if showSearchSuggestions && searchSuggestions.length > 0}
         <div
-          class="absolute z-50 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+          class="absolute z-50 w-full mt-1 bg-white border border-warm-beige rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
           {#each searchSuggestions as tag, index}
             <button
-              class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2 transition-colors"
-              class:bg-primary={index === selectedSuggestionIndex}
-              class:text-primary-content={index === selectedSuggestionIndex}
+              class="w-full px-4 py-2 text-left hover:bg-warm-beige/30 flex items-center gap-2 transition-colors"
+              class:bg-terracotta={index === selectedSuggestionIndex}
+              class:text-white={index === selectedSuggestionIndex}
               onclick={() => selectSearchSuggestion(tag)}
             >
               <svg
@@ -1398,11 +1403,11 @@
     <!-- Active Filters -->
     {#if activeFilters.length > 0}
       <div class="flex items-center gap-2 mb-2">
-        <span class="text-sm text-base-content/70">Active Filters:</span>
+        <span class="text-sm text-warm-gray">Active Filters:</span>
         <div class="flex gap-2 flex-wrap">
           {#each activeFilters as filter}
             <button
-              class="badge badge-lg badge-primary gap-2 cursor-pointer"
+              class="badge rounded-full bg-terracotta text-white border-none gap-2 cursor-pointer hover:bg-terracotta-dark text-sm font-medium h-auto min-h-0 px-4 py-2.5"
               onclick={() => removeFilter(filter)}
             >
               {filter}
@@ -1423,7 +1428,7 @@
             </button>
           {/each}
           <button
-            class="badge badge-lg badge-ghost cursor-pointer hover:badge-error"
+            class="badge rounded-full bg-warm-gray hover:bg-warm-charcoal text-white border-none cursor-pointer text-sm font-medium h-auto min-h-0 px-4 py-2.5"
             onclick={clearAllFilters}
           >
             Clear All
@@ -1434,14 +1439,15 @@
 
     <!-- Quick Filters -->
     <div class="flex items-center gap-2">
-      <span class="text-sm text-base-content/70">Recently Used:</span>
+      <span class="text-sm text-warm-gray">Recently Used:</span>
       <div class="flex gap-2 flex-wrap">
         {#if recentTags.length > 0}
           {#each recentTags as tag}
             {@const tagPath = buildTagPath(tag, allTags)}
             <button
-              class="badge badge-lg badge-ghost cursor-pointer hover:badge-primary"
-              class:badge-outline={activeFilters.includes(tagPath)}
+              class="badge rounded-full bg-warm-beige hover:bg-terracotta hover:text-white border border-warm-beige text-warm-charcoal cursor-pointer transition-colors text-sm font-medium h-auto min-h-0 px-4 py-2.5"
+              class:bg-terracotta={activeFilters.includes(tagPath)}
+              class:text-white={activeFilters.includes(tagPath)}
               onclick={() => addFilter(tagPath)}
               disabled={activeFilters.includes(tagPath)}
             >
@@ -1449,7 +1455,7 @@
             </button>
           {/each}
         {:else}
-          <span class="text-sm text-base-content/50 italic"
+          <span class="text-sm text-warm-gray italic"
             >No recently used tags</span
           >
         {/if}
@@ -1467,7 +1473,7 @@
       <div class="flex flex-col items-center justify-center h-full text-center">
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          class="h-24 w-24 text-base-content/30 mb-4"
+          class="h-24 w-24 text-warm-gray mb-4"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -1479,19 +1485,24 @@
             d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
           />
         </svg>
-        <h2 class="text-xl font-medium mb-2 text-base-content">
+        <h2 class="text-xl font-medium mb-2 text-warm-charcoal">
           Your library is empty
         </h2>
-        <p class="text-base-content/70 mb-4">
+        <p class="text-warm-gray mb-4">
           Go to Packs and add images to your library
         </p>
-        <a href="/packs" class="btn btn-primary"> Go to Packs </a>
+        <a
+          href="/packs"
+          class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-6 py-3"
+        >
+          Go to Packs
+        </a>
       </div>
     {:else if filteredImages.length === 0 && (searchQuery.trim() || activeFilters.length > 0)}
       <div class="flex flex-col items-center justify-center h-full text-center">
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          class="h-24 w-24 text-base-content/30 mb-4"
+          class="h-24 w-24 text-warm-gray mb-4"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -1503,10 +1514,10 @@
             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
           />
         </svg>
-        <h2 class="text-xl font-medium mb-2 text-base-content">
+        <h2 class="text-xl font-medium mb-2 text-warm-charcoal">
           No images found
         </h2>
-        <p class="text-base-content/70 mb-4">
+        <p class="text-warm-gray mb-4">
           {#if activeFilters.length > 0}
             No images match the active filters
           {:else}
@@ -1520,10 +1531,10 @@
     {:else}
       <!-- Pagination Controls -->
       <div
-        class="mb-4 flex items-center justify-between border-b border-base-300 pb-4"
+        class="mb-4 flex items-center justify-between border-b border-warm-beige pb-4"
       >
         <div class="flex items-center gap-3">
-          <span class="text-sm text-base-content/70">Items per page:</span>
+          <span class="text-sm text-warm-gray">Items per page:</span>
           <select
             class="select select-sm select-bordered"
             bind:value={itemsPerPage}
@@ -1536,7 +1547,7 @@
             <option value="all">All</option>
           </select>
         </div>
-        <div class="text-sm text-base-content/70">
+        <div class="text-sm text-warm-gray">
           {#if itemsPerPage === "all"}
             Showing all {filteredImages.length} images
           {:else}
@@ -1554,9 +1565,9 @@
           {#each displayedLibraryImages as image (image.id)}
             {@const isSelected = selectedImages.has(image.id)}
             <button
-              class="relative aspect-square bg-base-300 rounded overflow-hidden cursor-pointer border-2 transition-colors"
-              class:border-base-300={!isSelected}
-              class:border-primary={isSelected}
+              class="relative aspect-square bg-warm-beige rounded overflow-hidden cursor-pointer border-2 transition-colors"
+              class:border-warm-beige={!isSelected}
+              class:border-terracotta={isSelected}
               onclick={(e) => {
                 // If there is an active selection or user holds Ctrl/Shift, treat click as selection
                 if (
@@ -1610,9 +1621,9 @@
             {@const isSelected = selectedImages.has(image.id)}
             {@const tags = allImageTags.get(image.id) || []}
             <button
-              class="w-full flex items-center gap-4 p-3 bg-base-200 rounded-lg hover:bg-base-300 border-2 transition-colors"
-              class:border-base-200={!isSelected}
-              class:border-primary={isSelected}
+              class="w-full flex items-center gap-4 p-3 bg-white rounded-lg hover:bg-warm-beige/30 border-2 transition-colors"
+              class:border-warm-beige={!isSelected}
+              class:border-terracotta={isSelected}
               onclick={(e) => {
                 if (
                   selectedImages.size > 0 ||
@@ -1660,7 +1671,7 @@
                 {/if}
               </div>
               <div class="flex-1 text-left">
-                <p class="font-medium text-base-content">{image.filename}</p>
+                <p class="font-medium text-warm-charcoal">{image.filename}</p>
                 {#if tags.length > 0}
                   <div class="flex flex-wrap gap-1 mt-1">
                     {#each tags as tag}
@@ -1670,7 +1681,7 @@
                     {/each}
                   </div>
                 {:else}
-                  <p class="text-sm text-base-content/50">No tags</p>
+                  <p class="text-sm text-warm-gray">No tags</p>
                 {/if}
               </div>
             </button>
@@ -1681,7 +1692,7 @@
       <!-- Pagination Navigation -->
       {#if itemsPerPage !== "all" && filteredImages.length > 0}
         <div
-          class="mt-6 pt-4 border-t border-base-300 flex items-center justify-center gap-2"
+          class="mt-6 pt-4 border-t border-warm-beige flex items-center justify-center gap-2"
         >
           <button
             class="btn btn-sm"
@@ -1704,7 +1715,7 @@
             </svg>
             Previous
           </button>
-          <span class="text-sm text-base-content/70 mx-4">
+          <span class="text-sm text-warm-gray mx-4">
             Page {currentPage} of {totalPages}
           </span>
           <button
@@ -1853,13 +1864,13 @@
             />
           </svg>
           <h2 class="text-2xl font-semibold">Bulk Tag Editor</h2>
-          <p class="text-base-content/70">
+          <p class="text-warm-gray">
             Add tags to {selectedImages.size} selected image{selectedImages.size !==
             1
               ? "s"
               : ""}
           </p>
-          <p class="text-sm text-base-content/50">
+          <p class="text-sm text-warm-gray">
             Select tags from the panel on the right, then click "Apply Tags"
           </p>
         </div>
@@ -1878,23 +1889,23 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="w-80 bg-base-100 h-full overflow-y-auto p-6 space-y-6"
+      class="w-80 bg-white border-l border-warm-beige h-full overflow-y-auto p-6 space-y-6"
       onclick={(e) => e.stopPropagation()}
     >
       <!-- Active Tags Section -->
       <div>
-        <h3 class="text-lg font-semibold mb-3">
+        <h3 class="text-lg font-semibold text-warm-charcoal mb-3">
           {isBulkTagging ? "Tags to Apply" : "Active Tags"}
         </h3>
         {#if imageTags.length === 0}
-          <p class="text-sm text-base-content/50">
+          <p class="text-sm text-warm-gray">
             {isBulkTagging ? "Select tags below to apply" : "No tags yet"}
           </p>
         {:else}
           <div class="flex flex-wrap gap-2">
             {#each imageTags as tag}
               <div
-                class="badge badge-primary gap-2 max-w-[200px]"
+                class="badge rounded-full bg-terracotta text-white border-none gap-2 max-w-[200px] text-sm font-medium h-auto min-h-0 px-3.5 py-2"
                 title={tag.name}
               >
                 <span class="truncate">{tag.name}</span>
@@ -1929,7 +1940,7 @@
 
         <!-- Quick Tag Presets -->
         <div>
-          <h4 class="text-sm font-semibold mb-2 text-base-content/70">
+          <h4 class="text-sm font-semibold mb-2 text-warm-gray">
             Quick Presets
           </h4>
           <div class="grid grid-cols-1 gap-1">
@@ -1964,16 +1975,20 @@
 
       <!-- Tag Categories Section -->
       <div>
-        <h3 class="text-lg font-semibold mb-3">Tag Categories</h3>
+        <h3 class="text-lg font-semibold text-warm-charcoal mb-3">
+          Tag Categories
+        </h3>
         <div class="space-y-3">
           {#each tagCategories.filter((cat) => !hiddenCategories.has(cat.name)) as category}
-            <div class="border border-base-300 rounded-lg">
+            <div class="border border-warm-beige rounded-lg">
               <div class="flex items-center">
                 <button
-                  class="flex-1 flex items-center justify-between p-3 hover:bg-base-200 transition-colors"
+                  class="flex-1 flex items-center justify-between p-3 hover:bg-warm-beige/30 transition-colors"
                   onclick={() => toggleCategory(category.name)}
                 >
-                  <span class="font-medium">{category.name}</span>
+                  <span class="font-medium text-warm-charcoal"
+                    >{category.name}</span
+                  >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     class="h-5 w-5 transition-transform {expandedCategories.has(
@@ -2027,9 +2042,9 @@
                     )}
                     <div class="flex items-center gap-1">
                       <button
-                        class="btn btn-sm {active
-                          ? 'btn-primary'
-                          : 'btn-ghost'} flex-1 justify-start"
+                        class="btn btn-sm rounded-full {active
+                          ? 'bg-terracotta text-white border-none'
+                          : 'btn-ghost text-warm-charcoal hover:bg-warm-beige/30'} flex-1 justify-start"
                         onclick={() => toggleTag(tagName, category.name)}
                       >
                         <svg
@@ -2082,9 +2097,9 @@
                     {@const active = imageTags.some((t) => t.id === tag.id)}
                     <div class="flex items-center gap-1">
                       <button
-                        class="btn btn-sm {active
-                          ? 'btn-primary'
-                          : 'btn-ghost'} flex-1 justify-start"
+                        class="btn btn-sm rounded-full {active
+                          ? 'bg-terracotta text-white border-none'
+                          : 'btn-ghost text-warm-charcoal hover:bg-warm-beige/30'} flex-1 justify-start"
                         onclick={() => toggleTag(tag.name, category.name)}
                       >
                         <svg
@@ -2138,13 +2153,14 @@
             {@const customTags = allTags.filter(
               (t) => t.parentId === customCat
             )}
-            <div class="border border-base-300 rounded-lg">
+            <div class="border border-warm-beige rounded-lg">
               <div class="flex items-center">
                 <button
-                  class="flex-1 flex items-center justify-between p-3 hover:bg-base-200 transition-colors"
+                  class="flex-1 flex items-center justify-between p-3 hover:bg-warm-beige/30 transition-colors"
                   onclick={() => toggleCategory(customCat)}
                 >
-                  <span class="font-medium">{customCat}</span>
+                  <span class="font-medium text-warm-charcoal">{customCat}</span
+                  >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     class="h-5 w-5 transition-transform {expandedCategories.has(
@@ -2192,7 +2208,7 @@
               {#if expandedCategories.has(customCat)}
                 <div class="p-3 pt-0 space-y-2">
                   {#if customTags.length === 0}
-                    <p class="text-sm text-base-content/50 text-center py-2">
+                    <p class="text-sm text-warm-gray text-center py-2">
                       No tags yet
                     </p>
                   {:else}
@@ -2200,9 +2216,9 @@
                       {@const active = imageTags.some((t) => t.id === tag.id)}
                       <div class="flex items-center gap-1">
                         <button
-                          class="btn btn-sm {active
-                            ? 'btn-primary'
-                            : 'btn-ghost'} flex-1 justify-start"
+                          class="btn btn-sm rounded-full {active
+                            ? 'bg-terracotta text-white border-none'
+                            : 'btn-ghost text-warm-charcoal hover:bg-warm-beige/30'} flex-1 justify-start"
                           onclick={() => toggleTag(tag.name, customCat)}
                         >
                           <svg
@@ -2257,13 +2273,15 @@
       <div class="divider"></div>
 
       <!-- Custom Category Section -->
-      <div>
-        <h3 class="text-lg font-semibold mb-3">Add Category</h3>
-        <div class="flex gap-2 mb-4">
+      <div class="bg-warm-beige/30 rounded-lg p-4">
+        <h3 class="text-base font-semibold text-warm-charcoal mb-3">
+          Add Category
+        </h3>
+        <div class="flex gap-2 mb-6">
           <input
             type="text"
             placeholder="Category name..."
-            class="input input-bordered input-sm flex-1"
+            class="input input-bordered flex-1 h-10 text-sm border-warm-beige focus:border-terracotta"
             bind:value={newCategoryName}
             onkeydown={(e) => {
               if (e.key === "Enter" && newCategoryName.trim()) {
@@ -2278,7 +2296,7 @@
             }}
           />
           <button
-            class="btn btn-primary btn-sm"
+            class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-6 h-10 min-h-0"
             onclick={() => {
               const name = newCategoryName.trim();
               if (name) {
@@ -2296,10 +2314,12 @@
           </button>
         </div>
 
-        <h3 class="text-lg font-semibold mb-3">Add Tag to Category</h3>
+        <h3 class="text-base font-semibold text-warm-charcoal mb-3">
+          Add Tag to Category
+        </h3>
         <div class="space-y-2">
           <select
-            class="select select-bordered select-sm w-full"
+            class="select select-bordered w-full h-10 text-sm border-warm-beige focus:border-terracotta"
             bind:value={selectedCategoryForNewTag}
           >
             <option value="" disabled>Select category...</option>
@@ -2313,7 +2333,7 @@
             <input
               type="text"
               placeholder="Tag name..."
-              class="input input-bordered input-sm flex-1"
+              class="input input-bordered flex-1 h-10 text-sm border-warm-beige focus:border-terracotta"
               bind:value={newTagName}
               disabled={!selectedCategoryForNewTag}
               onkeydown={(e) => {
@@ -2355,7 +2375,7 @@
               }}
             />
             <button
-              class="btn btn-primary btn-sm"
+              class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-6 h-10 min-h-0"
               onclick={() => {
                 if (newTagName.trim() && selectedCategoryForNewTag) {
                   // Prevent adding to hidden categories
@@ -2418,7 +2438,7 @@
             Cancel
           </button>
           <button
-            class="btn btn-primary flex-1"
+            class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none flex-1 px-6 py-2.5 h-auto min-h-0"
             onclick={applyBulkTags}
             disabled={imageTags.length === 0 || isApplyingBulkTags}
           >
@@ -2458,7 +2478,7 @@
   <div
     class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-8"
   >
-    <div class="bg-base-100 rounded-lg shadow-xl max-w-md w-full p-6">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
       <div class="flex items-start gap-4 mb-6">
         <div class="flex-shrink-0">
           <svg
@@ -2478,7 +2498,7 @@
         </div>
         <div class="flex-1">
           <h3 class="text-lg font-bold mb-2">Delete Images</h3>
-          <p class="text-base-content/80">
+          <p class="text-warm-charcoal">
             Delete {deleteCount} selected image{deleteCount !== 1 ? "s" : ""}?
             This cannot be undone.
           </p>
@@ -2528,19 +2548,21 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="bg-base-100 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+      class="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
       onclick={(e) => e.stopPropagation()}
     >
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-2xl font-bold">Keyboard Shortcuts</h2>
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-2xl font-bold text-warm-charcoal">
+          Library Tab - Quick Reference
+        </h2>
         <button
-          class="btn btn-circle btn-ghost btn-sm"
+          class="btn btn-circle btn-ghost btn-sm text-warm-gray hover:bg-warm-beige/30"
           onclick={() => (showHelpModal = false)}
           aria-label="Close help"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5"
+            class="h-6 w-6"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -2555,173 +2577,321 @@
         </button>
       </div>
 
-      <div class="space-y-6">
-        <!-- Selection Section -->
-        <div>
-          <h3 class="text-lg font-semibold mb-3 text-primary">Selection</h3>
-          <div class="space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Toggle selection mode</span>
-              <kbd class="kbd kbd-sm">Toggle in toolbar</kbd>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Toggle select all / deselect all</span>
-              <kbd class="kbd kbd-sm">Ctrl+A</kbd>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Multi-select (add/remove)</span>
-              <div class="flex gap-1">
-                <kbd class="kbd kbd-sm">Ctrl</kbd>
-                <span class="text-xs">+</span>
-                <kbd class="kbd kbd-sm">Click</kbd>
-              </div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Range select</span>
-              <div class="flex gap-1">
-                <kbd class="kbd kbd-sm">Shift</kbd>
-                <span class="text-xs">+</span>
-                <kbd class="kbd kbd-sm">Click</kbd>
-              </div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Quick select (context menu)</span>
-              <kbd class="kbd kbd-sm">Right-Click</kbd>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Delete selected images</span>
-              <kbd class="kbd kbd-sm">Delete</kbd>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Toggle single image</span>
-              <div class="flex gap-1">
-                <kbd class="kbd kbd-sm">Ctrl</kbd>
-                <span class="text-xs">+</span>
-                <kbd class="kbd kbd-sm">Click</kbd>
-              </div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Range select images</span>
-              <div class="flex gap-1">
-                <kbd class="kbd kbd-sm">Shift</kbd>
-                <span class="text-xs">+</span>
-                <kbd class="kbd kbd-sm">Click</kbd>
-              </div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Toggle image (alternative)</span>
-              <kbd class="kbd kbd-sm">Right-Click</kbd>
-            </div>
+      <!-- Selection Section -->
+      <div class="mb-6">
+        <h3
+          class="text-lg font-semibold mb-3 flex items-center gap-2 text-warm-charcoal"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 text-terracotta"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+            />
+          </svg>
+          Selection
+        </h3>
+        <div class="space-y-2 text-sm">
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Toggle in toolbar</span
+            >
+            <span class="ml-3 text-warm-gray">Toggle selection mode</span>
           </div>
-        </div>
-
-        <!-- Tagging Section -->
-        <div>
-          <h3 class="text-lg font-semibold mb-3 text-primary">Tagging</h3>
-          <div class="space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Open bulk tag editor</span>
-              <kbd class="kbd kbd-sm">T</kbd>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Apply tags (in bulk editor)</span>
-              <kbd class="kbd kbd-sm">Click "Apply Tags"</kbd>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Cancel bulk tagging</span>
-              <kbd class="kbd kbd-sm">Esc</kbd>
-            </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Ctrl+A</span
+            >
+            <span class="ml-3 text-warm-gray"
+              >Toggle select all / deselect all</span
+            >
           </div>
-        </div>
-
-        <!-- Navigation Section -->
-        <div>
-          <h3 class="text-lg font-semibold mb-3 text-primary">Image Viewer</h3>
-          <div class="space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Previous image</span>
-              <kbd class="kbd kbd-sm">←</kbd>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Next image</span>
-              <kbd class="kbd kbd-sm">→</kbd>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Close viewer</span>
-              <kbd class="kbd kbd-sm">Esc</kbd>
-            </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Ctrl + Click</span
+            >
+            <span class="ml-3 text-warm-gray">Multi-select (add/remove)</span>
           </div>
-        </div>
-
-        <!-- General Section -->
-        <div>
-          <h3 class="text-lg font-semibold mb-3 text-primary">General</h3>
-          <div class="space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Show this help</span>
-              <kbd class="kbd kbd-sm">?</kbd>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">Close modals</span>
-              <kbd class="kbd kbd-sm">Esc</kbd>
-            </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Shift + Click</span
+            >
+            <span class="ml-3 text-warm-gray">Range select</span>
           </div>
-        </div>
-
-        <!-- Settings Section -->
-        <div>
-          <h3 class="text-lg font-semibold mb-3 text-primary">Settings</h3>
-          <div class="space-y-2">
-            <div class="form-control">
-              <label class="label cursor-pointer justify-start gap-3">
-                <input
-                  type="checkbox"
-                  class="checkbox checkbox-sm"
-                  checked={!skipDeleteWarningPref}
-                  onchange={(e) => {
-                    const showWarning = e.currentTarget.checked;
-                    skipDeleteWarningPref = !showWarning;
-                    if (showWarning) {
-                      localStorage.removeItem(DELETE_WARNING_KEY);
-                    } else {
-                      localStorage.setItem(DELETE_WARNING_KEY, "true");
-                    }
-                  }}
-                />
-                <span class="label-text">Show image delete confirmation</span>
-              </label>
-            </div>
-            <div class="form-control">
-              <label class="label cursor-pointer justify-start gap-3">
-                <input
-                  type="checkbox"
-                  class="checkbox checkbox-sm"
-                  checked={!skipTagDeleteWarningPref}
-                  onchange={(e) => {
-                    const showWarning = e.currentTarget.checked;
-                    skipTagDeleteWarningPref = !showWarning;
-                    if (showWarning) {
-                      localStorage.removeItem(TAG_DELETE_WARNING_KEY);
-                    } else {
-                      localStorage.setItem(TAG_DELETE_WARNING_KEY, "true");
-                    }
-                  }}
-                />
-                <span class="label-text"
-                  >Show tag/category delete confirmation</span
-                >
-              </label>
-            </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Right-Click</span
+            >
+            <span class="ml-3 text-warm-gray">Quick select (context menu)</span>
+          </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Delete</span
+            >
+            <span class="ml-3 text-warm-gray">Delete selected images</span>
+          </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Ctrl + Click</span
+            >
+            <span class="ml-3 text-warm-gray">Toggle single image</span>
+          </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Shift + Click</span
+            >
+            <span class="ml-3 text-warm-gray">Range select images</span>
+          </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Right-Click</span
+            >
+            <span class="ml-3 text-warm-gray">Toggle image (alternative)</span>
           </div>
         </div>
       </div>
 
-      <div class="mt-6 p-4 bg-base-200 rounded-lg">
-        <p class="text-sm text-base-content/70">
+      <!-- Tagging Section -->
+      <div class="mb-6">
+        <h3
+          class="text-lg font-semibold mb-3 flex items-center gap-2 text-warm-charcoal"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 text-terracotta"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+            />
+          </svg>
+          Tagging
+        </h3>
+        <div class="space-y-2 text-sm">
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >T</span
+            >
+            <span class="ml-3 text-warm-gray">Open bulk tag editor</span>
+          </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Click "Apply Tags"</span
+            >
+            <span class="ml-3 text-warm-gray">Apply tags (in bulk editor)</span>
+          </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Esc</span
+            >
+            <span class="ml-3 text-warm-gray">Cancel bulk tagging</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Image Viewer Section -->
+      <div class="mb-6">
+        <h3
+          class="text-lg font-semibold mb-3 flex items-center gap-2 text-warm-charcoal"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 text-terracotta"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+          Image Viewer
+        </h3>
+        <div class="space-y-2 text-sm">
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >←</span
+            >
+            <span class="ml-3 text-warm-gray">Previous image</span>
+          </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >→</span
+            >
+            <span class="ml-3 text-warm-gray">Next image</span>
+          </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Esc</span
+            >
+            <span class="ml-3 text-warm-gray">Close viewer</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- General Section -->
+      <div class="mb-6">
+        <h3
+          class="text-lg font-semibold mb-3 flex items-center gap-2 text-warm-charcoal"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 text-terracotta"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          General
+        </h3>
+        <div class="space-y-2 text-sm">
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >?</span
+            >
+            <span class="ml-3 text-warm-gray">Show this help</span>
+          </div>
+          <div class="flex">
+            <span
+              class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
+              >Esc</span
+            >
+            <span class="ml-3 text-warm-gray">Close modals</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Section -->
+      <div class="mb-6">
+        <h3
+          class="text-lg font-semibold mb-3 flex items-center gap-2 text-warm-charcoal"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 text-terracotta"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+          Settings
+        </h3>
+        <div class="space-y-3">
+          <div class="form-control">
+            <label class="label cursor-pointer justify-start gap-3">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-sm"
+                checked={!skipDeleteWarningPref}
+                onchange={(e) => {
+                  const showWarning = e.currentTarget.checked;
+                  skipDeleteWarningPref = !showWarning;
+                  if (showWarning) {
+                    localStorage.removeItem(DELETE_WARNING_KEY);
+                  } else {
+                    localStorage.setItem(DELETE_WARNING_KEY, "true");
+                  }
+                }}
+              />
+              <span class="label-text text-warm-gray"
+                >Show image delete confirmation</span
+              >
+            </label>
+          </div>
+          <div class="form-control">
+            <label class="label cursor-pointer justify-start gap-3">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-sm"
+                checked={!skipTagDeleteWarningPref}
+                onchange={(e) => {
+                  const showWarning = e.currentTarget.checked;
+                  skipTagDeleteWarningPref = !showWarning;
+                  if (showWarning) {
+                    localStorage.removeItem(TAG_DELETE_WARNING_KEY);
+                  } else {
+                    localStorage.setItem(TAG_DELETE_WARNING_KEY, "true");
+                  }
+                }}
+              />
+              <span class="label-text text-warm-gray"
+                >Show tag/category delete confirmation</span
+              >
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tips -->
+      <div class="bg-warm-beige rounded-lg p-4 flex items-start gap-3">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-5 w-5 flex-shrink-0 text-terracotta"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+          />
+        </svg>
+        <div class="text-sm text-warm-charcoal">
           <strong>Tip:</strong> Enable "Select Mode" in the toolbar for easier multi-selection
           without holding Ctrl. Use quick presets in the bulk tag editor to apply
           common tag combinations instantly!
-        </p>
+        </div>
       </div>
     </div>
   </div>

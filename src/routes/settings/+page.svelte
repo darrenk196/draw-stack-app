@@ -257,17 +257,18 @@
   }
 </script>
 
-<div class="h-full overflow-auto bg-base-100">
+<div class="h-full overflow-auto bg-cream">
   <div class="max-w-4xl mx-auto p-8">
     <div class="mb-8 flex items-center gap-3">
       <div class="flex-1">
-        <h1 class="text-3xl font-bold mb-2">Settings</h1>
-        <p class="text-base-content/70">
-          Configure your Draw Stack preferences
-        </p>
+        <h1 class="text-3xl font-bold text-warm-charcoal mb-2">Settings</h1>
+        <p class="text-warm-gray">Configure your Draw Stack preferences</p>
       </div>
       <div class="tooltip tooltip-left" data-tip="Settings help">
-        <button class="btn btn-circle btn-ghost" aria-label="Help">
+        <button
+          class="btn btn-circle btn-ghost text-warm-gray hover:bg-warm-beige/30"
+          aria-label="Help"
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             class="h-6 w-6"
@@ -292,9 +293,11 @@
       </div>
     {:else}
       <!-- Library Location -->
-      <div class="card bg-base-200 mb-6">
+      <div class="card bg-white border border-warm-beige rounded-2xl mb-6">
         <div class="card-body">
-          <h2 class="card-title text-xl mb-4">Library Location</h2>
+          <h2 class="card-title text-xl text-warm-charcoal mb-4">
+            Library Location
+          </h2>
 
           <div class="form-control mb-4">
             <label class="label" for="library-path-input">
@@ -308,7 +311,10 @@
                 value={libraryPath}
                 readonly
               />
-              <button class="btn btn-primary" onclick={browseLibraryPath}>
+              <button
+                class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-6 py-3"
+                onclick={browseLibraryPath}
+              >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   class="h-5 w-5"
@@ -327,7 +333,7 @@
               </button>
             </div>
             <div class="label">
-              <span class="label-text-alt text-base-content/60">
+              <span class="label-text-alt text-warm-gray">
                 Images are stored in this folder. Changing this will not move
                 existing images.
               </span>
@@ -341,26 +347,28 @@
       </div>
 
       <!-- Library Statistics -->
-      <div class="card bg-base-200 mb-6">
+      <div class="card bg-white border border-warm-beige rounded-2xl mb-6">
         <div class="card-body">
-          <h2 class="card-title text-xl mb-4">Library Statistics</h2>
+          <h2 class="card-title text-xl text-warm-charcoal mb-4">
+            Library Statistics
+          </h2>
 
-          <div class="stats shadow bg-base-300">
+          <div class="stats shadow bg-warm-beige border border-warm-beige">
             <div class="stat">
-              <div class="stat-title">Total Images</div>
-              <div class="stat-value text-primary">{imageCount}</div>
+              <div class="stat-title text-warm-gray">Total Images</div>
+              <div class="stat-value text-terracotta">{imageCount}</div>
             </div>
 
             <div class="stat">
-              <div class="stat-title">Total Tags</div>
-              <div class="stat-value text-secondary">{tagCount}</div>
+              <div class="stat-title text-warm-gray">Total Tags</div>
+              <div class="stat-value text-terracotta">{tagCount}</div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Library Management -->
-      <div class="card bg-base-200 mb-6">
+      <div class="card bg-white border border-warm-beige rounded-2xl mb-6">
         <div class="card-body">
           <h2 class="card-title text-xl mb-4">Library Management</h2>
 
@@ -488,14 +496,14 @@
       </div>
 
       <!-- About -->
-      <div class="card bg-base-200">
+      <div class="card bg-white border border-warm-beige rounded-2xl">
         <div class="card-body">
-          <h2 class="card-title text-xl mb-4">About</h2>
+          <h2 class="card-title text-xl text-warm-charcoal mb-4">About</h2>
 
           <div class="space-y-3">
             <div>
-              <p class="font-semibold">Draw Stack</p>
-              <p class="text-sm text-base-content/70">
+              <p class="font-semibold text-warm-charcoal">Draw Stack</p>
+              <p class="text-sm text-warm-gray">
                 Version {APP_VERSION}
               </p>
             </div>
@@ -503,7 +511,7 @@
             <div class="divider"></div>
 
             <div>
-              <p class="text-sm text-base-content/70">
+              <p class="text-sm text-warm-gray">
                 A practice timer and reference image manager for artists.
               </p>
             </div>
@@ -534,7 +542,7 @@
             </div>
 
             <div>
-              <p class="text-sm text-base-content/70 mb-1">
+              <p class="text-sm text-warm-gray mb-1">
                 Report issues or feedback:
               </p>
               <p class="text-sm font-mono select-all">

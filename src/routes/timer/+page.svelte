@@ -860,7 +860,11 @@
           // Move vertical line left
           e.preventDefault();
           arrowUsedWithModifier = true;
+          dragTarget = "vertical-line";
           verticalLine2X = Math.max(0, verticalLine2X - 0.01);
+          setTimeout(() => {
+            dragTarget = null;
+          }, 100);
         } else {
           goToPrevious();
         }
@@ -870,7 +874,11 @@
           // Move vertical line right
           e.preventDefault();
           arrowUsedWithModifier = true;
+          dragTarget = "vertical-line";
           verticalLine2X = Math.min(1, verticalLine2X + 0.01);
+          setTimeout(() => {
+            dragTarget = null;
+          }, 100);
         } else {
           goToNext();
         }
@@ -880,7 +888,11 @@
           // Move horizontal line up
           e.preventDefault();
           arrowUsedWithModifier = true;
+          dragTarget = "horizontal-line";
           horizontalLine2Y = Math.max(0, horizontalLine2Y - 0.01);
+          setTimeout(() => {
+            dragTarget = null;
+          }, 100);
         }
         break;
       case "ArrowDown":
@@ -888,7 +900,11 @@
           // Move horizontal line down
           e.preventDefault();
           arrowUsedWithModifier = true;
+          dragTarget = "horizontal-line";
           horizontalLine2Y = Math.min(1, horizontalLine2Y + 0.01);
+          setTimeout(() => {
+            dragTarget = null;
+          }, 100);
         }
         break;
       case " ":
@@ -1410,7 +1426,7 @@
 />
 
 <div
-  class={`${isFullscreen ? "h-screen w-screen" : "h-full"} flex flex-col bg-base-100`}
+  class={`${isFullscreen ? "h-screen w-screen" : "h-full"} flex flex-col bg-cream`}
 >
   {#if isLoading}
     <div class="flex-1 flex items-center justify-center">
@@ -1422,7 +1438,7 @@
       <div class="flex-1 flex items-center justify-center p-8">
         <div class="max-w-5xl w-full">
           <div class="flex items-center justify-center gap-3 mb-3">
-            <h1 class="text-4xl font-bold text-center text-base-content">
+            <h1 class="text-4xl font-bold text-center text-warm-charcoal">
               Timer Mode
             </h1>
             <button
@@ -1446,21 +1462,21 @@
               </svg>
             </button>
           </div>
-          <p class="text-center text-base-content/70 mb-12 text-lg">
+          <p class="text-center text-warm-gray mb-12 text-lg">
             Choose how you want to practice
           </p>
 
           <div class="grid md:grid-cols-2 gap-8">
             <!-- Classroom Mode Card -->
             <button
-              class="card bg-base-200 shadow-xl hover:shadow-2xl transition-all border-2 border-transparent hover:border-primary text-left"
+              class="card bg-white shadow-xl hover:shadow-2xl transition-all border-2 border-warm-beige hover:border-terracotta text-left rounded-2xl"
               onclick={() => (setupMode = "classroom")}
             >
               <div class="card-body">
                 <div class="flex items-center gap-3 mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    class="h-12 w-12 text-primary"
+                    class="h-12 w-12 text-terracotta"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -1474,7 +1490,7 @@
                   </svg>
                   <div>
                     <h2 class="card-title text-2xl">Classroom Mode</h2>
-                    <p class="text-sm text-base-content/70">
+                    <p class="text-sm text-warm-gray">
                       {classroomPresets.length} preset{classroomPresets.length ===
                       1
                         ? ""
@@ -1482,11 +1498,11 @@
                     </p>
                   </div>
                 </div>
-                <p class="text-base-content/80 mb-4">
+                <p class="text-warm-charcoal mb-4">
                   Professional, battle-tested class structures used by real art
                   schools. One-click start with proven progressions.
                 </p>
-                <ul class="text-sm space-y-1 text-base-content/70">
+                <ul class="text-sm space-y-1 text-warm-gray">
                   <li>✓ Classic Warm-Up (~30 min)</li>
                   <li>✓ Standard 1-Hour Class</li>
                   <li>✓ Gesture Bootcamp</li>
@@ -1497,14 +1513,14 @@
 
             <!-- Quick Custom Session Card -->
             <button
-              class="card bg-base-200 shadow-xl hover:shadow-2xl transition-all border-2 border-transparent hover:border-primary text-left"
+              class="card bg-white shadow-xl hover:shadow-2xl transition-all border-2 border-warm-beige hover:border-terracotta text-left rounded-2xl"
               onclick={() => (setupMode = "quick")}
             >
               <div class="card-body">
                 <div class="flex items-center gap-3 mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    class="h-12 w-12 text-secondary"
+                    class="h-12 w-12 text-terracotta"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -1518,14 +1534,14 @@
                   </svg>
                   <div>
                     <h2 class="card-title text-2xl">Quick Custom Session</h2>
-                    <p class="text-sm text-base-content/70">Build on the fly</p>
+                    <p class="text-sm text-warm-gray">Build on the fly</p>
                   </div>
                 </div>
-                <p class="text-base-content/80 mb-4">
+                <p class="text-warm-charcoal mb-4">
                   Create your own session with tag filters and custom stages.
                   Perfect for focused practice on specific subjects.
                 </p>
-                <ul class="text-sm space-y-1 text-base-content/70">
+                <ul class="text-sm space-y-1 text-warm-gray">
                   <li>✓ Filter by tags (poses, angles, etc.)</li>
                   <li>✓ Add multiple timed stages</li>
                   <li>✓ Flexible session structure</li>
@@ -1562,12 +1578,10 @@
         <div class="p-8 max-w-6xl mx-auto">
           <div class="flex items-center justify-between mb-6">
             <div>
-              <h1 class="text-3xl font-bold text-base-content">
+              <h1 class="text-3xl font-bold text-warm-charcoal">
                 Classroom Mode
               </h1>
-              <p class="text-base-content/70 mt-1">
-                Professional preset sessions
-              </p>
+              <p class="text-warm-gray mt-1">Professional preset sessions</p>
             </div>
             <button
               class="btn btn-ghost btn-sm"
@@ -1579,23 +1593,27 @@
 
           <div class="grid gap-4">
             {#each classroomPresets as preset (preset.id)}
-              <div class="card bg-base-200 border border-base-300">
+              <div class="card bg-white border border-warm-beige rounded-2xl">
                 <div class="card-body">
                   <div class="flex items-start justify-between gap-4">
                     <div class="flex-1">
                       <div class="flex items-center gap-3 mb-2">
-                        <h3 class="card-title text-xl">{preset.name}</h3>
-                        <span class="badge badge-primary"
+                        <h3 class="card-title text-xl text-warm-charcoal">
+                          {preset.name}
+                        </h3>
+                        <span
+                          class="badge rounded-full bg-terracotta text-white border-none"
                           >{preset.totalDuration}</span
                         >
-                        <span class="badge badge-outline"
+                        <span
+                          class="badge badge-outline rounded-full border-warm-beige text-warm-gray"
                           >{preset.stages.reduce(
                             (sum, s) => sum + s.imageCount,
                             0
                           )} poses</span
                         >
                       </div>
-                      <p class="text-base-content/70 mb-3">
+                      <p class="text-warm-gray mb-3">
                         {preset.description}
                       </p>
 
@@ -1610,7 +1628,7 @@
 
                     <div class="flex gap-2">
                       <button
-                        class="btn btn-primary"
+                        class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-6 py-3"
                         onclick={() => {
                           selectedPreset = preset;
                           generateSessionFromPreset(preset);
@@ -1692,12 +1710,10 @@
         <div class="p-8 max-w-6xl mx-auto">
           <div class="flex items-center justify-between mb-6">
             <div>
-              <h1 class="text-3xl font-bold text-base-content">
+              <h1 class="text-3xl font-bold text-warm-charcoal">
                 Quick Custom Session
               </h1>
-              <p class="text-base-content/70 mt-1">
-                Build your own practice session
-              </p>
+              <p class="text-warm-gray mt-1">Build your own practice session</p>
             </div>
             <button
               class="btn btn-ghost btn-sm"
@@ -1708,10 +1724,10 @@
           </div>
 
           <!-- Tag Filters -->
-          <div class="card bg-base-200 mb-6">
+          <div class="card bg-white border border-warm-beige rounded-2xl mb-6">
             <div class="card-body">
               <div class="flex items-center justify-between mb-3">
-                <h3 class="card-title text-lg">
+                <h3 class="card-title text-lg text-warm-charcoal">
                   Filter Images by Tags (optional)
                 </h3>
                 {#if quickConfig.selectedTags.length > 0}
@@ -1725,7 +1741,7 @@
                   </button>
                 {/if}
               </div>
-              <p class="text-sm text-base-content/70 mb-4">
+              <p class="text-sm text-warm-gray mb-4">
                 Select tags to filter which images appear in your session. Leave
                 empty to use all library images.
               </p>
@@ -1733,7 +1749,7 @@
               <!-- Search Bar -->
               <div class="form-control mb-4">
                 <div class="input-group">
-                  <span class="bg-base-300">
+                  <span class="bg-warm-beige">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       class="h-5 w-5"
@@ -1786,7 +1802,7 @@
                   <div class="flex items-center gap-2 mb-2">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      class="h-4 w-4 text-base-content/60"
+                      class="h-4 w-4 text-warm-gray"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -1798,18 +1814,27 @@
                         d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                    <span class="text-sm font-semibold text-base-content/70"
+                    <span class="text-sm font-semibold text-warm-gray"
                       >Recently Used</span
                     >
                   </div>
                   <div class="flex flex-wrap gap-1.5">
                     {#each recentTags as tag}
                       <button
-                        class="btn btn-sm"
-                        class:btn-primary={quickConfig.selectedTags.includes(
+                        class="btn btn-sm rounded-full transition-colors"
+                        class:bg-terracotta={quickConfig.selectedTags.includes(
+                          tag.id
+                        )}
+                        class:text-white={quickConfig.selectedTags.includes(
+                          tag.id
+                        )}
+                        class:border-none={quickConfig.selectedTags.includes(
                           tag.id
                         )}
                         class:btn-ghost={!quickConfig.selectedTags.includes(
+                          tag.id
+                        )}
+                        class:text-warm-charcoal={!quickConfig.selectedTags.includes(
                           tag.id
                         )}
                         onclick={() => toggleQuickTag(tag.id)}
@@ -1829,11 +1854,20 @@
                   <div class="flex flex-wrap gap-1.5 max-h-64 overflow-y-auto">
                     {#each filteredTags as tag}
                       <button
-                        class="btn btn-sm"
-                        class:btn-primary={quickConfig.selectedTags.includes(
+                        class="btn btn-sm rounded-full transition-colors"
+                        class:bg-terracotta={quickConfig.selectedTags.includes(
+                          tag.id
+                        )}
+                        class:text-white={quickConfig.selectedTags.includes(
+                          tag.id
+                        )}
+                        class:border-none={quickConfig.selectedTags.includes(
                           tag.id
                         )}
                         class:btn-ghost={!quickConfig.selectedTags.includes(
+                          tag.id
+                        )}
+                        class:text-warm-charcoal={!quickConfig.selectedTags.includes(
                           tag.id
                         )}
                         onclick={() => toggleQuickTag(tag.id)}
@@ -1848,7 +1882,7 @@
                     {/each}
                   </div>
                 {:else}
-                  <div class="text-center py-8 text-base-content/50">
+                  <div class="text-center py-8 text-warm-gray">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       class="h-12 w-12 mx-auto mb-2 opacity-50"
@@ -1870,7 +1904,7 @@
                 <!-- Categorized Tags -->
                 <div class="space-y-2">
                   {#each tagsByCategory as category}
-                    <details class="collapse collapse-arrow bg-base-300">
+                    <details class="collapse collapse-arrow bg-warm-beige">
                       <summary
                         class="collapse-title text-sm font-medium min-h-0 py-3"
                       >
@@ -1879,7 +1913,9 @@
                           >{category.tags.length}</span
                         >
                         {#if category.tags.some( (t) => quickConfig.selectedTags.includes(t.id) )}
-                          <span class="badge badge-primary badge-sm ml-1">
+                          <span
+                            class="badge rounded-full bg-terracotta text-white border-none badge-sm ml-1"
+                          >
                             {category.tags.filter((t) =>
                               quickConfig.selectedTags.includes(t.id)
                             ).length} selected
@@ -1890,11 +1926,20 @@
                         <div class="flex flex-wrap gap-1.5 pt-2">
                           {#each category.tags as tag}
                             <button
-                              class="btn btn-xs"
-                              class:btn-primary={quickConfig.selectedTags.includes(
+                              class="btn btn-xs rounded-full transition-colors"
+                              class:bg-terracotta={quickConfig.selectedTags.includes(
+                                tag.id
+                              )}
+                              class:text-white={quickConfig.selectedTags.includes(
+                                tag.id
+                              )}
+                              class:border-none={quickConfig.selectedTags.includes(
                                 tag.id
                               )}
                               class:btn-ghost={!quickConfig.selectedTags.includes(
+                                tag.id
+                              )}
+                              class:text-warm-charcoal={!quickConfig.selectedTags.includes(
                                 tag.id
                               )}
                               onclick={() => toggleQuickTag(tag.id)}
@@ -1912,11 +1957,16 @@
           </div>
 
           <!-- Stages -->
-          <div class="card bg-base-200 mb-6">
+          <div class="card bg-white rounded-2xl mb-6">
             <div class="card-body">
               <div class="flex items-center justify-between mb-4">
-                <h3 class="card-title text-lg">Session Stages</h3>
-                <button class="btn btn-sm btn-primary" onclick={addQuickStage}>
+                <h3 class="card-title text-lg text-warm-charcoal">
+                  Session Stages
+                </h3>
+                <button
+                  class="btn btn-sm rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none"
+                  onclick={addQuickStage}
+                >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     class="h-4 w-4"
@@ -1936,22 +1986,20 @@
               </div>
 
               {#if quickConfig.stages.length === 0}
-                <div class="text-center py-8 text-base-content/50">
+                <div class="text-center py-8 text-warm-gray">
                   <p>No stages added yet. Click "Add Stage" to begin.</p>
                 </div>
               {:else}
                 <div class="space-y-3">
                   {#each quickConfig.stages as stage, index}
-                    <div class="bg-base-300 p-4 rounded-lg space-y-3">
+                    <div class="bg-warm-beige p-4 rounded-lg space-y-3">
                       <div class="flex items-center gap-4">
-                        <span class="font-semibold text-base-content"
+                        <span class="font-semibold text-warm-charcoal"
                           >Stage {index + 1}</span
                         >
 
                         <div class="flex items-center gap-2">
-                          <span class="text-sm text-base-content/70"
-                            >Images:</span
-                          >
+                          <span class="text-sm text-warm-gray">Images:</span>
                           <input
                             type="number"
                             class="input input-sm input-bordered w-20"
@@ -1962,15 +2010,18 @@
                         </div>
 
                         <div class="flex items-center gap-2 flex-wrap">
-                          <span class="text-sm text-base-content/70"
-                            >Duration:</span
-                          >
+                          <span class="text-sm text-warm-gray">Duration:</span>
                           <div class="flex items-center gap-1">
                             {#each [30, 60, 120, 300, 600] as duration}
                               <button
-                                class="btn btn-xs"
-                                class:btn-primary={stage.duration === duration}
+                                class="btn btn-xs rounded-full transition-colors"
+                                class:bg-terracotta={stage.duration ===
+                                  duration}
+                                class:text-white={stage.duration === duration}
+                                class:border-none={stage.duration === duration}
                                 class:btn-ghost={stage.duration !== duration}
+                                class:text-warm-charcoal={stage.duration !==
+                                  duration}
                                 onclick={() => (stage.duration = duration)}
                               >
                                 {formatTime(duration)}
@@ -1978,7 +2029,7 @@
                             {/each}
                           </div>
                           <div class="flex items-center gap-1">
-                            <span class="text-xs text-base-content/70">or</span>
+                            <span class="text-xs text-warm-gray">or</span>
                             <TimeInput
                               value={stage.duration}
                               onchange={(seconds) => (stage.duration = seconds)}
@@ -2012,7 +2063,7 @@
                       </div>
 
                       <!-- Per-stage tag filtering -->
-                      <details class="collapse collapse-arrow bg-base-200">
+                      <details class="collapse collapse-arrow bg-white">
                         <summary
                           class="collapse-title text-sm min-h-0 py-2 px-3"
                         >
@@ -2031,10 +2082,11 @@
                                 d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
                               />
                             </svg>
-                            <span class="text-base-content/70">
+                            <span class="text-warm-gray">
                               Stage-specific tags
                               {#if stage.tagIds && stage.tagIds.length > 0}
-                                <span class="badge badge-primary badge-sm ml-2"
+                                <span
+                                  class="badge rounded-full bg-terracotta text-white border-none badge-sm ml-2"
                                   >{stage.tagIds.length}</span
                                 >
                               {:else}
@@ -2051,7 +2103,8 @@
                                   (t) => t.id === tagId
                                 )}
                                 {#if tag}
-                                  <span class="badge badge-xs badge-primary"
+                                  <span
+                                    class="badge badge-xs rounded-full bg-terracotta text-white border-none"
                                     >{tag.name}</span
                                   >
                                 {/if}
@@ -2066,7 +2119,7 @@
                         </summary>
                         <div class="collapse-content">
                           <div class="pt-2">
-                            <p class="text-xs text-base-content/60 mb-2">
+                            <p class="text-xs text-warm-gray mb-2">
                               Select tags to filter images for this stage only.
                               Leave empty to use global tags.
                             </p>
@@ -2074,17 +2127,26 @@
                             <!-- Recent Tags for Stage -->
                             {#if recentTags.length > 0}
                               <div class="mb-3">
-                                <p class="text-xs text-base-content/50 mb-1.5">
+                                <p class="text-xs text-warm-gray mb-1.5">
                                   Recent:
                                 </p>
                                 <div class="flex flex-wrap gap-1">
                                   {#each recentTags.slice(0, 8) as tag}
                                     <button
-                                      class="btn btn-xs"
-                                      class:btn-primary={stage.tagIds?.includes(
+                                      class="btn btn-xs rounded-full transition-colors"
+                                      class:bg-terracotta={stage.tagIds?.includes(
+                                        tag.id
+                                      )}
+                                      class:text-white={stage.tagIds?.includes(
+                                        tag.id
+                                      )}
+                                      class:border-none={stage.tagIds?.includes(
                                         tag.id
                                       )}
                                       class:btn-ghost={!stage.tagIds?.includes(
+                                        tag.id
+                                      )}
+                                      class:text-warm-charcoal={!stage.tagIds?.includes(
                                         tag.id
                                       )}
                                       onclick={() =>
@@ -2102,7 +2164,7 @@
                             <div class="space-y-1 max-h-64 overflow-y-auto">
                               {#each tagsByCategory as category}
                                 <details
-                                  class="collapse collapse-arrow bg-base-300"
+                                  class="collapse collapse-arrow bg-warm-beige"
                                 >
                                   <summary
                                     class="collapse-title text-xs min-h-0 py-1.5 px-2"
@@ -2110,7 +2172,7 @@
                                     {category.name}
                                     {#if category.tags.some( (t) => stage.tagIds?.includes(t.id) )}
                                       <span
-                                        class="badge badge-primary badge-xs ml-1"
+                                        class="badge rounded-full bg-terracotta text-white border-none badge-xs ml-1"
                                       >
                                         {category.tags.filter((t) =>
                                           stage.tagIds?.includes(t.id)
@@ -2122,11 +2184,20 @@
                                     <div class="flex flex-wrap gap-1 pt-1">
                                       {#each category.tags as tag}
                                         <button
-                                          class="btn btn-xs"
-                                          class:btn-primary={stage.tagIds?.includes(
+                                          class="btn btn-xs rounded-full transition-colors"
+                                          class:bg-terracotta={stage.tagIds?.includes(
+                                            tag.id
+                                          )}
+                                          class:text-white={stage.tagIds?.includes(
+                                            tag.id
+                                          )}
+                                          class:border-none={stage.tagIds?.includes(
                                             tag.id
                                           )}
                                           class:btn-ghost={!stage.tagIds?.includes(
+                                            tag.id
+                                          )}
+                                          class:text-warm-charcoal={!stage.tagIds?.includes(
                                             tag.id
                                           )}
                                           onclick={() =>
@@ -2185,7 +2256,7 @@
               Save Session
             </button>
             <button
-              class="btn btn-primary btn-lg"
+              class="btn btn-lg rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none"
               onclick={generateQuickSession}
               disabled={quickConfig.stages.length === 0}
             >
@@ -2216,19 +2287,26 @@
       </div>
     {:else}
       <!-- Legacy Setup Screen (from library) -->
-      <header class="p-6 border-b border-base-300">
+      <header class="p-6 border-b border-warm-beige">
         <div class="flex items-center justify-between mb-4">
           <div>
-            <h1 class="text-2xl font-semibold text-base-content">
+            <h1 class="text-2xl font-semibold text-warm-charcoal">
               Practice Session Setup
             </h1>
-            <p class="text-sm text-base-content/70 mt-1">
+            <p class="text-sm text-warm-gray mt-1">
               {practiceImages.length} images selected
             </p>
           </div>
           <div class="flex items-center gap-3">
-            <a href="/" class="btn btn-sm btn-ghost">Cancel</a>
-            <button class="btn btn-sm btn-primary" onclick={startPractice}>
+            <a
+              href="/"
+              class="btn btn-sm btn-ghost text-warm-charcoal hover:bg-warm-beige/30"
+              >Cancel</a
+            >
+            <button
+              class="btn btn-sm rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none"
+              onclick={startPractice}
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-5 w-5"
@@ -2256,7 +2334,7 @@
 
         <!-- Quick Set All -->
         <div class="flex items-center gap-3 flex-wrap">
-          <span class="text-sm text-base-content/70">Set all timers to:</span>
+          <span class="text-sm text-warm-gray">Set all timers to:</span>
           {#each presetDurations as duration}
             <button
               class="btn btn-sm btn-ghost"
@@ -2266,7 +2344,7 @@
             </button>
           {/each}
           <div class="flex items-center gap-2">
-            <span class="text-sm text-base-content/70">or</span>
+            <span class="text-sm text-warm-gray">or</span>
             <TimeInput
               value={60}
               onchange={(seconds) => setAllDurations(seconds)}
@@ -2282,11 +2360,11 @@
           {#each practiceImages as image, index (index)}
             {@const entry = timerEntries[index]}
             <div
-              class="bg-base-200 rounded-lg p-4 flex items-center gap-4 border border-base-300"
+              class="bg-white rounded-lg p-4 flex items-center gap-4 border border-warm-beige"
             >
               <!-- Image Number -->
               <div
-                class="flex-shrink-0 w-10 h-10 rounded-full bg-primary text-primary-content flex items-center justify-center font-semibold"
+                class="flex-shrink-0 w-10 h-10 rounded-full bg-terracotta text-white flex items-center justify-center font-semibold"
               >
                 {index + 1}
               </div>
@@ -2303,7 +2381,7 @@
               <!-- Image Info -->
               <div class="flex-1 min-w-0">
                 <p class="font-medium truncate">{image.filename}</p>
-                <p class="text-sm text-base-content/60">
+                <p class="text-sm text-warm-gray">
                   Duration: {formatTime(entry?.duration || 60)}
                 </p>
               </div>
@@ -2312,9 +2390,12 @@
               <div class="flex-shrink-0 flex items-center gap-2">
                 {#each presetDurations as duration}
                   <button
-                    class="btn btn-sm"
-                    class:btn-primary={entry?.duration === duration}
+                    class="btn btn-sm rounded-full transition-colors"
+                    class:bg-terracotta={entry?.duration === duration}
+                    class:text-white={entry?.duration === duration}
+                    class:border-none={entry?.duration === duration}
                     class:btn-ghost={entry?.duration !== duration}
+                    class:text-warm-charcoal={entry?.duration !== duration}
                     onclick={() => updateDuration(image.id, duration)}
                   >
                     {formatTime(duration)}
@@ -2324,7 +2405,7 @@
 
               <!-- Custom Duration Input -->
               <div class="flex-shrink-0 flex items-center gap-2">
-                <span class="text-xs text-base-content/70">or</span>
+                <span class="text-xs text-warm-gray">or</span>
                 <TimeInput
                   value={entry?.duration || 60}
                   onchange={(seconds) => updateDuration(image.id, seconds)}
@@ -2341,14 +2422,14 @@
     <div class="h-full min-h-0 flex flex-col bg-black relative">
       <!-- Top Bar -->
       <div
-        class="absolute top-0 left-0 right-0 z-10 bg-base-100 px-6 py-3 flex items-center justify-between border-b border-base-300 transition-opacity duration-200"
+        class="absolute top-0 left-0 right-0 z-10 bg-white px-6 py-3 flex items-center justify-between border-b border-warm-beige transition-opacity duration-200"
         class:opacity-0={!showUI && !uiLocked}
         class:pointer-events-none={!showUI && !uiLocked}
       >
         <!-- Progress -->
         <div class="flex flex-col gap-1">
           <div class="flex items-center gap-3">
-            <span class="text-sm font-semibold text-base-content">
+            <span class="text-sm font-semibold text-warm-charcoal">
               Pose {timerEntries[currentIndex]?.poseNumber || currentIndex + 1} of
               {timerEntries.length}
             </span>
@@ -2361,7 +2442,7 @@
           {#if timerEntries[currentIndex]}
             {@const stage = getCurrentStage()}
             {#if stage && stage.description}
-              <span class="text-xs text-base-content/60">
+              <span class="text-xs text-warm-gray">
                 Stage: {stage.description}
               </span>
             {/if}
@@ -2370,7 +2451,7 @@
 
         <!-- Timer Display -->
         <div class="flex items-center gap-3">
-          <div class="text-4xl font-bold font-mono text-base-content">
+          <div class="text-4xl font-bold font-mono text-warm-charcoal">
             {formatTime(timeRemaining)}
           </div>
           {#if timeRemaining === 0}
@@ -2488,7 +2569,7 @@
               +Time
             </button>
             <ul
-              class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-40"
+              class="dropdown-content z-[1] menu p-2 shadow bg-white rounded-box w-40"
             >
               <li>
                 <button onclick={() => extendCurrentPose(60)}>+1 minute</button>
@@ -2573,7 +2654,7 @@
               Tools
             </button>
             <div
-              class="dropdown-content z-[1] menu p-3 shadow bg-base-100 rounded-box w-72 max-h-[70vh] overflow-y-auto"
+              class="dropdown-content z-[1] menu p-3 shadow bg-white rounded-box w-72 max-h-[70vh] overflow-y-auto"
             >
               <div class="flex flex-col gap-3">
                 <div class="text-xs font-bold opacity-60">ALIGNMENT TOOLS</div>
@@ -2654,7 +2735,7 @@
                   </select>
                   <div class="mt-2 flex items-center gap-2">
                     <div
-                      class="w-12 h-8 rounded border-2 border-base-content"
+                      class="w-12 h-8 rounded border-2 border-warm-beige"
                       style="background-color: {plumbColor};"
                     ></div>
                     <span class="text-xs opacity-60">Press C to cycle</span>
@@ -2908,28 +2989,6 @@
                   style="cursor: ew-resize;"
                   data-drag-target="vertical-line"
                 />
-
-                <!-- Drag handle for vertical line -->
-                {#if lineOutline}
-                  <circle
-                    cx="{verticalLine2X * 100}%"
-                    cy="50%"
-                    r="10"
-                    fill={getOutlineColor(plumbColor)}
-                    opacity={lineOpacity * 0.5}
-                    style="cursor: ew-resize;"
-                    data-drag-target="vertical-line"
-                  />
-                {/if}
-                <circle
-                  cx="{verticalLine2X * 100}%"
-                  cy="50%"
-                  r="8"
-                  fill={plumbColor}
-                  opacity={lineOpacity}
-                  style="cursor: ew-resize;"
-                  data-drag-target="vertical-line"
-                />
               {/if}
 
               <!-- Horizontal Lines -->
@@ -2981,28 +3040,6 @@
                   y2="{horizontalLine2Y * 100}%"
                   stroke={plumbColor}
                   stroke-width="2"
-                  opacity={lineOpacity}
-                  style="cursor: ns-resize;"
-                  data-drag-target="horizontal-line"
-                />
-
-                <!-- Drag handle for horizontal line -->
-                {#if lineOutline}
-                  <circle
-                    cx="50%"
-                    cy="{horizontalLine2Y * 100}%"
-                    r="10"
-                    fill={getOutlineColor(plumbColor)}
-                    opacity={lineOpacity * 0.5}
-                    style="cursor: ns-resize;"
-                    data-drag-target="horizontal-line"
-                  />
-                {/if}
-                <circle
-                  cx="50%"
-                  cy="{horizontalLine2Y * 100}%"
-                  r="8"
-                  fill={plumbColor}
                   opacity={lineOpacity}
                   style="cursor: ns-resize;"
                   data-drag-target="horizontal-line"
@@ -3255,7 +3292,7 @@
         >
           {#if showVerticalLines}
             <div
-              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+              class="badge badge-sm gap-1 bg-white/90 text-warm-charcoal border-warm-beige shadow-lg"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -3279,7 +3316,7 @@
           {/if}
           {#if showHorizontalLines}
             <div
-              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+              class="badge badge-sm gap-1 bg-white/90 text-warm-charcoal border-warm-beige shadow-lg"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -3303,7 +3340,7 @@
           {/if}
           {#if angleMode}
             <div
-              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+              class="badge badge-sm gap-1 bg-white/90 text-warm-charcoal border-warm-beige shadow-lg"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -3324,7 +3361,7 @@
           {/if}
           {#if angleLines.length > 0}
             <div
-              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+              class="badge badge-sm gap-1 bg-white/90 text-warm-charcoal border-warm-beige shadow-lg"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -3347,7 +3384,7 @@
           <!-- Grid indicators -->
           {#if gridMode > 0}
             <div
-              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+              class="badge badge-sm gap-1 bg-white/90 text-warm-charcoal border-warm-beige shadow-lg"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -3368,7 +3405,7 @@
           {/if}
           {#if showDiagonals && gridMode > 0}
             <div
-              class="badge badge-sm gap-1 bg-base-100/90 text-base-content border-base-300 shadow-lg"
+              class="badge badge-sm gap-1 bg-white/90 text-warm-charcoal border-warm-beige shadow-lg"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -3413,7 +3450,7 @@
 
       <!-- Bottom Controls -->
       <div
-        class="absolute bottom-0 left-0 right-0 z-10 bg-base-100 px-6 py-4 border-t border-base-300 transition-opacity duration-200"
+        class="absolute bottom-0 left-0 right-0 z-10 bg-white px-6 py-4 border-t border-warm-beige transition-opacity duration-200"
         class:opacity-0={!showUI && !uiLocked}
         class:pointer-events-none={!showUI && !uiLocked}
       >
@@ -3444,7 +3481,7 @@
 
           <!-- Play/Pause Button -->
           <button
-            class="btn btn-circle btn-lg btn-primary"
+            class="btn btn-circle btn-lg bg-terracotta hover:bg-terracotta-dark text-white border-none"
             onclick={isPaused ? resumeTimer : pauseTimer}
             title={isPaused ? "Resume (Space)" : "Pause (Space)"}
           >
@@ -3539,8 +3576,8 @@
           {#each getCurrentStageImages() as { image, index, isActive } (index)}
             <button
               class="relative flex-shrink-0 w-16 h-16 rounded overflow-hidden border-2 transition-all"
-              class:border-primary={isActive}
-              class:border-base-300={!isActive}
+              class:border-terracotta={isActive}
+              class:border-warm-beige={!isActive}
               class:opacity-50={!isActive}
               onclick={() => goToImage(index)}
               title="Go to pose {timerEntries[index]?.poseNumber || index + 1}"
@@ -3579,7 +3616,7 @@
 
         <!-- Keyboard Shortcuts Hint -->
         <div
-          class="flex items-center justify-center gap-4 mt-2 text-xs font-medium text-base-content"
+          class="flex items-center justify-center gap-4 mt-2 text-xs font-medium text-warm-charcoal"
         >
           <span>← → Navigate</span>
           <span>Space Pause/Resume</span>
@@ -3595,7 +3632,7 @@
       {#if !showUI && !uiLocked}
         <div class="absolute top-3 left-3 z-20">
           <div
-            class="px-3 py-1 rounded bg-base-100/90 text-base-content shadow text-sm font-mono font-semibold"
+            class="px-3 py-1 rounded bg-white/90 text-warm-charcoal shadow text-sm font-mono font-semibold"
           >
             {formatTime(timeRemaining)}
           </div>
@@ -3614,7 +3651,9 @@
         <div
           class="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
         >
-          <div class="card bg-base-100 shadow-2xl w-96 animate-bounce-in">
+          <div
+            class="card bg-white rounded-2xl shadow-2xl w-96 animate-bounce-in"
+          >
             <div class="card-body text-center">
               <!-- Trophy Icon -->
               <div class="flex justify-center mb-4">
@@ -3637,14 +3676,14 @@
               <h2 class="card-title text-3xl justify-center mb-2">
                 Session Complete!
               </h2>
-              <p class="text-base-content/70 mb-4">
+              <p class="text-warm-gray mb-4">
                 Great work! You completed {timerEntries.length} poses.
               </p>
 
               <div class="stats shadow mb-4">
                 <div class="stat py-3">
                   <div class="stat-title text-xs">Total Poses</div>
-                  <div class="stat-value text-2xl text-primary">
+                  <div class="stat-value text-2xl text-terracotta">
                     {timerEntries.length}
                   </div>
                 </div>
@@ -3680,7 +3719,7 @@
                   </button>
                 {/if}
                 <button
-                  class="btn btn-primary"
+                  class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-6 py-2.5"
                   onclick={() => {
                     showCompletion = false;
                     exitPractice();

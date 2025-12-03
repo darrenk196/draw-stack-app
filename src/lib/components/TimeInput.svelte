@@ -218,11 +218,11 @@
         />
       </svg>
     </button>
-    <span class="text-xs text-base-content/50 mt-0.5">hr</span>
+    <span class="text-xs text-warm-gray mt-0.5">hr</span>
   </div>
 
   <!-- Separator -->
-  <span class="text-lg font-bold text-base-content/30 pb-4">:</span>
+  <span class="text-lg font-bold text-warm-beige pb-4">:</span>
 
   <!-- Minutes -->
   <div class="flex flex-col items-center gap-0.5">
@@ -278,11 +278,11 @@
         />
       </svg>
     </button>
-    <span class="text-xs text-base-content/50 mt-0.5">min</span>
+    <span class="text-xs text-warm-gray mt-0.5">min</span>
   </div>
 
   <!-- Separator -->
-  <span class="text-lg font-bold text-base-content/30 pb-4">:</span>
+  <span class="text-lg font-bold text-warm-beige pb-4">:</span>
 
   <!-- Seconds -->
   <div class="flex flex-col items-center gap-0.5">
@@ -338,6 +338,6 @@
         />
       </svg>
     </button>
-    <span class="text-xs text-base-content/50 mt-0.5">sec</span>
+    <span class="text-xs text-warm-gray mt-0.5">sec</span>
   </div>
 </div>

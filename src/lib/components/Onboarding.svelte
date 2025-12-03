@@ -60,8 +60,8 @@
       {#each steps as _, i}
         <div
           class="flex-1 h-1 rounded-full transition-colors"
-          class:bg-primary={i <= currentStep}
-          class:bg-base-300={i > currentStep}
+          class:bg-terracotta={i <= currentStep}
+          class:bg-warm-beige={i > currentStep}
         ></div>
       {/each}
     </div>
@@ -69,20 +69,31 @@
     <!-- Content -->
     <div class="text-center space-y-4">
       <div class="text-6xl mb-4">{steps[currentStep].icon}</div>
-      <h2 class="text-2xl font-bold">{steps[currentStep].title}</h2>
-      <p class="text-base-content/70 max-w-md mx-auto">
+      <h2 class="text-2xl font-bold text-warm-charcoal">
+        {steps[currentStep].title}
+      </h2>
+      <p class="text-warm-gray max-w-md mx-auto">
         {steps[currentStep].description}
       </p>
     </div>
 
     <!-- Actions -->
     <div class="modal-action justify-between">
-      <button class="btn btn-ghost" onclick={skip}>Skip Tour</button>
+      <button
+        class="btn btn-ghost text-warm-gray hover:bg-warm-beige/30 px-5"
+        onclick={skip}>Skip Tour</button
+      >
       <div class="flex gap-2">
         {#if currentStep > 0}
-          <button class="btn btn-ghost" onclick={prevStep}>Back</button>
+          <button
+            class="btn btn-ghost text-warm-gray hover:bg-warm-beige/30 px-5"
+            onclick={prevStep}>Back</button
+          >
         {/if}
-        <button class="btn btn-primary" onclick={nextStep}>
+        <button
+          class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-6 py-2.5"
+          onclick={nextStep}
+        >
           {currentStep < steps.length - 1 ? "Next" : "Get Started"}
         </button>
       </div>
