@@ -21,7 +21,7 @@
   let tagCount = $state(0);
   let isLoading = $state(true);
 
-  const APP_VERSION = "0.1.1-beta";
+  const APP_VERSION = "0.1.2-beta";
 
   onMount(() => {
     loadSettings();
@@ -574,6 +574,9 @@
               <p class="font-semibold text-warm-charcoal">Draw Stack</p>
               <p class="text-sm text-warm-gray">
                 Version {APP_VERSION}
+              </p>
+              <p class="text-xs text-warm-gray">
+                Auto-update test build 0.1.2
               </p>
             </div>
 
