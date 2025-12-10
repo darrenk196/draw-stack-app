@@ -94,3 +94,158 @@ button {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Button and Tag Text Handling */
+@layer components {
+  /* Base button styling improvements */
+  .btn {
+    @apply overflow-hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    min-width: 0;
+    word-break: normal;
+    line-height: 1.2;
+  }
+
+  /* Allow text wrapping for specific button types */
+  .btn-wrap {
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    line-height: 1.4;
+  }
+
+  /* Rounded button (tag-like) improvements */
+  .btn.rounded-full,
+  .btn-sm.rounded-full {
+    @apply px-3 py-1;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+
+  /* Small buttons need better padding */
+  .btn-sm {
+    @apply px-3 py-2;
+    font-size: 0.875rem;
+    line-height: 1.25;
+    min-height: 2rem;
+  }
+
+  .btn-xs {
+    @apply px-2 py-1;
+    font-size: 0.75rem;
+    line-height: 1;
+    min-height: 1.5rem;
+  }
+
+  /* Large buttons */
+  .btn-lg {
+    @apply px-6 py-3;
+    font-size: 1.125rem;
+    line-height: 1.5;
+  }
+
+  /* Tag styling - ensure text fits properly */
+  .badge,
+  .tag {
+    @apply inline-flex items-center justify-center;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 100%;
+    padding: 0.25rem 0.75rem;
+    line-height: 1.2;
+  }
+
+  /* Input fields text handling */
+  input.input,
+  textarea.textarea {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Hide number input spinners by default */
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* Flex containers with text */
+  .flex-text-container {
+    min-width: 0;
+    flex: 1 1 0%;
+  }
+
+  /* Truncate text helper */
+  .truncate-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  /* Multi-line truncate helper (2 lines max) */
+  .truncate-2-lines {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+    line-height: 1.4;
+  }
+
+  /* Ensure buttons with icons have proper spacing */
+  .btn svg {
+    flex-shrink: 0;
+  }
+
+  /* Button text container */
+  .btn > span,
+  .btn > div {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Square buttons should stay square */
+  .btn-square,
+  .btn-circle {
+    flex-shrink: 0;
+  }
+
+  /* Prevent text from breaking button layout */
+  .btn-group .btn {
+    flex-shrink: 1;
+    min-width: fit-content;
+  }
+
+  /* Specific fix for tag buttons with delete icons */
+  .btn-sm.rounded-full + .btn-xs {
+    margin-left: 0.25rem;
+  }
+
+  /* Better text handling for long words/paths */
+  .break-all-text {
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  /* Card titles and headers */
+  .card-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

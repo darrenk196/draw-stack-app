@@ -687,14 +687,28 @@
     if (e) {
       e.stopPropagation();
     }
+
+    // Calculate which page the current image is on and navigate to it
+    if (viewingImage && itemsPerPage !== "all") {
+      const imageIndex = filteredImages.findIndex(
+        (img) => img.id === viewingImage!.id
+      );
+      if (imageIndex >= 0) {
+        const pageNumber = Math.floor(imageIndex / itemsPerPage) + 1;
+        if (pageNumber !== currentPage) {
+          currentPage = pageNumber;
+        }
+      }
+    }
+
     viewingImage = null;
     imageTags = [];
   }
 
   async function navigateImage(direction: "prev" | "next") {
-    if (!viewingImage || libraryImages.length === 0) return;
+    if (!viewingImage || filteredImages.length === 0) return;
 
-    const currentIndex = libraryImages.findIndex(
+    const currentIndex = filteredImages.findIndex(
       (img) => img.id === viewingImage!.id
     );
     if (currentIndex === -1) return;
@@ -702,13 +716,31 @@
     let newIndex;
     if (direction === "prev") {
       newIndex =
-        currentIndex === 0 ? libraryImages.length - 1 : currentIndex - 1;
+        currentIndex === 0 ? filteredImages.length - 1 : currentIndex - 1;
     } else {
       newIndex =
-        currentIndex === libraryImages.length - 1 ? 0 : currentIndex + 1;
+        currentIndex === filteredImages.length - 1 ? 0 : currentIndex + 1;
     }
 
-    await openImageViewer(libraryImages[newIndex]);
+    await openImageViewer(filteredImages[newIndex]);
+  }
+
+  function toggleCurrentImageSelection() {
+    if (!viewingImage) return;
+    const imageId = viewingImage.id;
+    const newSelection = new Set(selectedImages);
+    if (newSelection.has(imageId)) {
+      newSelection.delete(imageId);
+    } else {
+      newSelection.add(imageId);
+    }
+    selectedImages = newSelection;
+
+    // Keep lastSelectedIndex in sync with current image for subsequent range selections
+    const idx = filteredImages.findIndex((img) => img.id === imageId);
+    if (idx >= 0) {
+      lastSelectedIndex = idx;
+    }
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -769,6 +801,9 @@
       navigateImage("prev");
     } else if (e.key === "ArrowRight") {
       navigateImage("next");
+    } else if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      toggleCurrentImageSelection();
     }
   }
 
@@ -1587,7 +1622,7 @@
               <img
                 src={convertFileSrc(image.fullPath)}
                 alt={image.filename}
-                class="w-full h-full object-cover transition-opacity duration-200"
+                class="w-full h-full object-contain transition-opacity duration-200"
                 loading="lazy"
                 decoding="async"
                 style="background: linear-gradient(135deg, rgb(var(--b3)) 0%, rgb(var(--b2)) 100%);"
@@ -1643,7 +1678,7 @@
                 <img
                   src={convertFileSrc(image.fullPath)}
                   alt={image.filename}
-                  class="w-full h-full object-cover rounded transition-opacity duration-200"
+                  class="w-full h-full object-contain rounded transition-opacity duration-200"
                   loading="lazy"
                   decoding="async"
                   style="background: linear-gradient(135deg, rgb(var(--b3)) 0%, rgb(var(--b2)) 100%);"
@@ -1670,8 +1705,10 @@
                   </div>
                 {/if}
               </div>
-              <div class="flex-1 text-left">
-                <p class="font-medium text-warm-charcoal">{image.filename}</p>
+              <div class="flex-1 text-left min-w-0">
+                <p class="font-medium text-warm-charcoal truncate">
+                  {image.filename}
+                </p>
                 {#if tags.length > 0}
                   <div class="flex flex-wrap gap-1 mt-1">
                     {#each tags as tag}
@@ -1875,12 +1912,39 @@
           </p>
         </div>
       {:else if viewingImage}
-        <div class="w-full h-full flex items-center justify-center">
-          <img
-            src={convertFileSrc(viewingImage.fullPath)}
-            alt={viewingImage.filename}
-            class="w-full h-full object-contain"
-          />
+        <div
+          class="w-full h-full flex flex-col items-center justify-center gap-4 p-8"
+        >
+          <div
+            class="flex-1 flex items-center justify-center w-full min-h-0 overflow-hidden"
+          >
+            <img
+              src={convertFileSrc(viewingImage.fullPath)}
+              alt={viewingImage.filename}
+              class="max-w-full max-h-full object-contain"
+            />
+          </div>
+          <div class="flex items-center gap-4 text-white flex-shrink-0">
+            <div class="text-center">
+              <p class="font-medium text-lg">{viewingImage.filename}</p>
+              <p class="text-sm text-white/70">
+                {filteredImages.findIndex(
+                  (img) => img.id === viewingImage?.id
+                ) + 1} of {filteredImages.length}
+              </p>
+            </div>
+            <button
+              class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none gap-2 px-5 py-2.5"
+              onclick={(e) => {
+                e.stopPropagation();
+                toggleCurrentImageSelection();
+              }}
+            >
+              {selectedImages.has(viewingImage.id)
+                ? "Remove from Selection"
+                : "Add to Selection"}
+            </button>
+          </div>
         </div>
       {/if}
     </div>
@@ -2935,6 +2999,8 @@
         </button>
       </div>
     </div>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="modal-backdrop" onclick={() => (deleteTagModal = null)}></div>
   </div>
 {/if}
@@ -2991,6 +3057,8 @@
         </button>
       </div>
     </div>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="modal-backdrop"
       onclick={() => (deleteCategoryModal = null)}

@@ -2085,7 +2085,7 @@
                           <span class="text-sm text-warm-gray">Images:</span>
                           <input
                             type="number"
-                            class="input input-sm input-bordered w-20"
+                            class="input input-sm input-bordered w-20 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             bind:value={stage.imageCount}
                             min="1"
                             max="100"
@@ -2111,8 +2111,10 @@
                               </button>
                             {/each}
                           </div>
-                          <div class="flex items-center gap-1">
-                            <span class="text-xs text-warm-gray">or</span>
+                          <div class="flex items-center gap-2">
+                            <span class="text-sm text-warm-gray italic px-1"
+                              >or</span
+                            >
                             <TimeInput
                               value={stage.duration}
                               onchange={(seconds) => (stage.duration = seconds)}

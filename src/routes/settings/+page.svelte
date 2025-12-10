@@ -6,6 +6,7 @@
     getLibraryImages,
     getAllTags,
     clearAllData,
+    resetDatabase,
     addImages,
     addTag,
     type Image,
@@ -121,6 +122,35 @@
     } catch (error) {
       console.error("Failed to clear library:", error);
       toast.error("Failed to clear library");
+    }
+  }
+
+  async function handleResetApp() {
+    if (
+      !confirm(
+        "Reset the app to factory defaults? This will delete ALL data including library images, tags, settings, and cached data. The app will reload. This cannot be undone!"
+      )
+    ) {
+      return;
+    }
+
+    const confirmation = prompt(
+      'Type "RESET" to confirm resetting the entire app:'
+    );
+    if (confirmation !== "RESET") {
+      toast.info("App reset cancelled");
+      return;
+    }
+
+    try {
+      await resetDatabase();
+      toast.success("App reset successfully. Reloading...");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (error) {
+      console.error("Failed to reset app:", error);
+      toast.error("Failed to reset app");
     }
   }
 
@@ -490,6 +520,35 @@
                 />
               </svg>
               Clear Library
+            </button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div>
+            <h3 class="font-semibold text-warm-charcoal mb-2">
+              Reset App to Factory Defaults
+            </h3>
+            <p class="text-sm text-warm-gray mb-3">
+              Reset the entire app including all data, settings, and cache. Use
+              this for a fresh start or to troubleshoot issues.
+            </p>
+            <button class="btn btn-error text-white" onclick={handleResetApp}>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              Reset App
             </button>
           </div>
         </div>

@@ -479,18 +479,52 @@ export async function getRecentlyUsedTags(limit: number = 10): Promise<Tag[]> {
     // Sort by lastUsed descending
     const sortedUsage = allUsage.sort((a, b) => b.lastUsed - a.lastUsed);
     
-    // Take top N
-    const topUsage = sortedUsage.slice(0, limit);
+    // Get the actual tag objects and clean up orphaned usage records
+    const tags: Tag[] = [];
+    const orphanedUsageIds: string[] = [];
     
-    // Get the actual tag objects
-    const tags = await Promise.all(
-      topUsage.map(usage => getTag(usage.tagId))
-    );
+    for (const usage of sortedUsage) {
+      const tag = await getTag(usage.tagId);
+      if (tag) {
+        tags.push(tag);
+        if (tags.length >= limit) break;
+      } else {
+        // Tag doesn't exist anymore, mark for cleanup
+        orphanedUsageIds.push(usage.tagId);
+      }
+    }
     
-    return tags.filter((tag): tag is Tag => tag !== undefined);
+    // Clean up orphaned usage records asynchronously
+    if (orphanedUsageIds.length > 0) {
+      Promise.all(
+        orphanedUsageIds.map(id => db.delete('tagUsage', id).catch(() => {}))
+      ).catch(() => {});
+    }
+    
+    return tags;
   } catch (error) {
     console.error('Failed to get recently used tags:', error);
     return [];
+  }
+}
+
+export async function getTagsInUse(): Promise<Set<string>> {
+  try {
+    const db = await getDB();
+    
+    // Get all imageTags to find which tags are actually used
+    const allImageTags = await db.getAll('imageTags');
+    
+    // Create a set of tag IDs that are in use
+    const tagsInUse = new Set<string>();
+    allImageTags.forEach(imageTag => {
+      tagsInUse.add(imageTag.tagId);
+    });
+    
+    return tagsInUse;
+  } catch (error) {
+    console.error('Failed to get tags in use:', error);
+    return new Set();
   }
 }
 
@@ -535,8 +569,53 @@ export async function resetDatabase(): Promise<void> {
     };
   });
   
+  // Clear localStorage
+  if (typeof localStorage !== 'undefined') {
+    localStorage.clear();
+    console.log('localStorage cleared');
+  }
+  
   // Reinitialize
   console.log('Reinitializing database...');
   await getDB();
   console.log('Database reset complete');
+}
+
+// Clean up orphaned data (tagUsage entries for deleted tags, imageTags for deleted images/tags)
+export async function cleanupOrphanedData(): Promise<void> {
+  try {
+    const db = await getDB();
+    
+    // Get all valid tag IDs
+    const allTags = await getAllTags();
+    const validTagIds = new Set(allTags.map(t => t.id));
+    
+    // Clean up tagUsage
+    const allUsage = await db.getAll('tagUsage');
+    const orphanedUsage = allUsage.filter(u => !validTagIds.has(u.tagId));
+    
+    // Clean up imageTags
+    const allImageTags = await db.getAll('imageTags');
+    const allImages = await db.getAll('images');
+    const validImageIds = new Set(allImages.map(i => i.id));
+    const orphanedImageTags = allImageTags.filter(
+      it => !validTagIds.has(it.tagId) || !validImageIds.has(it.imageId)
+    );
+    
+    // Delete orphaned records
+    const tx = db.transaction(['tagUsage', 'imageTags'], 'readwrite');
+    
+    await Promise.all([
+      ...orphanedUsage.map(u => tx.objectStore('tagUsage').delete(u.tagId)),
+      ...orphanedImageTags.map(it => 
+        tx.objectStore('imageTags').delete([it.imageId, it.tagId])
+      ),
+    ]);
+    
+    await tx.done;
+    
+    console.log(`Cleaned up ${orphanedUsage.length} orphaned tag usage records and ${orphanedImageTags.length} orphaned image-tag associations`);
+  } catch (error) {
+    console.error('Failed to clean up orphaned data:', error);
+  }
 }

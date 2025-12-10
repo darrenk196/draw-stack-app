@@ -189,7 +189,7 @@
     </button>
     <input
       type="number"
-      class="input {inputSize} {inputWidth} input-bordered text-center px-1"
+      class="input {inputSize} {inputWidth} input-bordered text-center px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       value={localHours}
       oninput={handleHoursInput}
       onkeydown={handleHoursKeydown}
@@ -249,7 +249,7 @@
     </button>
     <input
       type="number"
-      class="input {inputSize} {inputWidth} input-bordered text-center px-1"
+      class="input {inputSize} {inputWidth} input-bordered text-center px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       value={localMinutes}
       oninput={handleMinutesInput}
       onkeydown={handleMinutesKeydown}
@@ -309,7 +309,7 @@
     </button>
     <input
       type="number"
-      class="input {inputSize} {inputWidth} input-bordered text-center px-1"
+      class="input {inputSize} {inputWidth} input-bordered text-center px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       value={localSeconds}
       oninput={handleSecondsInput}
       onkeydown={handleSecondsKeydown}
