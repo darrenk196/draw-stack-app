@@ -21,7 +21,7 @@
   let tagCount = $state(0);
   let isLoading = $state(true);
 
-  const APP_VERSION = "0.1.0-beta";
+  const APP_VERSION = "0.1.1-beta";
 
   onMount(() => {
     loadSettings();

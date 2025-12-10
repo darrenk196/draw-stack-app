@@ -5,11 +5,13 @@
 ### Frontend Code
 
 1. **src/lib/updater.ts** - New updater library
+
    - `checkForUpdates(silent)` - Check and optionally install updates
    - `checkForUpdatesOnStartup()` - Background check on app launch
    - User-friendly dialogs for update notifications and progress
 
 2. **src/routes/+layout.svelte** - Startup integration
+
    - Calls `checkForUpdatesOnStartup()` on app launch
    - Waits 5 seconds after startup to avoid blocking initial load
    - Silent check (only shows UI if update available)
@@ -21,10 +23,12 @@
 ### Backend Code
 
 4. **src-tauri/Cargo.toml** - Rust dependencies
+
    - Added `tauri-plugin-updater = "2"`
    - Added `tauri-plugin-process = "2"`
 
 5. **src-tauri/src/lib.rs** - Plugin registration
+
    - Registered updater plugin
    - Registered process plugin (for app restart)
 
@@ -58,6 +62,7 @@ npm run tauri signer generate
 ```
 
 Save the output:
+
 - Public key → update `src-tauri/tauri.conf.json`
 - Private key → add to GitHub secrets as `TAURI_SIGNING_PRIVATE_KEY`
 - Password → add to GitHub secrets as `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
@@ -65,6 +70,7 @@ Save the output:
 ### 2. Update Configuration
 
 Edit `src-tauri/tauri.conf.json`:
+
 ```json
 "pubkey": "YOUR_ACTUAL_PUBLIC_KEY_HERE"
 ```
@@ -74,12 +80,14 @@ Edit `src-tauri/tauri.conf.json`:
 Go to: https://github.com/darrenk196/draw-stack-app/settings/secrets/actions
 
 Add:
+
 - `TAURI_SIGNING_PRIVATE_KEY`
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
 
 ### 4. Test the System
 
 Create a test release:
+
 ```bash
 # Bump version to 0.1.1 in:
 # - src-tauri/tauri.conf.json
@@ -124,30 +132,30 @@ The updater only replaces the application executable, not user data.
 ## Architecture
 
 ```
-User Machine                    GitHub                  
-┌─────────────┐                ┌──────────────┐        
-│  DrawStack  │                │   Releases   │        
-│    v0.1.0   │───Check────────▶│              │        
-│             │                │ latest.json  │        
-│             │◀──Response─────│ v0.2.0 info  │        
-│             │                │              │        
-│  [Dialog]   │                │              │        
-│  Update to  │                │              │        
-│  v0.2.0?    │                │              │        
-│  [Yes] [No] │                │              │        
-│             │                │              │        
-│             │───Download─────▶│ installer    │        
-│             │                │ + signature  │        
-│             │◀──Package──────│              │        
-│             │                └──────────────┘        
-│  Verify     │                                        
-│  Signature  │                                        
-│             │                                        
-│  Install    │                                        
-│  v0.2.0     │                                        
-│             │                                        
-│  [Restart?] │                                        
-└─────────────┘                                        
+User Machine                    GitHub
+┌─────────────┐                ┌──────────────┐
+│  DrawStack  │                │   Releases   │
+│    v0.1.0   │───Check────────▶│              │
+│             │                │ latest.json  │
+│             │◀──Response─────│ v0.2.0 info  │
+│             │                │              │
+│  [Dialog]   │                │              │
+│  Update to  │                │              │
+│  v0.2.0?    │                │              │
+│  [Yes] [No] │                │              │
+│             │                │              │
+│             │───Download─────▶│ installer    │
+│             │                │ + signature  │
+│             │◀──Package──────│              │
+│             │                └──────────────┘
+│  Verify     │
+│  Signature  │
+│             │
+│  Install    │
+│  v0.2.0     │
+│             │
+│  [Restart?] │
+└─────────────┘
 ```
 
 ## Testing
@@ -162,7 +170,7 @@ export async function checkForUpdates(silent: boolean = false) {
   // Force show dialog for testing
   const shouldUpdate = await ask(
     `Update available: 0.2.0\n\nCurrent version: 0.1.0\n\n...`,
-    { title: 'Update Available', kind: 'info' }
+    { title: "Update Available", kind: "info" }
   );
   // ... rest of mock logic
 }
@@ -178,17 +186,20 @@ export async function checkForUpdates(silent: boolean = false) {
 ## Comparison to Other Systems
 
 ### Blender-Style (Requested)
+
 - ✅ Users download installer from website
 - ✅ Installer detects and updates existing version
 - ✅ User data preserved automatically
 - ✅ Simple version bumps for releases
 
 ### Electron Auto-Update
+
 - Similar concept, but Tauri is more lightweight
 - Both use GitHub releases
 - Both require code signing
 
 ### Manual Updates Only
+
 - ❌ Users must check website manually
 - ❌ More friction to update
 - ❌ Lower adoption of new versions
@@ -233,6 +244,7 @@ git push origin vX.Y.Z
 ### Emergency Fixes
 
 If a release has issues:
+
 1. Fix the code
 2. Bump to next patch version (e.g., 0.1.1 → 0.1.2)
 3. Create new release
@@ -241,6 +253,7 @@ If a release has issues:
 ### Rollback
 
 Not directly supported, but you can:
+
 1. Create a new release with previous version's code
 2. Bump version higher (e.g., 0.1.3 with 0.1.1 code)
 3. Users update to "new" (reverted) version
@@ -248,6 +261,7 @@ Not directly supported, but you can:
 ## Future Enhancements
 
 Potential improvements:
+
 - [ ] Update size display in dialog
 - [ ] Detailed changelog in update dialog
 - [ ] Beta/stable channel support
@@ -259,6 +273,7 @@ Potential improvements:
 ## Support
 
 For issues or questions:
+
 1. Check `AUTO_UPDATE_SETUP.md` troubleshooting section
 2. Verify GitHub Actions logs: https://github.com/darrenk196/draw-stack-app/actions
 3. Check Tauri updater docs: https://v2.tauri.app/plugin/updater/

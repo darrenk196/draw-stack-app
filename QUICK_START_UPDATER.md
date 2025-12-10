@@ -66,6 +66,7 @@ git push origin v0.1.1
 ```
 
 That's it! GitHub Actions will automatically:
+
 - Build installers for Windows, macOS, and Linux
 - Sign them with your private key
 - Create a release on GitHub
@@ -106,7 +107,7 @@ Before your first real release, test with a minor version bump:
 ✅ Multi-platform support (Windows, macOS, Linux)  
 ✅ Automatic code signing  
 ✅ User data preservation  
-✅ Complete documentation  
+✅ Complete documentation
 
 ## What You Need to Do
 

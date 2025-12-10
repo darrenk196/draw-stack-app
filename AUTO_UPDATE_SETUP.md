@@ -17,6 +17,7 @@ npm run tauri signer generate
 ```
 
 This will output:
+
 - A **public key** (starts with `dW50cnVzdGVk...`)
 - A **private key** (keep this secret!)
 - An optional password
@@ -43,6 +44,7 @@ Go to your repository settings → Secrets and variables → Actions, and add:
 2. **TAURI_SIGNING_PRIVATE_KEY_PASSWORD**: Your password (if you set one, otherwise leave empty)
 
 To add secrets:
+
 1. Go to https://github.com/darrenk196/draw-stack-app/settings/secrets/actions
 2. Click "New repository secret"
 3. Add both secrets above
@@ -52,17 +54,20 @@ To add secrets:
 ### Creating a Release
 
 1. Update version numbers:
+
    - `src-tauri/tauri.conf.json` → `"version": "0.2.0"`
    - `package.json` → `"version": "0.2.0"`
    - `src/routes/settings/+page.svelte` → `APP_VERSION = "0.2.0"`
 
 2. Commit your changes:
+
    ```bash
    git add -A
    git commit -m "chore: bump version to 0.2.0"
    ```
 
 3. Create and push a git tag:
+
    ```bash
    git tag v0.2.0
    git push origin v0.2.0
@@ -82,6 +87,7 @@ To add secrets:
 4. **After Installation**: Asks if they want to restart now or later
 
 Users can also manually check for updates:
+
 - Go to Settings → About → "Check for Updates" button
 
 ## Testing Updates
@@ -123,6 +129,7 @@ App Starts → Wait 5s → Check GitHub for latest.json
 ## User Data Preservation
 
 The updater automatically preserves all user data:
+
 - **IndexedDB**: Stored in app data directory (persists across updates)
 - **localStorage**: Browser storage (persists across updates)
 - **Library Files**: Stored in user-selected location (never touched by updater)
@@ -131,15 +138,18 @@ The updater automatically preserves all user data:
 ## Troubleshooting
 
 ### "Failed to verify signature"
+
 - Ensure public key in `tauri.conf.json` matches your private key
 - Verify GitHub secrets are set correctly
 
 ### "No update available" when one exists
+
 - Check that `endpoints` URL in `tauri.conf.json` is correct
 - Verify GitHub release has `latest.json` file
 - Ensure version in `tauri.conf.json` is lower than release version
 
 ### Updates not working on Windows
+
 - Ensure `installMode` is set to `"passive"` in updater config
 - Check Windows Defender isn't blocking the installer
 
@@ -151,14 +161,15 @@ The updater automatically preserves all user data:
 {
   "plugins": {
     "updater": {
-      "active": true,  // Enable/disable updater
-      "endpoints": [   // Where to check for updates
+      "active": true, // Enable/disable updater
+      "endpoints": [
+        // Where to check for updates
         "https://github.com/USER/REPO/releases/latest/download/latest.json"
       ],
-      "dialog": true,  // Use built-in dialogs (we override with custom UI)
+      "dialog": true, // Use built-in dialogs (we override with custom UI)
       "pubkey": "...", // Your public key
       "windows": {
-        "installMode": "passive"  // Silent install on Windows
+        "installMode": "passive" // Silent install on Windows
       }
     }
   }
@@ -170,31 +181,43 @@ The updater automatically preserves all user data:
 For users who prefer manual installation, create a simple webpage:
 
 **index.html**:
+
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Download DrawStack</title>
-</head>
-<body>
-  <h1>Download DrawStack</h1>
-  <p>Latest version: <a href="https://github.com/darrenk196/draw-stack-app/releases/latest">View on GitHub</a></p>
-  
-  <h2>Windows</h2>
-  <a href="https://github.com/darrenk196/draw-stack-app/releases/latest/download/DrawStack_x64-setup.exe">
-    Download for Windows
-  </a>
-  
-  <h2>macOS</h2>
-  <a href="https://github.com/darrenk196/draw-stack-app/releases/latest/download/DrawStack_universal.dmg">
-    Download for macOS
-  </a>
-  
-  <h2>Linux</h2>
-  <a href="https://github.com/darrenk196/draw-stack-app/releases/latest/download/DrawStack_amd64.AppImage">
-    Download for Linux
-  </a>
-</body>
+  <head>
+    <title>Download DrawStack</title>
+  </head>
+  <body>
+    <h1>Download DrawStack</h1>
+    <p>
+      Latest version:
+      <a href="https://github.com/darrenk196/draw-stack-app/releases/latest"
+        >View on GitHub</a
+      >
+    </p>
+
+    <h2>Windows</h2>
+    <a
+      href="https://github.com/darrenk196/draw-stack-app/releases/latest/download/DrawStack_x64-setup.exe"
+    >
+      Download for Windows
+    </a>
+
+    <h2>macOS</h2>
+    <a
+      href="https://github.com/darrenk196/draw-stack-app/releases/latest/download/DrawStack_universal.dmg"
+    >
+      Download for macOS
+    </a>
+
+    <h2>Linux</h2>
+    <a
+      href="https://github.com/darrenk196/draw-stack-app/releases/latest/download/DrawStack_amd64.AppImage"
+    >
+      Download for Linux
+    </a>
+  </body>
 </html>
 ```
 
