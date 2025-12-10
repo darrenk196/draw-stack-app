@@ -55,8 +55,71 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "DrawStack v__VERSION__"
+          releaseName: "DrawStack ${{ github.ref_name }}"
           releaseBody: "See the assets below to download and install this version."
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+  publish-release-json:
+    needs: publish-tauri
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest release info
+        id: release_info
+        run: |
+          TAG=${{ github.ref_name }}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Download Windows installer
+        run: |
+          mkdir -p ./artifacts
+          cd ./artifacts
+          curl -L -o installer.msi "https://github.com/darrenk196/draw-stack-app/releases/download/${{ steps.release_info.outputs.tag }}/draw-stack_*.msi.zip" 2>/dev/null || true
+          curl -L -o installer.msi.sig "https://github.com/darrenk196/draw-stack-app/releases/download/${{ steps.release_info.outputs.tag }}/draw-stack_*.msi.zip.sig" 2>/dev/null || true
+
+      - name: Generate latest.json
+        run: |
+          # Get the Windows installer info
+          VERSION=${{ steps.release_info.outputs.tag }}
+          VERSION=${VERSION#v}
+          
+          # Find the actual installer filename from the release
+          INSTALLER=$(curl -s https://api.github.com/repos/darrenk196/draw-stack-app/releases/tags/${{ steps.release_info.outputs.tag }} | grep -o '"name":"[^"]*\.msi\.zip"' | head -1 | cut -d'"' -f4)
+          SIG_FILE="${INSTALLER}.sig"
+          
+          # Get file size
+          SIZE=$(curl -sI "https://github.com/darrenk196/draw-stack-app/releases/download/${{ steps.release_info.outputs.tag }}/${INSTALLER}" | grep -i content-length | awk '{print $2}' | tr -d '\r')
+          
+          if [ -z "$SIZE" ]; then
+            SIZE=0
+          fi
+          
+          # Create latest.json
+          cat > latest.json <<EOF
+          {
+            "version": "$VERSION",
+            "notes": "See the release page for details.",
+            "pub_date": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "$(curl -s https://github.com/darrenk196/draw-stack-app/releases/download/${{ steps.release_info.outputs.tag }}/${SIG_FILE})",
+                "url": "https://github.com/darrenk196/draw-stack-app/releases/download/${{ steps.release_info.outputs.tag }}/${INSTALLER}"
+              }
+            }
+          }
+          EOF
+          
+          cat latest.json
+
+      - name: Upload latest.json to release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          files: latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
