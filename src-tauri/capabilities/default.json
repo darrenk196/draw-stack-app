@@ -17,6 +17,8 @@
     "fs:allow-create",
     "fs:allow-write-file",
     "fs:allow-appdata-read-recursive",
-    "fs:allow-appdata-write-recursive"
+    "fs:allow-appdata-write-recursive",
+    "updater:default",
+    "process:allow-exit"
   ]
 }
