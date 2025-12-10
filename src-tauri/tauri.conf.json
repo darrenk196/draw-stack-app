@@ -37,5 +37,18 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/darrenk196/draw-stack-app/releases/latest/download/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": "YOUR_PUBLIC_KEY_WILL_GO_HERE",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

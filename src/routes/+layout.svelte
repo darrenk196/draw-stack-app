@@ -3,6 +3,7 @@
   import { page } from "$app/stores";
   import { Toaster } from "svelte-sonner";
   import Onboarding from "$lib/components/Onboarding.svelte";
+  import { checkForUpdatesOnStartup } from "$lib/updater";
   let { children } = $props();
 
   import { onMount } from "svelte";
@@ -38,6 +39,9 @@
     if (!hasCompleted) {
       showOnboarding = true;
     }
+
+    // Check for updates on app startup (silent, only shows if update available)
+    checkForUpdatesOnStartup();
 
     // Listen for onboarding replay request
     const replayHandler = () => {

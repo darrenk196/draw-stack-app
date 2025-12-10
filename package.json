@@ -16,6 +16,8 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.4.2",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-updater": "^2",
+    "@tauri-apps/plugin-process": "^2",
     "idb": "^8.0.3",
     "svelte-sonner": "^1.0.6"
   },
