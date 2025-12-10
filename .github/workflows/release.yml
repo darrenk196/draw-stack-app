@@ -6,7 +6,7 @@ on:
       - "v*.*.*"
 
 jobs:
-  build-release:
+  build-and-release:
     strategy:
       fail-fast: false
       matrix:
@@ -41,38 +41,16 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Build Tauri App
+      - name: Build and Release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          args: ${{ matrix.args }}
-
-  create-release:
-    needs: build-release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: DrawStack ${{ github.ref_name }}
+          releaseBody: "Auto-generated release for ${{ github.ref_name }}"
           draft: false
           prerelease: false
-          files: |
-            **/*.msi
-            **/*.msi.zip
-            **/*.msi.zip.sig
-            **/*.dmg
-            **/*.dmg.zip
-            **/*.dmg.zip.sig
-            **/*.AppImage
-            **/*.AppImage.tar.gz
-            **/*.AppImage.tar.gz.sig
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          args: ${{ matrix.args }}
