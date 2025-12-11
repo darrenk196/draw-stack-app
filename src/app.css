@@ -340,4 +340,36 @@ button {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  /* Settings page card styling */
+  .settings-card {
+    @apply glass-card shadow-[0_20px_60px_rgba(62,57,51,0.12)] border-warm-beige/90 overflow-hidden relative;
+    background: radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.9), rgba(250, 248, 245, 0.75)),
+      radial-gradient(circle at 80% 0%, rgba(212, 106, 78, 0.12), transparent 40%),
+      linear-gradient(135deg, rgba(250, 248, 245, 0.9), rgba(255, 255, 255, 0.9));
+  }
+
+  .settings-card__header {
+    @apply flex items-start gap-4 pb-3 border-b border-warm-beige/80;
+  }
+
+  .settings-card__icon {
+    @apply h-11 w-11 rounded-2xl bg-terracotta text-white flex items-center justify-center shadow-[0_12px_28px_rgba(212,106,78,0.3)];
+  }
+
+  .settings-chip {
+    @apply inline-flex items-center gap-2 rounded-full border border-warm-beige/80 bg-warm-beige/60 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-warm-charcoal font-semibold shadow-[0_6px_18px_rgba(62,57,51,0.06)];
+  }
+
+  .settings-muted {
+    @apply text-sm text-warm-gray;
+  }
+
+  .settings-section {
+    @apply bg-white/80 border border-warm-beige rounded-xl p-4 shadow-[0_12px_30px_rgba(62,57,51,0.05)];
+  }
+
+  .settings-divider {
+    @apply border-t border-dashed border-warm-beige/80 my-1;
+  }
 }

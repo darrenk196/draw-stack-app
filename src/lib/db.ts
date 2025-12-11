@@ -944,3 +944,145 @@ export async function resetSettings(): Promise<void> {
     throw error;
   }
 }
+
+// ============= Tag Consolidation Operations =============
+
+/**
+ * Represents a group of duplicate tags.
+ */
+export interface DuplicateTagGroup {
+  /** Normalized name (lowercase) */
+  normalizedName: string;
+  /** All tags with this name (case-insensitive) */
+  tags: Tag[];
+  /** Total number of images using these tags */
+  imageCount: number;
+}
+
+/**
+ * Find duplicate tags (case-insensitive comparison).
+ * Returns groups of tags that have the same name when compared case-insensitively.
+ */
+export async function findDuplicateTags(): Promise<DuplicateTagGroup[]> {
+  const allTags = await getAllTags();
+  
+  // Group tags by normalized name
+  const tagGroups = new Map<string, Tag[]>();
+  
+  for (const tag of allTags) {
+    const normalized = tag.name.toLowerCase().trim();
+    if (!tagGroups.has(normalized)) {
+      tagGroups.set(normalized, []);
+    }
+    tagGroups.get(normalized)!.push(tag);
+  }
+  
+  // Filter to only duplicates and calculate image counts
+  const duplicates: DuplicateTagGroup[] = [];
+  
+  for (const [normalizedName, tags] of tagGroups.entries()) {
+    if (tags.length > 1) {
+      // Count total images using any of these duplicate tags
+      let imageCount = 0;
+      for (const tag of tags) {
+        const imageTags = await getImageTagsByTag(tag.id);
+        imageCount += imageTags.length;
+      }
+      
+      duplicates.push({
+        normalizedName,
+        tags,
+        imageCount,
+      });
+    }
+  }
+  
+  // Sort by image count descending (most used first)
+  return duplicates.sort((a, b) => b.imageCount - a.imageCount);
+}
+
+/**
+ * Merge duplicate tags into a single tag.
+ * All image associations from source tags will be transferred to the target tag.
+ * Source tags will be deleted after merging.
+ * 
+ * @param targetTagId - The tag to keep
+ * @param sourceTagIds - Tags to merge into the target (will be deleted)
+ */
+export async function mergeTags(targetTagId: string, sourceTagIds: string[]): Promise<void> {
+  const db = await getDB();
+  
+  // Verify target tag exists
+  const targetTag = await getTag(targetTagId);
+  if (!targetTag) {
+    throw new Error('Target tag not found');
+  }
+  
+  // Use a transaction to ensure atomicity
+  const tx = db.transaction(['imageTags', 'tags', 'tagUsage'], 'readwrite');
+  
+  try {
+    let totalUsageCount = 0;
+    let latestUsage = 0;
+    
+    // Get target tag usage
+    const targetUsage = await tx.objectStore('tagUsage').get(targetTagId);
+    if (targetUsage) {
+      totalUsageCount = targetUsage.usageCount;
+      latestUsage = targetUsage.lastUsed;
+    }
+    
+    // Process each source tag
+    for (const sourceTagId of sourceTagIds) {
+      if (sourceTagId === targetTagId) continue; // Skip if somehow target is in sources
+      
+      // Get all images using this source tag
+      const sourceImageTags = await db.getAllFromIndex('imageTags', 'by-tag', sourceTagId);
+      
+      // Transfer image associations to target tag
+      for (const imageTag of sourceImageTags) {
+        // Add to target tag (use put to avoid duplicates)
+        await tx.objectStore('imageTags').put({
+          imageId: imageTag.imageId,
+          tagId: targetTagId,
+        });
+        
+        // Remove from source tag
+        await tx.objectStore('imageTags').delete([imageTag.imageId, sourceTagId]);
+      }
+      
+      // Merge usage statistics
+      const sourceUsage = await tx.objectStore('tagUsage').get(sourceTagId);
+      if (sourceUsage) {
+        totalUsageCount += sourceUsage.usageCount;
+        latestUsage = Math.max(latestUsage, sourceUsage.lastUsed);
+      }
+      
+      // Delete child tags of source tag (move them to target)
+      const childTags = await db.getAllFromIndex('tags', 'by-parent', sourceTagId);
+      for (const child of childTags) {
+        child.parentId = targetTagId;
+        await tx.objectStore('tags').put(child);
+      }
+      
+      // Delete source tag usage
+      await tx.objectStore('tagUsage').delete(sourceTagId).catch(() => {});
+      
+      // Delete source tag
+      await tx.objectStore('tags').delete(sourceTagId);
+    }
+    
+    // Update target tag usage with merged statistics
+    await tx.objectStore('tagUsage').put({
+      tagId: targetTagId,
+      usageCount: totalUsageCount,
+      lastUsed: latestUsage || Date.now(),
+    });
+    
+    await tx.done;
+    console.log(`Merged ${sourceTagIds.length} tags into ${targetTagId}`);
+  } catch (error) {
+    console.error('Failed to merge tags:', error);
+    throw error;
+  }
+}

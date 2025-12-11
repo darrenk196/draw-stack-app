@@ -7,7 +7,11 @@
     getLibraryImages,
     getImagesByTags,
     getAllTags,
+    getSettings,
+    updateSettings,
+    DEFAULT_SETTINGS,
     type Image,
+    type AppSettings,
   } from "$lib/db";
   import { convertFileSrc } from "@tauri-apps/api/core";
   import { toast } from "$lib/toast";
@@ -161,6 +165,7 @@
   let practiceImages = $state<Image[]>([]);
   let timerEntries = $state<TimerEntry[]>([]);
   let isLoading = $state(true);
+  let appSettings = $state<AppSettings>({ ...DEFAULT_SETTINGS });
   let showSetup = $state(true);
   let setupMode = $state<"choose" | "classroom" | "quick" | "legacy">("choose");
   let selectedPreset = $state<ClassroomPreset | null>(null);
@@ -170,6 +175,10 @@
   });
   let allTags = $state<any[]>([]);
   let currentStageIndex = $state(0);
+
+  function shouldConfirm() {
+    return appSettings.confirmationDialogStrictness === "always";
+  }
 
   // Tag UI state
   let tagSearchQuery = $state("");
@@ -417,6 +426,9 @@
   ];
 
   onMount(async () => {
+    const settings = await getSettings();
+    appSettings = { ...DEFAULT_SETTINGS, ...settings } as AppSettings;
+
     allTags = await getAllTags();
     recentTagIds = loadRecentTags();
     classroomPresets = loadClassroomPresets();
@@ -475,10 +487,13 @@
 
       practiceImages = images;
 
-      // Initialize timer entries with default duration (60 seconds) - legacy mode
+      // Initialize timer entries with default duration - legacy mode
+      const defaultDuration =
+        appSettings.defaultTimerDuration ??
+        DEFAULT_SETTINGS.defaultTimerDuration;
       timerEntries = images.map((img, index) => ({
         imageId: img.id,
-        duration: 60,
+        duration: defaultDuration,
         stageIndex: 0,
         poseNumber: index + 1,
       }));
@@ -590,9 +605,15 @@
 
         // Auto-advance when timer reaches 0
         if (timeRemaining === 0) {
+          const allowAutoPlay =
+            appSettings.autoPlayNextImage ?? DEFAULT_SETTINGS.autoPlayNextImage;
           if (currentIndex < practiceImages.length - 1) {
             playChime();
-            goToNext();
+            if (allowAutoPlay) {
+              goToNext();
+            } else {
+              pauseTimer();
+            }
           } else {
             // Session complete
             playVictory();
@@ -1188,7 +1209,13 @@
   }
 
   function addQuickStage() {
-    quickConfig.stages.push({ imageCount: 10, duration: 60, tagIds: [] });
+    const defaultDuration =
+      appSettings.defaultTimerDuration ?? DEFAULT_SETTINGS.defaultTimerDuration;
+    quickConfig.stages.push({
+      imageCount: 10,
+      duration: defaultDuration,
+      tagIds: [],
+    });
     quickConfig = { ...quickConfig };
   }
 
@@ -1258,7 +1285,9 @@
     const session = customSessions.find((s) => s.id === sessionId);
     if (!session) return;
 
-    if (!confirm(`Delete session "${session.name}"?`)) return;
+    if (shouldConfirm()) {
+      if (!confirm(`Delete session "${session.name}"?`)) return;
+    }
 
     customSessions = customSessions.filter((s) => s.id !== sessionId);
     saveCustomSessions(customSessions);
@@ -2667,7 +2696,7 @@
               Tools
             </button>
             <div
-              class="dropdown-content z-[1] menu p-3 shadow bg-white rounded-box w-72 max-h-[70vh] overflow-y-auto"
+              class="dropdown-content z-[1] menu p-3 shadow bg-white rounded-box w-96 max-h-[60vh] overflow-y-auto"
             >
               <div class="flex flex-col gap-3">
                 <div class="text-xs font-bold opacity-60">ALIGNMENT TOOLS</div>
@@ -2681,7 +2710,7 @@
                       onchange={() => {
                         if (showVerticalLines) showPlumbTool = true;
                       }}
-                      class="checkbox checkbox-sm"
+                      class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                     />
                   </label>
                 </div>
@@ -2695,7 +2724,7 @@
                       onchange={() => {
                         if (showHorizontalLines) showPlumbTool = true;
                       }}
-                      class="checkbox checkbox-sm"
+                      class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                     />
                   </label>
                 </div>
@@ -2709,7 +2738,7 @@
                       onchange={() => {
                         if (angleMode) showPlumbTool = true;
                       }}
-                      class="checkbox checkbox-sm"
+                      class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                     />
                   </label>
                 </div>
@@ -2722,7 +2751,7 @@
                     <input
                       type="checkbox"
                       bind:checked={randomColors}
-                      class="checkbox checkbox-sm"
+                      class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                     />
                   </label>
                 </div>
@@ -2760,7 +2789,7 @@
                     <input
                       type="checkbox"
                       bind:checked={lineOutline}
-                      class="checkbox checkbox-sm"
+                      class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                     />
                     <span class="label-text"
                       >Contrasting Outline (for visibility)</span
@@ -2823,7 +2852,7 @@
                       type="checkbox"
                       bind:checked={showDiagonals}
                       disabled={gridMode === 0}
-                      class="checkbox checkbox-sm"
+                      class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                     />
                   </label>
                 </div>
@@ -2857,7 +2886,7 @@
                     <input
                       type="checkbox"
                       bind:checked={gridLocked}
-                      class="checkbox checkbox-sm"
+                      class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                     />
                   </label>
                 </div>
@@ -2878,6 +2907,26 @@
                   <div><strong>F</strong> - Fullscreen</div>
                   <div><strong>M</strong> - Mute/Unmute audio</div>
                   <div><strong>L</strong> - Lock/Unlock UI</div>
+                </div>
+
+                <div class="divider my-0"></div>
+                <div class="text-xs font-bold opacity-60">PLAYBACK OPTIONS</div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Auto-play Next Image</span>
+                    <input
+                      type="checkbox"
+                      bind:checked={appSettings.autoPlayNextImage}
+                      onchange={async () => {
+                        await updateSettings(appSettings);
+                      }}
+                      class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+                    />
+                  </label>
+                  <div class="label text-xs opacity-60 mt-1">
+                    Automatically advance to next image when timer ends
+                  </div>
                 </div>
               </div>
             </div>

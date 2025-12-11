@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import { convertFileSrc } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import {
     addImages,
     addTag,
@@ -14,12 +15,16 @@
     deleteTag,
     deleteTagsByCategory,
     getTagsInUse,
+    getSettings,
+    DEFAULT_SETTINGS,
+    type AppSettings,
     type Image,
     type Tag,
   } from "$lib/db";
   import { toast } from "$lib/toast";
   import { focusTrap } from "$lib/focusTrap";
   import { ScreenReaderAnnouncer } from "$lib/accessibility";
+  import { onMount } from "svelte";
 
   // Initialize screen reader announcer
   const announcer = new ScreenReaderAnnouncer();
@@ -64,6 +69,11 @@
   let dragStartSelection = new Set<string>();
   let draggedImages = new Set<string>(); // Track images we've dragged over
   let showHelp = $state(false);
+  let appSettings = $state<AppSettings>({ ...DEFAULT_SETTINGS });
+
+  function shouldConfirm() {
+    return appSettings.confirmationDialogStrictness === "always";
+  }
 
   // Loading states
   let isBrowsing = $state(false);
@@ -379,6 +389,11 @@
 
   // Load history on mount
   loadHistory();
+  getSettings()
+    .then((settings) => {
+      appSettings = { ...DEFAULT_SETTINGS, ...settings } as AppSettings;
+    })
+    .catch((err) => console.error("Failed to load settings", err));
   restoreSessionState();
 
   function handleItemsPerPageChange() {
@@ -620,9 +635,12 @@
     saveSessionState();
   }
 
-  function handleRightDragStart(imagePath: string, e: MouseEvent) {
+  function handleRightPointerDown(imagePath: string, e: PointerEvent) {
     if (e.button === 2) {
       // Right mouse button
+      e.preventDefault();
+      e.stopPropagation();
+      console.log("Drag start on:", imagePath, "pointer", e.pointerId);
       isRightDragging = true;
       dragStartSelection = new Set(selectedImages);
       draggedImages = new Set([imagePath]); // Track this first image
@@ -630,9 +648,10 @@
     }
   }
 
-  function handleRightDragOver(imagePath: string, e: MouseEvent) {
-    if (isRightDragging && e.buttons === 2) {
-      // Right button is still held
+  function handleRightPointerMove(imagePath: string, e: PointerEvent) {
+    // Bitwise check because buttons can be a bitmask
+    const isRightButtonHeld = (e.buttons & 2) === 2;
+    if (isRightDragging && isRightButtonHeld) {
       if (!draggedImages.has(imagePath)) {
         // First time dragging over this image - toggle it
         draggedImages.add(imagePath);
@@ -641,8 +660,9 @@
     }
   }
 
-  function handleRightDragEnd() {
+  function handleRightPointerUp() {
     if (isRightDragging) {
+      console.log("Drag end, selected images:", selectedImages.size);
       isRightDragging = false;
       draggedImages = new Set(); // Clear tracked images
       saveSessionState();
@@ -1149,10 +1169,14 @@
     tagName: string,
     categoryName?: string
   ) {
-    if (
-      !confirm(`Delete tag "${tagName}"? This will remove it from all images.`)
-    ) {
-      return;
+    if (shouldConfirm()) {
+      if (
+        !confirm(
+          `Delete tag "${tagName}"? This will remove it from all images.`
+        )
+      ) {
+        return;
+      }
     }
     try {
       // Delete from database if it exists
@@ -1197,8 +1221,10 @@
         ? `Delete category "${categoryName}" and its ${tagCount} tag${tagCount > 1 ? "s" : ""}? This will remove all tags from images.`
         : `Delete category "${categoryName}"?`;
 
-    if (!confirm(message)) {
-      return;
+    if (shouldConfirm()) {
+      if (!confirm(message)) {
+        return;
+      }
     }
     try {
       await deleteTagsByCategory(categoryName);
@@ -1671,55 +1697,59 @@
           </div>
 
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="grid grid-cols-12 gap-1.5" onmouseup={handleRightDragEnd}>
+          <div
+            class="grid grid-cols-12 gap-1.5"
+            onpointerup={handleRightPointerUp}
+            oncontextmenu={(e) => e.preventDefault()}
+          >
             {#each displayedImages as image, index (image.path)}
               {@const isSelected = selectedImages.has(image.path)}
               {@const shouldEagerLoad = index < EAGER_LOAD_COUNT}
-              <div class="relative group">
-                <button
-                  class="w-full aspect-square bg-warm-beige/20 rounded-lg overflow-hidden cursor-pointer border-2 transition-colors will-change-transform"
-                  class:border-warm-beige={!isSelected}
-                  class:border-terracotta={isSelected}
-                  onclick={() => openImageViewer(image, index)}
-                  oncontextmenu={(e) => {
-                    e.preventDefault();
-                    handleRightDragStart(image.path, e);
-                  }}
-                  onmouseenter={(e) => handleRightDragOver(image.path, e)}
-                >
-                  <img
-                    src={convertFileSrc(image.path)}
-                    alt={image.filename}
-                    class="w-full h-full object-contain transition-opacity duration-200"
-                    loading={shouldEagerLoad ? "eager" : "lazy"}
-                    decoding="async"
-                    fetchpriority={shouldEagerLoad ? "high" : "auto"}
-                    style="background: linear-gradient(135deg, rgb(var(--b3)) 0%, rgb(var(--b2)) 100%);"
-                    onload={(e) =>
-                      ((e.currentTarget as HTMLImageElement).style.opacity =
-                        "1")}
-                    style:opacity="0"
-                  />
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="relative group w-full aspect-square bg-warm-beige/20 rounded-lg overflow-hidden cursor-pointer border-2 transition-colors will-change-transform"
+                class:border-warm-beige={!isSelected}
+                class:border-terracotta={isSelected}
+                onclick={() => openImageViewer(image, index)}
+                onpointerdown={(e) => handleRightPointerDown(image.path, e)}
+                onpointermove={(e) => handleRightPointerMove(image.path, e)}
+                onpointerup={handleRightPointerUp}
+                oncontextmenu={(e) => e.preventDefault()}
+                role="button"
+                tabindex="0"
+              >
+                <img
+                  src={convertFileSrc(image.path)}
+                  alt={image.filename}
+                  class="w-full h-full object-contain transition-opacity duration-200 pointer-events-none"
+                  loading={shouldEagerLoad ? "eager" : "lazy"}
+                  decoding="async"
+                  fetchpriority={shouldEagerLoad ? "high" : "auto"}
+                  style="background: linear-gradient(135deg, rgb(var(--b3)) 0%, rgb(var(--b2)) 100%);"
+                  onload={(e) =>
+                    ((e.currentTarget as HTMLImageElement).style.opacity = "1")}
+                  style:opacity="0"
+                />
 
-                  {#if isSelected}
-                    <div
-                      class="absolute top-1 left-1 bg-terracotta rounded-full p-1"
+                {#if isSelected}
+                  <div
+                    class="absolute top-1 left-1 bg-terracotta rounded-full p-1"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-3 w-3 text-white"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-3 w-3 text-white"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                  {/if}
-                </button>
+                      <path
+                        fill-rule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                {/if}
 
                 <!-- Quick select checkbox overlay -->
                 <button
@@ -1807,32 +1837,39 @@
         {/if}
       </div>
     {:else}
-      <div class="flex-1 flex items-center justify-center text-center">
-        <div>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-24 w-24 mx-auto text-warm-beige mb-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="flex-1 flex items-center justify-center text-center p-8">
+        <div class="max-w-md w-full">
+          <div
+            class="p-12 rounded-2xl border-2 border-dashed border-warm-beige bg-warm-sand/30"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-            />
-          </svg>
-          <h2 class="text-xl font-medium mb-2 text-warm-charcoal">
-            No folder selected
-          </h2>
-          <p class="text-warm-gray mb-4">Select a folder to browse images</p>
-          <button
-            class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-6 py-3"
-            onclick={selectFolder}
-          >
-            Browse Folder
-          </button>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-24 w-24 mx-auto mb-4 text-warm-beige"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+              />
+            </svg>
+            <h2 class="text-xl font-medium mb-2 text-warm-charcoal">
+              No folder selected
+            </h2>
+            <p class="text-warm-gray mb-4">
+              Use the file browser below to select a folder to browse
+            </p>
+            <button
+              class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-6 py-3"
+              onclick={selectFolder}
+            >
+              Browse Folder
+            </button>
+          </div>
         </div>
       </div>
     {/if}

@@ -12,9 +12,12 @@
     getSettings,
     updateSettings,
     DEFAULT_SETTINGS,
+    findDuplicateTags,
+    mergeTags,
     type Image,
     type Tag,
     type AppSettings,
+    type DuplicateTagGroup,
   } from "$lib/db";
   import {
     ERROR_MESSAGES,
@@ -38,7 +41,17 @@
 
   // App preferences
   let appSettings = $state<AppSettings>({ ...DEFAULT_SETTINGS });
-  
+
+  // Tag consolidation
+  let duplicateTagGroups = $state<DuplicateTagGroup[]>([]);
+  let isCheckingDuplicates = $state(false);
+  let isMergingTags = $state(false);
+  let selectedMergeTarget = $state<Map<string, string>>(new Map()); // normalizedName -> targetTagId
+
+  function shouldConfirm() {
+    return appSettings.confirmationDialogStrictness === "always";
+  }
+
   // Storage usage
   interface StorageInfo {
     used_bytes: number;
@@ -49,7 +62,7 @@
   }
   let storageInfo = $state<StorageInfo | null>(null);
 
-  const APP_VERSION = "0.1.2-beta";
+  const APP_VERSION = "1.0.0";
 
   onMount(() => {
     loadSettings();
@@ -145,12 +158,14 @@
   }
 
   async function resetToDefault() {
-    if (
-      !confirm(
-        "Reset library path to default? This will not delete your existing images."
-      )
-    ) {
-      return;
+    if (shouldConfirm()) {
+      if (
+        !confirm(
+          "Reset library path to default? This will not delete your existing images."
+        )
+      ) {
+        return;
+      }
     }
 
     try {
@@ -165,12 +180,14 @@
   }
 
   async function clearLibrary() {
-    if (
-      !confirm(
-        `Delete all ${imageCount} images and ${tagCount} tags from your library? This cannot be undone!`
-      )
-    ) {
-      return;
+    if (shouldConfirm()) {
+      if (
+        !confirm(
+          `Delete all ${imageCount} images and ${tagCount} tags from your library? This cannot be undone!`
+        )
+      ) {
+        return;
+      }
     }
 
     const confirmation = prompt(
@@ -194,12 +211,14 @@
   }
 
   async function handleResetApp() {
-    if (
-      !confirm(
-        "Reset the app to factory defaults? This will delete ALL data including library images, tags, settings, and cached data. The app will reload. This cannot be undone!"
-      )
-    ) {
-      return;
+    if (shouldConfirm()) {
+      if (
+        !confirm(
+          "Reset the app to factory defaults? This will delete ALL data including library images, tags, settings, and cached data. The app will reload. This cannot be undone!"
+        )
+      ) {
+        return;
+      }
     }
 
     const confirmation = prompt(
@@ -230,6 +249,158 @@
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Update check failed:", error);
       toast.error(`Failed to check for updates: ${errorMsg}`);
+    }
+  }
+
+  async function checkDuplicateTags() {
+    isCheckingDuplicates = true;
+    try {
+      duplicateTagGroups = await findDuplicateTags();
+      if (duplicateTagGroups.length === 0) {
+        toast.success("No duplicate tags found!");
+      } else {
+        toast.info(
+          `Found ${duplicateTagGroups.length} duplicate tag ${duplicateTagGroups.length === 1 ? "group" : "groups"}`
+        );
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error("Failed to check for duplicates:", error);
+      toast.error(`Failed to check for duplicates: ${errorMsg}`);
+    } finally {
+      isCheckingDuplicates = false;
+    }
+  }
+
+  async function mergeSelectedTags(group: DuplicateTagGroup) {
+    const targetTagId = selectedMergeTarget.get(group.normalizedName);
+    if (!targetTagId) {
+      toast.error("Please select a tag to keep");
+      return;
+    }
+
+    const sourceTagIds = group.tags
+      .filter((tag) => tag.id !== targetTagId)
+      .map((tag) => tag.id);
+
+    if (sourceTagIds.length === 0) {
+      toast.error("No tags to merge");
+      return;
+    }
+
+    const targetTag = group.tags.find((tag) => tag.id === targetTagId);
+    if (!targetTag) {
+      toast.error("Target tag not found");
+      return;
+    }
+
+    if (shouldConfirm()) {
+      const tagNames = group.tags
+        .filter((tag) => tag.id !== targetTagId)
+        .map((tag) => `"${tag.name}"`)
+        .join(", ");
+      if (
+        !confirm(
+          `Merge ${tagNames} into "${targetTag.name}"? This will transfer all image associations and cannot be undone.`
+        )
+      ) {
+        return;
+      }
+    }
+
+    isMergingTags = true;
+    try {
+      await mergeTags(targetTagId, sourceTagIds);
+      toast.success(`Successfully merged tags into "${targetTag.name}"`);
+
+      // Refresh duplicate list and stats
+      await checkDuplicateTags();
+      await loadStats();
+
+      // Dispatch event for other pages
+      window.dispatchEvent(new CustomEvent("library-updated"));
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error("Failed to merge tags:", error);
+      toast.error(`Failed to merge tags: ${errorMsg}`);
+    } finally {
+      isMergingTags = false;
+    }
+  }
+
+  async function mergeAllDuplicates() {
+    if (duplicateTagGroups.length === 0) {
+      toast.error("No duplicates to merge");
+      return;
+    }
+
+    // Check that all groups have a target selected
+    const missingTargets = duplicateTagGroups.filter(
+      (group) => !selectedMergeTarget.has(group.normalizedName)
+    );
+
+    if (missingTargets.length > 0) {
+      toast.error(
+        `Please select a target tag for all ${missingTargets.length} duplicate ${missingTargets.length === 1 ? "group" : "groups"}`
+      );
+      return;
+    }
+
+    if (shouldConfirm()) {
+      if (
+        !confirm(
+          `Merge all ${duplicateTagGroups.length} duplicate tag groups? This cannot be undone.`
+        )
+      ) {
+        return;
+      }
+    }
+
+    isMergingTags = true;
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (const group of duplicateTagGroups) {
+        try {
+          const targetTagId = selectedMergeTarget.get(group.normalizedName);
+          if (!targetTagId) continue;
+
+          const sourceTagIds = group.tags
+            .filter((tag) => tag.id !== targetTagId)
+            .map((tag) => tag.id);
+
+          if (sourceTagIds.length > 0) {
+            await mergeTags(targetTagId, sourceTagIds);
+            successCount++;
+          }
+        } catch (error) {
+          console.error(
+            `Failed to merge group ${group.normalizedName}:`,
+            error
+          );
+          failCount++;
+        }
+      }
+
+      if (failCount === 0) {
+        toast.success(`Successfully merged all ${successCount} tag groups`);
+      } else {
+        toast.warning(`Merged ${successCount} groups, ${failCount} failed`);
+      }
+
+      // Refresh duplicate list and stats
+      await checkDuplicateTags();
+      await loadStats();
+
+      // Dispatch event for other pages
+      window.dispatchEvent(new CustomEvent("library-updated"));
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error("Failed to merge duplicates:", error);
+      toast.error(`Failed to merge duplicates: ${errorMsg}`);
+    } finally {
+      isMergingTags = false;
     }
   }
 
@@ -469,12 +640,14 @@
   }
 
   function restoreDefaultCategories() {
-    if (
-      !confirm(
-        "Restore default tag categories? This will unhide all default categories (Gender, Pose, View Angle, etc.)."
-      )
-    ) {
-      return;
+    if (shouldConfirm()) {
+      if (
+        !confirm(
+          "Restore default tag categories? This will unhide all default categories (Gender, Pose, View Angle, etc.)."
+        )
+      ) {
+        return;
+      }
     }
 
     try {
@@ -538,68 +711,129 @@
       </div>
     {:else}
       <!-- Library Location -->
-      <div class="glass-card card mb-6">
-        <div class="card-body space-y-4">
-          <h2 class="card-title text-xl text-warm-charcoal mb-4">
-            Library Location
-          </h2>
-
-          <div class="form-control mb-4">
-            <label class="label" for="library-path-input">
-              <span class="label-text">Current Library Path</span>
-            </label>
-            <div class="flex gap-2">
-              <input
-                id="library-path-input"
-                type="text"
-                class="input-soft flex-1"
-                value={libraryPath}
-                readonly
-              />
-              <button class="action-primary gap-2" onclick={browseLibraryPath}>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                  />
-                </svg>
-                Browse
-              </button>
+      <div class="settings-card card mb-6">
+        <div class="card-body space-y-5">
+          <div class="settings-card__header">
+            <div class="settings-card__icon" aria-hidden="true">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                />
+              </svg>
             </div>
-            <div class="label">
-              <span class="label-text-alt text-warm-gray">
-                Images are stored in this folder. Changing this will not move
-                existing images.
-              </span>
+            <div class="flex-1 space-y-1">
+              <div class="settings-chip">Library</div>
+              <h2 class="card-title text-xl text-warm-charcoal">
+                Library Location
+              </h2>
+              <p class="settings-muted">
+                Choose where your reference library lives.
+              </p>
+            </div>
+            <span class="settings-chip hidden sm:inline-flex">Path</span>
+          </div>
+
+          <div class="settings-section space-y-4">
+            <div class="form-control">
+              <label class="label" for="library-path-input">
+                <span class="label-text">Current Library Path</span>
+              </label>
+              <div class="flex gap-2">
+                <input
+                  id="library-path-input"
+                  type="text"
+                  class="input-soft flex-1"
+                  value={libraryPath}
+                  readonly
+                />
+                <button
+                  class="action-primary gap-2"
+                  onclick={browseLibraryPath}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                    />
+                  </svg>
+                  Browse
+                </button>
+              </div>
+              <div class="label">
+                <span class="label-text-alt text-warm-gray">
+                  Images are stored in this folder. Changing this will not move
+                  existing images.
+                </span>
+              </div>
             </div>
           </div>
 
-          <button class="action-secondary btn-sm" onclick={resetToDefault}>
-            Reset to Default Location
-          </button>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="settings-muted">
+              Switch back to the default location if you move files later.
+            </p>
+            <button class="action-secondary btn-sm" onclick={resetToDefault}>
+              Reset to Default Location
+            </button>
+          </div>
         </div>
       </div>
 
       <!-- Application Preferences -->
-      <div class="glass-card card mb-6">
-        <div class="card-body space-y-4">
-          <h2 class="card-title text-xl text-warm-charcoal mb-4">
-            Application Preferences
-          </h2>
+      <div class="settings-card card mb-6">
+        <div class="card-body space-y-5">
+          <div class="settings-card__header">
+            <div class="settings-card__icon" aria-hidden="true">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 6v6l4 2"
+                />
+              </svg>
+            </div>
+            <div class="flex-1 space-y-1">
+              <div class="settings-chip">Experience</div>
+              <h2 class="card-title text-xl text-warm-charcoal">
+                Application Preferences
+              </h2>
+              <p class="settings-muted">
+                Tune timers, search limits, and confirmation prompts.
+              </p>
+            </div>
+          </div>
 
-          <div class="space-y-6">
+          <div class="settings-section space-y-6">
             <!-- Default Timer Duration -->
             <div class="form-control">
               <label class="label" for="timer-duration">
-                <span class="label-text font-medium">Default Timer Duration</span>
+                <span class="label-text font-medium"
+                  >Default Timer Duration</span
+                >
               </label>
               <div class="flex items-center gap-3">
                 <input
@@ -625,11 +859,13 @@
               <label class="label cursor-pointer justify-start gap-3">
                 <input
                   type="checkbox"
-                  class="checkbox checkbox-primary"
+                  class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                   bind:checked={appSettings.autoPlayNextImage}
                 />
                 <div>
-                  <span class="label-text font-medium">Auto-play Next Image</span>
+                  <span class="label-text font-medium"
+                    >Auto-play Next Image</span
+                  >
                   <div class="label-text-alt text-warm-gray mt-1">
                     Automatically advance to next image when timer ends
                   </div>
@@ -662,15 +898,15 @@
 
             <!-- Confirmation Dialog Strictness -->
             <div class="form-control">
-              <label class="label">
+              <div class="label">
                 <span class="label-text font-medium">Confirmation Dialogs</span>
-              </label>
+              </div>
               <div class="space-y-2">
                 <label class="label cursor-pointer justify-start gap-3">
                   <input
                     type="radio"
                     name="dialog-strictness"
-                    class="radio radio-primary"
+                    class="radio radio-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                     value="always"
                     bind:group={appSettings.confirmationDialogStrictness}
                   />
@@ -685,7 +921,7 @@
                   <input
                     type="radio"
                     name="dialog-strictness"
-                    class="radio radio-primary"
+                    class="radio radio-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                     value="normal"
                     bind:group={appSettings.confirmationDialogStrictness}
                   />
@@ -700,7 +936,7 @@
                   <input
                     type="radio"
                     name="dialog-strictness"
-                    class="radio radio-primary"
+                    class="radio radio-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                     value="minimal"
                     bind:group={appSettings.confirmationDialogStrictness}
                   />
@@ -715,263 +951,496 @@
             </div>
           </div>
 
-          <div class="divider"></div>
+          <div class="settings-divider"></div>
 
-          <button class="action-primary gap-2" onclick={saveAppSettings}>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-            Save Preferences
-          </button>
+          <div class="flex justify-end">
+            <button class="action-primary gap-2" onclick={saveAppSettings}>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              Save Preferences
+            </button>
+          </div>
         </div>
       </div>
 
       <!-- Library Statistics -->
-      <div class="glass-card card mb-6">
-        <div class="card-body space-y-4">
-          <h2 class="card-title text-xl text-warm-charcoal mb-4">
-            Library Statistics
-          </h2>
-
-          <div class="stat-card p-4 grid grid-cols-2 gap-4">
-            <div class="stat">
-              <div class="stat-title text-warm-gray">Total Images</div>
-              <div class="stat-value text-terracotta">{imageCount}</div>
+      <div class="settings-card card mb-6">
+        <div class="card-body space-y-5">
+          <div class="settings-card__header">
+            <div class="settings-card__icon" aria-hidden="true">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M11 11V3a1 1 0 012 0v8m0 0a4 4 0 11-8 0 4 4 0 018 0zm0 0v10a4 4 0 108 0 4 4 0 00-8 0z"
+                />
+              </svg>
             </div>
-
-            <div class="stat">
-              <div class="stat-title text-warm-gray">Total Tags</div>
-              <div class="stat-value text-terracotta">{tagCount}</div>
+            <div class="flex-1 space-y-1">
+              <div class="settings-chip">Library Health</div>
+              <h2 class="card-title text-xl text-warm-charcoal">
+                Library Statistics
+              </h2>
+              <p class="settings-muted">
+                Quick snapshot of your images, tags, and disk usage.
+              </p>
             </div>
           </div>
-          
-          <!-- Storage Usage -->
-          {#if storageInfo}
-            <div class="divider"></div>
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-sm font-medium text-warm-gray">Storage Usage</span>
-                <span class="text-sm text-warm-charcoal">
-                  {storageInfo.used_formatted}
-                  {#if storageInfo.total_formatted}
-                    <span class="text-warm-gray">of {storageInfo.total_formatted}</span>
-                  {/if}
-                </span>
-              </div>
-              {#if storageInfo.usage_percentage !== null}
-                <progress
-                  class="progress progress-primary w-full"
-                  value={storageInfo.usage_percentage}
-                  max="100"
-                ></progress>
-                <div class="text-xs text-warm-gray mt-1 text-right">
-                  {storageInfo.usage_percentage.toFixed(1)}% used
+
+          <div class="settings-section space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="stat-card p-4">
+                <div class="stat">
+                  <div class="stat-title text-warm-gray">Total Images</div>
+                  <div class="stat-value text-terracotta">{imageCount}</div>
                 </div>
+              </div>
+              <div class="stat-card p-4">
+                <div class="stat">
+                  <div class="stat-title text-warm-gray">Total Tags</div>
+                  <div class="stat-value text-terracotta">{tagCount}</div>
+                </div>
+              </div>
+            </div>
+
+            {#if storageInfo}
+              <div class="settings-divider"></div>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium text-warm-gray">
+                    Storage Usage
+                  </span>
+                  <span class="text-sm text-warm-charcoal">
+                    {storageInfo.used_formatted}
+                    {#if storageInfo.total_formatted}
+                      <span class="text-warm-gray">
+                        of {storageInfo.total_formatted}
+                      </span>
+                    {/if}
+                  </span>
+                </div>
+                {#if storageInfo.usage_percentage !== null}
+                  <progress
+                    class="progress progress-primary w-full"
+                    value={storageInfo.usage_percentage}
+                    max="100"
+                  ></progress>
+                  <div class="text-xs text-warm-gray mt-1 text-right">
+                    {storageInfo.usage_percentage.toFixed(1)}% used
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        </div>
+      </div>
+
+      <!-- Tag Consolidation -->
+      <div class="settings-card card mb-6">
+        <div class="card-body space-y-5">
+          <div class="settings-card__header">
+            <div class="settings-card__icon" aria-hidden="true">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M17 9V7a2 2 0 00-2-2H9a2 2 0 00-2 2v2m0 0H5m2 0h2m6 0h2m0 0h2m-2 0v2m0 0h-2m2 0h2m-2 0v2m0 0h-2m2 0h2"
+                />
+              </svg>
+            </div>
+            <div class="flex-1 space-y-1">
+              <div class="settings-chip">Tags</div>
+              <h2 class="card-title text-xl">Tag Consolidation</h2>
+              <p class="settings-muted">
+                Find and merge duplicate tags to keep your taxonomy tidy.
+              </p>
+            </div>
+          </div>
+
+          <div class="settings-section space-y-4">
+            <p class="text-sm text-warm-gray">
+              Case-insensitive scanning for duplicates (e.g., "Female" and
+              "female").
+            </p>
+
+            <div class="flex flex-wrap gap-3">
+              <button
+                class="action-secondary gap-2"
+                onclick={checkDuplicateTags}
+                disabled={isCheckingDuplicates}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+                {isCheckingDuplicates ? "Checking..." : "Find Duplicate Tags"}
+              </button>
+
+              {#if duplicateTagGroups.length > 0}
+                <button
+                  class="action-primary text-sm px-4 py-2"
+                  onclick={mergeAllDuplicates}
+                  disabled={isMergingTags ||
+                    selectedMergeTarget.size !== duplicateTagGroups.length}
+                >
+                  {isMergingTags ? "Merging..." : "Merge All"}
+                </button>
               {/if}
             </div>
-          {/if}
+
+            {#if duplicateTagGroups.length > 0}
+              <div class="settings-divider"></div>
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <p class="text-sm font-semibold text-warm-charcoal">
+                    Found {duplicateTagGroups.length} duplicate {duplicateTagGroups.length ===
+                    1
+                      ? "group"
+                      : "groups"}
+                  </p>
+                </div>
+
+                <div class="space-y-3 max-h-96 overflow-y-auto">
+                  {#each duplicateTagGroups as group}
+                    <div
+                      class="p-4 bg-warm-sand rounded-lg border border-warm-beige space-y-3 shadow-[0_10px_28px_rgba(62,57,51,0.06)]"
+                    >
+                      <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                          <p class="font-semibold text-warm-charcoal mb-1">
+                            "{group.normalizedName}"
+                          </p>
+                          <p class="text-xs text-warm-gray">
+                            {group.imageCount} image{group.imageCount === 1
+                              ? ""
+                              : "s"} • {group.tags.length} duplicate{group.tags
+                              .length === 1
+                              ? ""
+                              : "s"}
+                          </p>
+                        </div>
+                        <button
+                          class="action-secondary text-sm px-3 py-1"
+                          onclick={() => mergeSelectedTags(group)}
+                          disabled={isMergingTags ||
+                            !selectedMergeTarget.has(group.normalizedName)}
+                        >
+                          Merge
+                        </button>
+                      </div>
+
+                      <div class="space-y-2">
+                        <p
+                          class="text-xs font-semibold text-warm-gray uppercase"
+                        >
+                          Select tag to keep:
+                        </p>
+                        <div class="space-y-2">
+                          {#each group.tags as tag}
+                            <label
+                              class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-warm-beige/50 transition-colors"
+                            >
+                              <input
+                                type="radio"
+                                name={`merge-target-${group.normalizedName}`}
+                                value={tag.id}
+                                checked={selectedMergeTarget.get(
+                                  group.normalizedName
+                                ) === tag.id}
+                                onchange={() => {
+                                  selectedMergeTarget.set(
+                                    group.normalizedName,
+                                    tag.id
+                                  );
+                                  selectedMergeTarget = selectedMergeTarget;
+                                }}
+                                class="radio radio-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+                              />
+                              <span class="text-sm">
+                                "{tag.name}"
+                                {#if tag.parentId}
+                                  <span class="text-xs text-warm-gray">
+                                    (in {tag.parentId})
+                                  </span>
+                                {/if}
+                              </span>
+                            </label>
+                          {/each}
+                        </div>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {:else if !isCheckingDuplicates}
+              <div class="text-center py-8 text-warm-gray">
+                <p class="text-sm">
+                  Click "Find Duplicate Tags" to scan your library for tags with
+                  the same name.
+                </p>
+              </div>
+            {/if}
+          </div>
         </div>
       </div>
 
       <!-- Library Management -->
-      <div class="glass-card card mb-6">
-        <div class="card-body space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="card-title text-xl">Library Management</h2>
-            <span class="section-label">Library</span>
+      <div class="settings-card card mb-6">
+        <div class="card-body space-y-5">
+          <div class="settings-card__header">
+            <div class="settings-card__icon" aria-hidden="true">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 6h16M4 10h16M4 14h10"
+                />
+              </svg>
+            </div>
+            <div class="flex-1 space-y-1">
+              <div class="settings-chip">Library</div>
+              <h2 class="card-title text-xl">Library Management</h2>
+              <p class="settings-muted">
+                Export, import, and maintenance tools to keep your library safe.
+              </p>
+            </div>
           </div>
 
-          <div class="flex flex-col gap-3">
-            <button class="action-secondary gap-2" onclick={exportLibrary}>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+          <div class="settings-section space-y-4">
+            <div class="grid gap-3 md:grid-cols-2">
+              <button
+                class="action-secondary gap-2 justify-start"
+                onclick={exportLibrary}
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                />
-              </svg>
-              Export Library Backup
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+                <div class="text-left">
+                  <div class="font-semibold text-warm-charcoal">
+                    Export Library Backup
+                  </div>
+                  <div class="text-xs text-warm-gray">
+                    Save images, tags, and settings to JSON
+                  </div>
+                </div>
+              </button>
 
-            <button class="action-secondary gap-2" onclick={importLibrary}>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              <button
+                class="action-secondary gap-2 justify-start"
+                onclick={importLibrary}
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-                />
-              </svg>
-              Import Library Backup
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                  />
+                </svg>
+                <div class="text-left">
+                  <div class="font-semibold text-warm-charcoal">
+                    Import Library Backup
+                  </div>
+                  <div class="text-xs text-warm-gray">
+                    Merge a saved backup into your library
+                  </div>
+                </div>
+              </button>
 
-            <button
-              class="action-secondary gap-2"
-              onclick={restoreDefaultCategories}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              <button
+                class="action-secondary gap-2 justify-start"
+                onclick={restoreDefaultCategories}
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              Restore Default Categories
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                <div class="text-left">
+                  <div class="font-semibold text-warm-charcoal">
+                    Restore Default Categories
+                  </div>
+                  <div class="text-xs text-warm-gray">
+                    Unhide the built-in tag categories
+                  </div>
+                </div>
+              </button>
 
-            <button class="action-secondary gap-2" onclick={replayOnboarding}>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              <button
+                class="action-secondary gap-2 justify-start"
+                onclick={replayOnboarding}
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                />
-              </svg>
-              Replay Onboarding Tutorial
-            </button>
-
-            <div class="divider"></div>
-
-            <div
-              class="alert bg-warm-beige/60 border border-warm-beige text-warm-charcoal"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-6 w-6 shrink-0 stroke-current"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <span>
-                Clearing your library will permanently delete all images and
-                tags. This cannot be undone!
-              </span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                  />
+                </svg>
+                <div class="text-left">
+                  <div class="font-semibold text-warm-charcoal">
+                    Replay Onboarding Tutorial
+                  </div>
+                  <div class="text-xs text-warm-gray">
+                    Revisit the quick start walkthrough
+                  </div>
+                </div>
+              </button>
             </div>
 
-            <button
-              class="action-error disabled:!bg-warm-beige disabled:!border-warm-beige disabled:!text-warm-charcoal disabled:!shadow-none"
-              onclick={clearLibrary}
-              disabled={imageCount === 0}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-              Clear Library
-            </button>
-          </div>
+            <div class="settings-divider"></div>
 
-          <div class="divider"></div>
+            <div class="space-y-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex-1">
+                  <p class="font-semibold text-warm-charcoal">Clear Library</p>
+                  <p class="text-sm text-warm-gray">
+                    Permanently delete all images and tags. This cannot be
+                    undone.
+                  </p>
+                </div>
+                <button
+                  class="action-error disabled:!bg-warm-beige disabled:!border-warm-beige disabled:!text-warm-charcoal disabled:!shadow-none"
+                  onclick={clearLibrary}
+                  disabled={imageCount === 0}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                  Clear
+                </button>
+              </div>
 
-          <div>
-            <h3 class="font-semibold text-warm-charcoal mb-2">
-              Reset App to Factory Defaults
-            </h3>
-            <p class="text-sm text-warm-gray mb-3">
-              Reset the entire app including all data, settings, and cache. Use
-              this for a fresh start or to troubleshoot issues.
-            </p>
-            <button
-              class="action-error disabled:!bg-warm-beige disabled:!border-warm-beige disabled:!text-warm-charcoal disabled:!shadow-none"
-              onclick={handleResetApp}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              Reset App
-            </button>
+              <div class="settings-divider"></div>
+
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex-1">
+                  <p class="font-semibold text-warm-charcoal">
+                    Reset App to Factory Defaults
+                  </p>
+                  <p class="text-sm text-warm-gray">
+                    Removes all data, settings, and cache, then restarts the
+                    app.
+                  </p>
+                </div>
+                <button
+                  class="action-error disabled:!bg-warm-beige disabled:!border-warm-beige disabled:!text-warm-charcoal disabled:!shadow-none"
+                  onclick={handleResetApp}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Reset
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- About -->
-      <div class="glass-card card">
-        <div class="card-body space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="card-title text-xl text-warm-charcoal">About</h2>
-            <span class="section-label">Build</span>
-          </div>
-
-          <div class="space-y-3">
-            <div>
-              <p class="font-semibold text-warm-charcoal">Draw Stack</p>
-              <p class="text-sm text-warm-gray">
-                Version {APP_VERSION}
-              </p>
-              <p class="text-xs text-warm-gray">Auto-update test build 0.1.2</p>
-            </div>
-
-            <div class="divider"></div>
-
-            <button
-              onclick={handleCheckForUpdates}
-              class="action-primary w-full"
-            >
+      <div class="settings-card card">
+        <div class="card-body space-y-5">
+          <div class="settings-card__header">
+            <div class="settings-card__icon" aria-hidden="true">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-5 w-5"
@@ -983,52 +1452,79 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  d="M12 8c-1.657 0-3 1.343-3 3 0 1.306.835 2.417 2 2.83V17h2v-3.17A3.001 3.001 0 0012 8z"
                 />
               </svg>
-              Check for Updates
-            </button>
+            </div>
+            <div class="flex-1 space-y-1">
+              <div class="settings-chip">About</div>
+              <h2 class="card-title text-xl text-warm-charcoal">Draw Stack</h2>
+              <p class="settings-muted">
+                Reference manager and practice timer designed for artists.
+              </p>
+            </div>
+            <span class="settings-chip hidden sm:inline-flex">Build</span>
+          </div>
 
-            <div class="divider"></div>
+          <div class="settings-section space-y-4">
+            <div
+              class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+            >
+              <div>
+                <p class="font-semibold text-warm-charcoal">
+                  Version {APP_VERSION}
+                </p>
+                <p class="text-sm text-warm-gray">Stable release</p>
+              </div>
+              <button
+                onclick={handleCheckForUpdates}
+                class="action-primary gap-2"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                Check for Updates
+              </button>
+            </div>
 
-            <div>
+            <div class="settings-divider"></div>
+
+            <div class="space-y-2">
               <p class="text-sm text-warm-gray">
-                A practice timer and reference image manager for artists.
+                Built for focused study sessions: manage references, run timed
+                drills, and keep your library organized.
+              </p>
+              <p class="text-xs text-warm-gray">
+                Need help or want to share feedback? We’d love to hear from you.
               </p>
             </div>
 
-            <div class="divider"></div>
+            <div class="settings-divider"></div>
 
-            <div class="alert alert-info">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 shrink-0 stroke-current"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <div class="text-sm">
-                <p class="font-semibold mb-1">Beta Version</p>
-                <p>
-                  This is a beta release intended for testing purposes. Features
-                  may change and bugs may be present.
+            <div class="flex flex-wrap items-center gap-3">
+              <div>
+                <p class="text-sm text-warm-gray mb-1">Support / feedback</p>
+                <p class="text-sm font-mono select-all">
+                  darrenkelly196@gmail.com
                 </p>
               </div>
-            </div>
-
-            <div>
-              <p class="text-sm text-warm-gray mb-1">
-                Report issues or feedback:
-              </p>
-              <p class="text-sm font-mono select-all">
-                darrenkelly196@gmail.com
-              </p>
+              <div
+                class="settings-divider hidden sm:block w-px h-6 !my-0"
+              ></div>
+              <div class="text-sm text-warm-gray">
+                <span class="font-semibold text-warm-charcoal">Channel</span> · Stable
+              </div>
             </div>
           </div>
         </div>

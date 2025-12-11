@@ -15,6 +15,9 @@
     deleteImages,
     deleteTag,
     deleteTagsByCategory,
+    getSettings,
+    DEFAULT_SETTINGS,
+    type AppSettings,
     type Image,
     type Tag,
   } from "$lib/db";
@@ -41,6 +44,7 @@
   let debouncedSearchQuery = $state("");
   let searchDebounceTimer: number | undefined;
   let viewMode: "grid" | "list" = $state("grid");
+  let appSettings = $state<AppSettings>({ ...DEFAULT_SETTINGS });
   // Selection mode toggle removed; selection is implicit when any image is selected
   let selectedImages = $state<Set<string>>(new Set());
   let lastSelectedIndex = $state<number>(-1);
@@ -273,6 +277,15 @@
       return sortOrder === "newest" ? bTime - aTime : aTime - bTime;
     });
 
+    // Only apply search result limit when actively searching or filtering
+    const hasActiveSearchOrFilter =
+      debouncedSearchQuery.trim() || activeFilters.length > 0;
+    if (hasActiveSearchOrFilter) {
+      const limit =
+        appSettings.searchResultLimit ?? DEFAULT_SETTINGS.searchResultLimit;
+      return limit && limit > 0 ? sorted.slice(0, limit) : sorted;
+    }
+
     return sorted;
   });
 
@@ -335,6 +348,12 @@
   ];
 
   onMount(() => {
+    getSettings()
+      .then((settings) => {
+        appSettings = { ...DEFAULT_SETTINGS, ...settings } as AppSettings;
+      })
+      .catch((err) => console.error("Failed to load settings", err));
+
     loadLibraryImages();
     loadAllTags();
     loadRecentTags();

@@ -7,7 +7,12 @@
   let { children } = $props();
 
   import { onMount } from "svelte";
-  import { getLibraryImages, getSettings, updateSettings, DEFAULT_SETTINGS } from "$lib/db";
+  import {
+    getLibraryImages,
+    getSettings,
+    updateSettings,
+    DEFAULT_SETTINGS,
+  } from "$lib/db";
 
   let libraryCount = $state(0);
   let showOnboarding = $state(false);
@@ -32,7 +37,7 @@
   async function migrateSettingsToDatabase() {
     try {
       // Check if migration already done
-      const migrationKey = 'settings-migrated-to-db';
+      const migrationKey = "settings-migrated-to-db";
       if (localStorage.getItem(migrationKey)) {
         return; // Already migrated
       }
@@ -45,12 +50,12 @@
       // This is for future localStorage settings migration
       // Currently we don't have any localStorage settings to migrate
       // but this structure is ready for any future needs
-      
+
       // Mark migration as complete
-      localStorage.setItem(migrationKey, 'true');
-      console.log('Settings migration check complete');
+      localStorage.setItem(migrationKey, "true");
+      console.log("Settings migration check complete");
     } catch (error) {
-      console.error('Settings migration failed:', error);
+      console.error("Settings migration failed:", error);
       // Don't throw - migration failure shouldn't break the app
     }
   }
@@ -71,7 +76,7 @@
 
     // Check for updates on app startup (silent, only shows if update available)
     checkForUpdatesOnStartup();
-    
+
     // Migrate localStorage settings to database (one-time migration)
     migrateSettingsToDatabase();
 
