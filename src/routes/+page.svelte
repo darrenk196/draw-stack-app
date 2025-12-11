@@ -272,13 +272,8 @@
 
   let displayedLibraryImages = $derived.by(() => {
     if (itemsPerPage === "all") {
-      // For "all" mode, use progressive rendering to avoid freezing
-      if (
-        isProgressiveRendering &&
-        filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD
-      ) {
-        return filteredImages.slice(0, progressiveRenderLimit);
-      }
+      // For "all" mode with progressive rendering, show only up to the limit
+      // but don't slice - let Svelte's each loop handle the rendering
       return filteredImages;
     }
     const startIndex = (currentPage - 1) * itemsPerPage;

@@ -37,12 +37,20 @@
     buildTagPath,
     allTags,
   }: Props = $props();
+
+  // Only render images up to the progressive limit when loading all
+  let renderedImages = $derived.by(() => {
+    if (itemsPerPage === "all" && isProgressiveRendering) {
+      return images.slice(0, progressiveRenderLimit);
+    }
+    return images;
+  });
 </script>
 
 <!-- Image Grid/List -->
 {#if viewMode === "grid"}
   <div class="grid grid-cols-8 gap-2">
-    {#each images as image (image.id)}
+    {#each renderedImages as image (image.id)}
       {@const isSelected = selectedImages.has(image.id)}
       <button
         class="relative aspect-square bg-warm-beige rounded overflow-hidden cursor-pointer border-2 transition-colors"
@@ -97,7 +105,7 @@
 {:else}
   <!-- List View -->
   <div class="space-y-2">
-    {#each images as image (image.id)}
+    {#each renderedImages as image (image.id)}
       {@const isSelected = selectedImages.has(image.id)}
       {@const tags = allImageTags.get(image.id) || []}
       <button
