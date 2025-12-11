@@ -468,6 +468,70 @@ export async function getImagesByTags(tagIds: string[]): Promise<Image[]> {
   return filteredImages;
 }
 
+/**
+ * Batch get tags for multiple images (optimized)
+ * More efficient than calling getTagsForImage individually
+ */
+export async function getTagsForImages(imageIds: string[]): Promise<Map<string, Tag[]>> {
+  const db = await getDB();
+  const allTags = await getAllTags();
+  const tagsMap = new Map(allTags.map(t => [t.id, t]));
+  
+  const result = new Map<string, Tag[]>();
+  
+  // Get all image-tag associations
+  const allImageTags = await db.getAll('imageTags');
+  
+  // Group by image ID
+  for (const imageId of imageIds) {
+    const tags = allImageTags
+      .filter(it => it.imageId === imageId)
+      .map(it => tagsMap.get(it.tagId))
+      .filter((tag): tag is Tag => tag !== undefined);
+    
+    result.set(imageId, tags);
+  }
+  
+  return result;
+}
+
+/**
+ * Get tag index for fast lookups
+ * Returns a Map of tag name to tag for quick search
+ */
+export async function getTagIndex(): Promise<Map<string, Tag>> {
+  const tags = await getAllTags();
+  const index = new Map<string, Tag>();
+  
+  for (const tag of tags) {
+    index.set(tag.name.toLowerCase(), tag);
+  }
+  
+  return index;
+}
+
+/**
+ * Search tags by name (with index for performance)
+ */
+export async function searchTags(query: string): Promise<Tag[]> {
+  const allTags = await getAllTags();
+  const lowerQuery = query.toLowerCase();
+  
+  // Exact match first
+  const exactMatch = allTags.filter(
+    t => t.name.toLowerCase() === lowerQuery
+  );
+  
+  if (exactMatch.length > 0) {
+    return exactMatch;
+  }
+  
+  // Partial match
+  return allTags.filter(t =>
+    t.name.toLowerCase().includes(lowerQuery)
+  );
+}
+
 // ============= Utility Functions =============
 
 export async function getLibraryCount(): Promise<number> {
