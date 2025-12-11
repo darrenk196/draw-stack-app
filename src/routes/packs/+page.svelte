@@ -2511,8 +2511,7 @@
                             t.name === tagName && t.parentId === category.name
                         )}
                         {@const tagId = existingTag?.id}
-                        {#if tagId}
-                          {@const isSelected = tagId && selectedTags.has(tagId)}
+                        {@const isSelected = tagId && selectedTags.has(tagId)}
                           <div class="flex items-center gap-1">
                             <button
                               class="btn btn-sm rounded-full {isSelected
@@ -2565,7 +2564,6 @@
                               </svg>
                             </button>
                           </div>
-                        {/if}
                       {/each}
                       <!-- Dynamic tags from database for this category -->
                       {#each allTags.filter((t) => t.parentId === category.name && !category.tags.includes(t.name)) as tag}
@@ -2612,9 +2610,8 @@
               <!-- Custom Categories -->
               {#each Array.from(customCategories) as customCat}
                 {@const customTags = allTags.filter(
-                  (t) => t.parentId === customCat && tagsInUse.has(t.id)
+                  (t) => t.parentId === customCat
                 )}
-                {#if customTags.length > 0}
                   <div class="border border-warm-beige rounded-2xl bg-white">
                     <div class="flex items-center">
                       <button
@@ -2717,7 +2714,6 @@
                       </div>
                     {/if}
                   </div>
-                {/if}
               {/each}
             </div>
           </div>
