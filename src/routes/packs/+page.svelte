@@ -1086,9 +1086,11 @@
       toast.success(
         `Successfully added ${imageCount} images to library with tags!`
       );
-      
+
       // Announce to screen readers
-      announcer.announce(`Successfully added ${imageCount} image${imageCount !== 1 ? 's' : ''} to library`);
+      announcer.announce(
+        `Successfully added ${imageCount} image${imageCount !== 1 ? "s" : ""} to library`
+      );
     } catch (error) {
       console.error("Failed to apply tags:", error);
       announcer.announce("Failed to add images to library");
@@ -2338,7 +2340,12 @@
         class="flex items-center justify-between p-8 border-b border-warm-beige"
       >
         <div>
-          <h2 class="text-3xl font-bold text-warm-charcoal" id="add-to-library-title">Add to Library</h2>
+          <h2
+            class="text-3xl font-bold text-warm-charcoal"
+            id="add-to-library-title"
+          >
+            Add to Library
+          </h2>
           <p class="text-base text-warm-gray mt-2">
             Customize pack name and select tags for {imagesToAdd.length} image{imagesToAdd.length !==
             1

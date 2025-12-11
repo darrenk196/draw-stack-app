@@ -465,7 +465,7 @@
 
   async function loadAllImageTags() {
     try {
-      const imageIds = libraryImages.map(img => img.id);
+      const imageIds = libraryImages.map((img) => img.id);
       allImageTags = await getTagsForImages(imageIds);
     } catch (error) {
       console.error("Failed to load image tags:", error);
@@ -1066,9 +1066,11 @@
 
       // Reload image tags for filtering
       await loadAllImageTags();
-      
+
       // Announce to screen readers
-      announcer.announce(`Applied ${tagCount} tag${tagCount !== 1 ? 's' : ''} to ${imageCount} image${imageCount !== 1 ? 's' : ''}`);
+      announcer.announce(
+        `Applied ${tagCount} tag${tagCount !== 1 ? "s" : ""} to ${imageCount} image${imageCount !== 1 ? "s" : ""}`
+      );
     } catch (error) {
       console.error("Failed to apply bulk tags:", error);
       announcer.announce("Failed to apply tags");
@@ -1110,9 +1112,11 @@
       skipDeleteWarning = false;
       // Notify other components to update library count
       window.dispatchEvent(new CustomEvent("library-updated"));
-      
+
       // Announce to screen readers
-      announcer.announce(`Successfully deleted ${deleteCount} image${deleteCount !== 1 ? 's' : ''}`);
+      announcer.announce(
+        `Successfully deleted ${deleteCount} image${deleteCount !== 1 ? "s" : ""}`
+      );
     } catch (error) {
       console.error("Failed to delete images:", error);
       toast.error(
@@ -2556,7 +2560,10 @@
     aria-modal="true"
     aria-labelledby="delete-modal-title"
   >
-    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" use:focusTrap>
+    <div
+      class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
+      use:focusTrap
+    >
       <div class="flex items-start gap-4 mb-6">
         <div class="flex-shrink-0">
           <svg
@@ -2575,7 +2582,9 @@
           </svg>
         </div>
         <div class="flex-1">
-          <h3 class="text-lg font-bold mb-2" id="delete-modal-title">Delete Images</h3>
+          <h3 class="text-lg font-bold mb-2" id="delete-modal-title">
+            Delete Images
+          </h3>
           <p class="text-warm-charcoal">
             Delete {deleteCount} selected image{deleteCount !== 1 ? "s" : ""}?
             This cannot be undone.
@@ -2982,9 +2991,16 @@
 
 <!-- Delete Tag Confirmation Modal -->
 {#if deleteTagModal}
-  <div class="modal modal-open" role="dialog" aria-modal="true" aria-labelledby="delete-tag-modal-title">
+  <div
+    class="modal modal-open"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="delete-tag-modal-title"
+  >
     <div class="modal-box" use:focusTrap>
-      <h3 class="font-bold text-lg mb-4" id="delete-tag-modal-title">Delete Tag</h3>
+      <h3 class="font-bold text-lg mb-4" id="delete-tag-modal-title">
+        Delete Tag
+      </h3>
       <p class="py-4">
         Delete tag <strong>"{deleteTagModal.tagName}"</strong>?
         <br />
@@ -3026,7 +3042,12 @@
 
 <!-- Delete Category Confirmation Modal -->
 {#if deleteCategoryModal}
-  <div class="modal modal-open" role="dialog" aria-modal="true" aria-labelledby="delete-category-modal-title">
+  <div
+    class="modal modal-open"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="delete-category-modal-title"
+  >
     <div class="modal-box" use:focusTrap>
       <h3 class="font-bold text-lg mb-4" id="delete-category-modal-title">
         {deleteCategoryModal.isDefault ? "Hide" : "Delete"} Category
