@@ -291,7 +291,7 @@
     // Track only the dependencies that should trigger a reset
     const filterCount = activeFilters.length;
     const searchText = debouncedSearchQuery;
-    
+
     // Reset page
     currentPage = 1;
 
@@ -315,12 +315,13 @@
 
   // Start progressive loading with a specific request ID
   function startProgressiveLoad(requestId: number) {
-    if (!isProgressiveRendering || requestId !== progressiveLoadRequestId) return;
+    if (!isProgressiveRendering || requestId !== progressiveLoadRequestId)
+      return;
 
-    const loadMore = () => {
+    const scheduleNextChunk = () => {
       // Check if this load cycle is still valid
       if (requestId !== progressiveLoadRequestId) return;
-      
+
       if (progressiveRenderLimit >= filteredImages.length) {
         isProgressiveRendering = false;
         return;
@@ -333,18 +334,20 @@
       );
 
       // Continue loading if there are more images
-      if (progressiveRenderLimit < filteredImages.length && requestId === progressiveLoadRequestId) {
-        startProgressiveLoad(requestId);
+      if (
+        progressiveRenderLimit < filteredImages.length &&
+        requestId === progressiveLoadRequestId
+      ) {
+        // Schedule next chunk with a 16ms delay (roughly one frame at 60fps)
+        // This allows the browser to paint the current chunk before loading the next
+        setTimeout(scheduleNextChunk, 16);
       } else {
         isProgressiveRendering = false;
       }
     };
 
-    if ("requestIdleCallback" in window) {
-      requestIdleCallback(loadMore);
-    } else {
-      setTimeout(loadMore, 50);
-    }
+    // Start the first chunk load
+    setTimeout(scheduleNextChunk, 0);
   }
 
   let tagCategories = $state<Array<{ name: string; tags: string[] }>>(
