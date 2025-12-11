@@ -29,6 +29,8 @@
     DEFAULT_TAG_CATEGORIES,
     UI,
   } from "$lib/constants";
+  import ImageGrid from "$lib/components/ImageGrid.svelte";
+  import SearchAndFilter from "$lib/components/SearchAndFilter.svelte";
 
   // Initialize screen reader announcer
   const announcer = new ScreenReaderAnnouncer();
@@ -124,7 +126,10 @@
     categories: Array<{ name: string; tags: string[] }>
   ) {
     try {
-      localStorage.setItem(STORAGE_KEYS.TAG_CATEGORIES, JSON.stringify(categories));
+      localStorage.setItem(
+        STORAGE_KEYS.TAG_CATEGORIES,
+        JSON.stringify(categories)
+      );
     } catch (e) {
       console.warn("Failed to save tag categories", e);
     }
@@ -169,7 +174,8 @@
   let skipTagDeleteWarningPref = $state(loadTagDeleteWarningPreference());
 
   function loadItemsPerPage(): number | "all" {
-    if (typeof localStorage === "undefined") return PAGINATION.DEFAULT_ITEMS_PER_PAGE;
+    if (typeof localStorage === "undefined")
+      return PAGINATION.DEFAULT_ITEMS_PER_PAGE;
     const stored = localStorage.getItem(STORAGE_KEYS.PAGINATION);
     if (!stored) return PAGINATION.DEFAULT_ITEMS_PER_PAGE;
     if (stored === "all") return "all";
@@ -287,7 +293,10 @@
     currentPage = 1;
 
     // Reset progressive rendering when filters change
-    if (itemsPerPage === "all" && filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD) {
+    if (
+      itemsPerPage === "all" &&
+      filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD
+    ) {
       isProgressiveRendering = true;
       progressiveRenderLimit = PAGINATION.CHUNK_SIZE;
       // Load more images progressively
@@ -408,7 +417,10 @@
     }
 
     // Start progressive rendering if switching to "all" with many images
-    if (itemsPerPage === "all" && filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD) {
+    if (
+      itemsPerPage === "all" &&
+      filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD
+    ) {
       isProgressiveRendering = true;
       progressiveRenderLimit = PAGINATION.CHUNK_SIZE;
       scheduleProgressiveLoad();
@@ -1427,127 +1439,22 @@
       </div>
     </div>
 
-    <!-- Search Bar -->
-    <div class="relative mb-4">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        class="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-warm-gray"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-        />
-      </svg>
-      <input
-        type="text"
-        placeholder="Search by tags or filename..."
-        class="input input-bordered w-full pl-10"
-        bind:value={searchQuery}
-        oninput={handleSearchInput}
-        onfocus={handleSearchInput}
-        onkeydown={handleSearchKeydown}
-        onblur={() => setTimeout(() => (showSearchSuggestions = false), 200)}
-      />
-
-      {#if showSearchSuggestions && searchSuggestions.length > 0}
-        <div
-          class="absolute z-50 w-full mt-1 bg-white border border-warm-beige rounded-lg shadow-lg max-h-60 overflow-y-auto"
-        >
-          {#each searchSuggestions as tag, index}
-            <button
-              class="w-full px-4 py-2 text-left hover:bg-warm-beige/30 flex items-center gap-2 transition-colors"
-              class:bg-terracotta={index === selectedSuggestionIndex}
-              class:text-white={index === selectedSuggestionIndex}
-              onclick={() => selectSearchSuggestion(tag)}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-4 w-4"
-                class:opacity-50={index !== selectedSuggestionIndex}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                />
-              </svg>
-              <span class="text-sm">{buildTagPath(tag, allTags)}</span>
-            </button>
-          {/each}
-        </div>
-      {/if}
-    </div>
-
-    <!-- Active Filters -->
-    {#if activeFilters.length > 0}
-      <div class="flex items-center gap-2 mb-2">
-        <span class="text-sm text-warm-gray">Active Filters:</span>
-        <div class="flex gap-2 flex-wrap">
-          {#each activeFilters as filter}
-            <button
-              class="badge rounded-full bg-terracotta text-white border-none gap-2 cursor-pointer hover:bg-terracotta-dark text-sm font-medium h-auto min-h-0 px-4 py-2.5"
-              onclick={() => removeFilter(filter)}
-            >
-              {filter}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          {/each}
-          <button
-            class="badge rounded-full bg-warm-gray hover:bg-warm-charcoal text-white border-none cursor-pointer text-sm font-medium h-auto min-h-0 px-4 py-2.5"
-            onclick={clearAllFilters}
-          >
-            Clear All
-          </button>
-        </div>
-      </div>
-    {/if}
-
-    <!-- Quick Filters -->
-    <div class="flex items-center gap-2">
-      <span class="text-sm text-warm-gray">Recently Used:</span>
-      <div class="flex gap-2 flex-wrap">
-        {#if recentTags.length > 0}
-          {#each recentTags as tag}
-            {@const tagPath = buildTagPath(tag, allTags)}
-            <button
-              class="badge rounded-full bg-warm-beige hover:bg-terracotta hover:text-white border border-warm-beige text-warm-charcoal cursor-pointer transition-colors text-sm font-medium h-auto min-h-0 px-4 py-2.5"
-              class:bg-terracotta={activeFilters.includes(tagPath)}
-              class:text-white={activeFilters.includes(tagPath)}
-              onclick={() => addFilter(tagPath)}
-              disabled={activeFilters.includes(tagPath)}
-            >
-              {tagPath}
-            </button>
-          {/each}
-        {:else}
-          <span class="text-sm text-warm-gray italic"
-            >No recently used tags</span
-          >
-        {/if}
-      </div>
-    </div>
+    <SearchAndFilter
+      bind:searchQuery
+      bind:showSearchSuggestions
+      {activeFilters}
+      {recentTags}
+      {searchSuggestions}
+      {selectedSuggestionIndex}
+      onSearchInput={handleSearchInput}
+      onSearchKeydown={handleSearchKeydown}
+      onSuggestionSelect={selectSearchSuggestion}
+      onFilterAdd={addFilter}
+      onFilterRemove={removeFilter}
+      onClearAllFilters={clearAllFilters}
+      {buildTagPath}
+      {allTags}
+    />
   </header>
 
   <!-- Content Area -->
@@ -1653,190 +1560,23 @@
         </div>
       </div>
 
-      <!-- Image Grid/List -->
-      {#if viewMode === "grid"}
-        <div class="grid grid-cols-8 gap-2">
-          {#each displayedLibraryImages as image (image.id)}
-            {@const isSelected = selectedImages.has(image.id)}
-            <button
-              class="relative aspect-square bg-warm-beige rounded overflow-hidden cursor-pointer border-2 transition-colors"
-              class:border-warm-beige={!isSelected}
-              class:border-terracotta={isSelected}
-              onclick={(e) => {
-                // If there is an active selection or user holds Ctrl/Shift, treat click as selection
-                if (
-                  selectedImages.size > 0 ||
-                  (e instanceof MouseEvent && (e.ctrlKey || e.shiftKey))
-                ) {
-                  toggleImageSelectionEnhanced(image.id, e as MouseEvent);
-                } else {
-                  openImageViewer(image);
-                }
-              }}
-              oncontextmenu={(e) => {
-                e.preventDefault();
-                toggleImageSelectionEnhanced(image.id, e as MouseEvent);
-              }}
-            >
-              <img
-                src={convertFileSrc(image.fullPath)}
-                alt={image.filename}
-                class="w-full h-full object-contain transition-opacity duration-200"
-                loading="lazy"
-                decoding="async"
-                style="background: linear-gradient(135deg, rgb(var(--b3)) 0%, rgb(var(--b2)) 100%);"
-                onload={(e) =>
-                  ((e.currentTarget as HTMLImageElement).style.opacity = "1")}
-                style:opacity="0"
-              />
-              {#if isSelected}
-                <div class="absolute top-1 left-1 bg-primary rounded-full p-1">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-3 w-3 text-primary-content"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                </div>
-              {/if}
-            </button>
-          {/each}
-        </div>
-      {:else}
-        <!-- List View -->
-        <div class="space-y-2">
-          {#each displayedLibraryImages as image (image.id)}
-            {@const isSelected = selectedImages.has(image.id)}
-            {@const tags = allImageTags.get(image.id) || []}
-            <button
-              class="w-full flex items-center gap-4 p-3 bg-white rounded-lg hover:bg-warm-beige/30 border-2 transition-colors"
-              class:border-warm-beige={!isSelected}
-              class:border-terracotta={isSelected}
-              onclick={(e) => {
-                if (
-                  selectedImages.size > 0 ||
-                  (e instanceof MouseEvent && (e.ctrlKey || e.shiftKey))
-                ) {
-                  toggleImageSelectionEnhanced(image.id, e as MouseEvent);
-                } else {
-                  openImageViewer(image);
-                }
-              }}
-              oncontextmenu={(e) => {
-                e.preventDefault();
-                toggleImageSelectionEnhanced(image.id, e as MouseEvent);
-              }}
-            >
-              <div class="relative w-20 h-20 flex-shrink-0">
-                <img
-                  src={convertFileSrc(image.fullPath)}
-                  alt={image.filename}
-                  class="w-full h-full object-contain rounded transition-opacity duration-200"
-                  loading="lazy"
-                  decoding="async"
-                  style="background: linear-gradient(135deg, rgb(var(--b3)) 0%, rgb(var(--b2)) 100%);"
-                  onload={(e) =>
-                    ((e.currentTarget as HTMLImageElement).style.opacity = "1")}
-                  style:opacity="0"
-                />
-                {#if isSelected}
-                  <div
-                    class="absolute top-1 left-1 bg-primary rounded-full p-1"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-3 w-3 text-primary-content"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                {/if}
-              </div>
-              <div class="flex-1 text-left min-w-0">
-                <p class="font-medium text-warm-charcoal truncate">
-                  {image.filename}
-                </p>
-                {#if tags.length > 0}
-                  <div class="flex flex-wrap gap-1 mt-1">
-                    {#each tags as tag}
-                      <span class="badge badge-sm badge-ghost">
-                        {buildTagPath(tag, allTags)}
-                      </span>
-                    {/each}
-                  </div>
-                {:else}
-                  <p class="text-sm text-warm-gray">No tags</p>
-                {/if}
-              </div>
-            </button>
-          {/each}
-        </div>
-      {/if}
-
-      <!-- Pagination Navigation -->
-      {#if itemsPerPage !== "all" && filteredImages.length > 0}
-        <div
-          class="mt-6 pt-4 border-t border-warm-beige flex items-center justify-center gap-2"
-        >
-          <button
-            class="btn btn-sm"
-            disabled={currentPage === 1}
-            onclick={previousPage}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            Previous
-          </button>
-          <span class="text-sm text-warm-gray mx-4">
-            Page {currentPage} of {totalPages}
-          </span>
-          <button
-            class="btn btn-sm"
-            disabled={currentPage === totalPages}
-            onclick={nextPage}
-          >
-            Next
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </button>
-        </div>
-      {/if}
+      <ImageGrid
+        images={displayedLibraryImages}
+        {viewMode}
+        {selectedImages}
+        {allImageTags}
+        {currentPage}
+        {totalPages}
+        {itemsPerPage}
+        {isProgressiveRendering}
+        {progressiveRenderLimit}
+        onImageClick={openImageViewer}
+        onImageSelect={toggleImageSelectionEnhanced}
+        onNextPage={nextPage}
+        onPreviousPage={previousPage}
+        {buildTagPath}
+        {allTags}
+      />
     {/if}
   </div>
 </div>
@@ -3038,7 +2778,10 @@
                   if (showWarning) {
                     localStorage.removeItem(STORAGE_KEYS.TAG_DELETE_WARNING);
                   } else {
-                    localStorage.setItem(STORAGE_KEYS.TAG_DELETE_WARNING, "true");
+                    localStorage.setItem(
+                      STORAGE_KEYS.TAG_DELETE_WARNING,
+                      "true"
+                    );
                   }
                 }}
               />
