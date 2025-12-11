@@ -174,7 +174,11 @@
   <div
     class="mt-6 pt-4 border-t border-warm-beige flex items-center justify-center gap-2"
   >
-    <button class="btn btn-sm" disabled={currentPage === 1} onclick={onPreviousPage}>
+    <button
+      class="btn btn-sm"
+      disabled={currentPage === 1}
+      onclick={onPreviousPage}
+    >
       <svg
         xmlns="http://www.w3.org/2000/svg"
         class="h-4 w-4"

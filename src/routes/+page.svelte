@@ -272,7 +272,7 @@
   let displayedLibraryImages = $derived.by(() => {
     if (itemsPerPage === "all") {
       // For "all" mode, use progressive rendering to avoid freezing
-      if (isProgressiveRendering && filteredImages.length > 100) {
+      if (isProgressiveRendering && filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD) {
         return filteredImages.slice(0, progressiveRenderLimit);
       }
       return filteredImages;
@@ -284,8 +284,7 @@
 
   // Reset to page 1 when filters change
   $effect(() => {
-    // Track dependencies
-    void filteredImages.length;
+    // Track only the dependencies that should trigger a reset
     void activeFilters.length;
     void debouncedSearchQuery;
 
