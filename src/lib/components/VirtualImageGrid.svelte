@@ -43,7 +43,7 @@
   // Calculate visible range based on scroll position
   function updateVisibleRange() {
     if (!scrollContainer) return;
-    
+
     // Safety check: ensure we have valid dimensions
     if (images.length === 0 || containerHeight === 0) {
       visibleStart = 0;
@@ -70,7 +70,7 @@
     // Convert rows to item indices with safety bounds
     const newVisibleStart = Math.max(0, startRow * COLUMNS);
     const newVisibleEnd = Math.min(images.length, endRow * COLUMNS);
-    
+
     // Only update if values changed to reduce re-renders
     if (newVisibleStart !== visibleStart || newVisibleEnd !== visibleEnd) {
       visibleStart = newVisibleStart;
