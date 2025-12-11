@@ -73,6 +73,7 @@
   // Progressive rendering for large image sets
   let progressiveRenderLimit = $state<number>(PAGINATION.CHUNK_SIZE); // Start by showing first chunk
   let isProgressiveRendering = $state(false);
+  let progressiveLoadRequestId = 0; // Track current load cycle to prevent overlaps
 
   // Delete confirmation modals
   let deleteTagModal = $state<{
@@ -272,7 +273,10 @@
   let displayedLibraryImages = $derived.by(() => {
     if (itemsPerPage === "all") {
       // For "all" mode, use progressive rendering to avoid freezing
-      if (isProgressiveRendering && filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD) {
+      if (
+        isProgressiveRendering &&
+        filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD
+      ) {
         return filteredImages.slice(0, progressiveRenderLimit);
       }
       return filteredImages;
@@ -285,11 +289,14 @@
   // Reset to page 1 when filters change
   $effect(() => {
     // Track only the dependencies that should trigger a reset
-    void activeFilters.length;
-    void debouncedSearchQuery;
-
+    const filterCount = activeFilters.length;
+    const searchText = debouncedSearchQuery;
+    
     // Reset page
     currentPage = 1;
+
+    // Cancel any ongoing progressive load
+    progressiveLoadRequestId++;
 
     // Reset progressive rendering when filters change
     if (
@@ -298,19 +305,22 @@
     ) {
       isProgressiveRendering = true;
       progressiveRenderLimit = PAGINATION.CHUNK_SIZE;
-      // Load more images progressively
-      scheduleProgressiveLoad();
+      // Start progressive loading
+      const currentRequestId = progressiveLoadRequestId;
+      startProgressiveLoad(currentRequestId);
     } else {
       isProgressiveRendering = false;
     }
   });
 
-  // Schedule progressive loading of remaining images
-  function scheduleProgressiveLoad() {
-    if (!isProgressiveRendering) return;
+  // Start progressive loading with a specific request ID
+  function startProgressiveLoad(requestId: number) {
+    if (!isProgressiveRendering || requestId !== progressiveLoadRequestId) return;
 
-    // Use requestIdleCallback for better performance, fallback to setTimeout
     const loadMore = () => {
+      // Check if this load cycle is still valid
+      if (requestId !== progressiveLoadRequestId) return;
+      
       if (progressiveRenderLimit >= filteredImages.length) {
         isProgressiveRendering = false;
         return;
@@ -323,8 +333,8 @@
       );
 
       // Continue loading if there are more images
-      if (progressiveRenderLimit < filteredImages.length) {
-        scheduleProgressiveLoad();
+      if (progressiveRenderLimit < filteredImages.length && requestId === progressiveLoadRequestId) {
+        startProgressiveLoad(requestId);
       } else {
         isProgressiveRendering = false;
       }
@@ -415,6 +425,9 @@
       localStorage.setItem(STORAGE_KEYS.PAGINATION, String(itemsPerPage));
     }
 
+    // Cancel any ongoing progressive load
+    progressiveLoadRequestId++;
+
     // Start progressive rendering if switching to "all" with many images
     if (
       itemsPerPage === "all" &&
@@ -422,7 +435,8 @@
     ) {
       isProgressiveRendering = true;
       progressiveRenderLimit = PAGINATION.CHUNK_SIZE;
-      scheduleProgressiveLoad();
+      const currentRequestId = progressiveLoadRequestId;
+      startProgressiveLoad(currentRequestId);
     } else {
       isProgressiveRendering = false;
     }
