@@ -124,7 +124,7 @@ button {
 
   /* Primary pill actions */
   .action-primary {
-    @apply btn btn-primary rounded-full shadow-md shadow-[0_10px_30px_rgba(181,137,108,0.22)] border-none px-5;
+    @apply btn btn-primary rounded-full shadow-[0_10px_30px_rgba(181,137,108,0.22)] border-none px-5;
   }
 
   /* Secondary subtle actions */

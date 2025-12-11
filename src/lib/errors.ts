@@ -44,6 +44,7 @@ export const ERROR_MESSAGES = {
   IMPORT_PARSE_ERROR: 'Failed to parse backup file',
   IMPORT_READ_ERROR: 'Failed to read backup file',
   IMPORT_PARTIAL_SUCCESS: 'Import completed with errors - some items could not be imported',
+  IMPORT_FAILED: 'Failed to import library',
   EXPORT_FAILED: 'Failed to export library',
 
   // Image operations

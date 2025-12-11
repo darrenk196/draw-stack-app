@@ -2511,8 +2511,7 @@
                             t.name === tagName && t.parentId === category.name
                         )}
                         {@const tagId = existingTag?.id}
-                        {@const isInUse = tagId && tagsInUse.has(tagId)}
-                        {#if isInUse}
+                        {#if tagId}
                           {@const isSelected = tagId && selectedTags.has(tagId)}
                           <div class="flex items-center gap-1">
                             <button
@@ -2879,7 +2878,7 @@
                   class="relative aspect-square bg-warm-beige/20 rounded-lg overflow-hidden mb-2 w-full"
                 >
                   <img
-                    src={convertFileSrc(image.fullPath)}
+                    src={convertFileSrc(image.originalPath)}
                     alt={image.filename}
                     class="w-full h-full object-contain"
                   />

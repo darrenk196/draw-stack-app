@@ -107,24 +107,21 @@ export async function batchAsync<T, R>(
   concurrency: number = 5
 ): Promise<R[]> {
   const results: R[] = [];
-  const executing: Promise<R>[] = [];
+  const executing: Promise<void>[] = [];
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const promise = Promise.resolve().then(() => handler(item));
+  for (const item of items) {
+    const promise = handler(item).then(result => {
+      results.push(result);
+    });
 
     executing.push(promise);
 
     if (executing.length >= concurrency) {
       await Promise.race(executing);
       // Remove completed promises
-      executing.splice(
-        executing.findIndex(p => p === (await promise)),
-        1
-      );
+      const completed = await Promise.race(executing.map((p, idx) => p.then(() => idx)));
+      executing.splice(completed, 1);
     }
-
-    promise.then(result => results.push(result));
   }
 
   await Promise.all(executing);
