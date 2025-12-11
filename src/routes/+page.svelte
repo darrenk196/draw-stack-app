@@ -61,6 +61,10 @@
   let bulkOperationProgress = $state({ current: 0, total: 0, label: "" });
   let showProgress = $state(false);
 
+  // Progressive rendering for large image sets
+  let progressiveRenderLimit = $state(100); // Start by showing first 100
+  let isProgressiveRendering = $state(false);
+
   // Delete confirmation modals
   let deleteTagModal = $state<{
     tagId: string;
@@ -262,6 +266,10 @@
 
   let displayedLibraryImages = $derived.by(() => {
     if (itemsPerPage === "all") {
+      // For "all" mode, use progressive rendering to avoid freezing
+      if (isProgressiveRendering && filteredImages.length > 100) {
+        return filteredImages.slice(0, progressiveRenderLimit);
+      }
       return filteredImages;
     }
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -278,7 +286,49 @@
 
     // Reset page
     currentPage = 1;
+    
+    // Reset progressive rendering when filters change
+    if (itemsPerPage === "all" && filteredImages.length > 100) {
+      isProgressiveRendering = true;
+      progressiveRenderLimit = 100;
+      // Load more images progressively
+      scheduleProgressiveLoad();
+    } else {
+      isProgressiveRendering = false;
+    }
   });
+
+  // Schedule progressive loading of remaining images
+  function scheduleProgressiveLoad() {
+    if (!isProgressiveRendering) return;
+    
+    // Use requestIdleCallback for better performance, fallback to setTimeout
+    const loadMore = () => {
+      if (progressiveRenderLimit >= filteredImages.length) {
+        isProgressiveRendering = false;
+        return;
+      }
+      
+      // Load 100 more images at a time
+      progressiveRenderLimit = Math.min(
+        progressiveRenderLimit + 100,
+        filteredImages.length
+      );
+      
+      // Continue loading if there are more images
+      if (progressiveRenderLimit < filteredImages.length) {
+        scheduleProgressiveLoad();
+      } else {
+        isProgressiveRendering = false;
+      }
+    };
+    
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(loadMore);
+    } else {
+      setTimeout(loadMore, 50);
+    }
+  }
 
   // Predefined tag categories with subcategories
   const defaultTagCategories = [
@@ -447,6 +497,15 @@
     // Save to localStorage
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(PAGINATION_STORAGE_KEY, String(itemsPerPage));
+    }
+    
+    // Start progressive rendering if switching to "all" with many images
+    if (itemsPerPage === "all" && filteredImages.length > 100) {
+      isProgressiveRendering = true;
+      progressiveRenderLimit = 100;
+      scheduleProgressiveLoad();
+    } else {
+      isProgressiveRendering = false;
     }
   }
 
@@ -1669,7 +1728,14 @@
         </div>
         <div class="text-sm text-warm-gray">
           {#if itemsPerPage === "all"}
-            Showing all {filteredImages.length} images
+            {#if isProgressiveRendering}
+              <div class="flex items-center gap-2">
+                <span>Loading {progressiveRenderLimit} of {filteredImages.length} images...</span>
+                <span class="loading loading-spinner loading-xs"></span>
+              </div>
+            {:else}
+              Showing all {filteredImages.length} images
+            {/if}
           {:else}
             Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(
               currentPage * itemsPerPage,
