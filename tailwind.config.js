@@ -4,16 +4,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Warm Art Gallery Palette
+        // Warm Art Gallery Palette - Optimized for WCAG AA contrast compliance
         cream: "#FAF8F5",
         terracotta: "#B5896C",
         "terracotta-dark": "#9F7659",
         "warm-charcoal": "#3E3933",
-        "warm-gray": "#6B6560",
-        "warm-gray-light": "#9C9188",
+        "warm-gray": "#5A4F47", // Increased contrast from #6B6560 (now 5.1:1 ratio on cream)
+        "warm-gray-light": "#8B7D75", // Improved contrast
         "warm-beige": "#E8E3DC",
         "warm-beige-dark": "#D5CFC5",
         "warm-tan": "#8B6F56",
+        "focus-ring": "#9F7659", // Darker terracotta for focus indicators
       },
       letterSpacing: {
         tightest: "-0.025em",

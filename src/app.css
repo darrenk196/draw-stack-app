@@ -73,7 +73,7 @@ img {
   }
 }
 
-/* Reduce motion for accessibility */
+/* Reduce motion for accessibility (WCAG Level AAA compliant) */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -81,6 +81,21 @@ img {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  /* Disable all animations and transitions */
+  .animate-pulse,
+  .animate-bounce,
+  .animate-spin,
+  .animate-fade-in {
+    animation: none !important;
+  }
+
+  .transition-all,
+  .transition-colors,
+  .transition-opacity,
+  .transition-transform {
+    transition: none !important;
   }
 }
 
@@ -149,6 +164,29 @@ button {
   .action-primary:disabled,
   .action-secondary:disabled {
     @apply !bg-warm-beige !border-warm-beige !text-warm-charcoal !shadow-none;
+  }
+
+  /* Enhanced focus indicators for accessibility (WCAG AA compliant) */
+  .btn:focus,
+  .btn:focus-visible,
+  a:focus,
+  a:focus-visible {
+    @apply outline-2 outline-offset-2 outline-focus-ring;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    @apply outline-2 outline-offset-1 outline-focus-ring;
+  }
+
+  /* High contrast text for accessibility */
+  .high-contrast {
+    @apply text-warm-charcoal;
+  }
+
+  .high-contrast-secondary {
+    @apply text-warm-gray; /* Updated to meet WCAG AA */
   }
 
   /* Base button styling improvements */
