@@ -215,14 +215,28 @@
   let filteredImages = $derived.by(() => {
     let images = libraryImages;
 
-    // Apply filters and search
+    // Only apply filtering if there are actual filters or search queries
+    // This is an optimization: when loading all with no filters, skip the expensive filter operation
     if (debouncedSearchQuery.trim() || activeFilters.length > 0) {
-      images = libraryImages.filter((image) => {
+      // Pre-build image tag paths once to avoid recalculating inside filter loop
+      const imageTagPathsMap = new Map<string, string[]>();
+      const imageTagNamesMap = new Map<string, string[]>();
+
+      for (const image of libraryImages) {
         const imageTags = allImageTags.get(image.id) || [];
-        const imageTagPaths = imageTags.map((tag) =>
-          buildTagPath(tag, allTags).toLowerCase()
+        imageTagPathsMap.set(
+          image.id,
+          imageTags.map((tag) => buildTagPath(tag, allTags).toLowerCase())
         );
-        const imageTagNames = imageTags.map((tag) => tag.name.toLowerCase());
+        imageTagNamesMap.set(
+          image.id,
+          imageTags.map((tag) => tag.name.toLowerCase())
+        );
+      }
+
+      images = libraryImages.filter((image) => {
+        const imageTagPaths = imageTagPathsMap.get(image.id) || [];
+        const imageTagNames = imageTagNamesMap.get(image.id) || [];
 
         // Check if image matches all active filters (AND logic)
         const matchesFilters = activeFilters.every((filter) => {
@@ -272,8 +286,8 @@
 
   let displayedLibraryImages = $derived.by(() => {
     if (itemsPerPage === "all") {
-      // For "all" mode with progressive rendering, show only up to the limit
-      // but don't slice - let Svelte's each loop handle the rendering
+      // Load all images at once - Svelte's virtual scrolling and
+      // lazy loading of images handles the rendering efficiently
       return filteredImages;
     }
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -289,23 +303,6 @@
 
     // Reset page
     currentPage = 1;
-
-    // Cancel any ongoing progressive load
-    progressiveLoadRequestId++;
-
-    // Reset progressive rendering when filters change
-    if (
-      itemsPerPage === "all" &&
-      filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD
-    ) {
-      isProgressiveRendering = true;
-      progressiveRenderLimit = PAGINATION.CHUNK_SIZE;
-      // Start progressive loading
-      const currentRequestId = progressiveLoadRequestId;
-      startProgressiveLoad(currentRequestId);
-    } else {
-      isProgressiveRendering = false;
-    }
   });
 
   // Start progressive loading with a specific request ID
@@ -333,9 +330,15 @@
         progressiveRenderLimit < filteredImages.length &&
         requestId === progressiveLoadRequestId
       ) {
-        // Schedule next chunk with a 50ms delay to give browser time to render
-        // This allows DOM painting, event processing, and stays responsive
-        setTimeout(scheduleNextChunk, 50);
+        // Use requestIdleCallback for true non-blocking rendering
+        // Falls back to setTimeout(0) if not supported
+        // This ensures we only update when the browser is actually idle
+        if ("requestIdleCallback" in window) {
+          requestIdleCallback(scheduleNextChunk, { timeout: 100 });
+        } else {
+          // Timeout of 100ms ensures we don't wait too long on unsupported browsers
+          setTimeout(scheduleNextChunk, 16);
+        }
       } else {
         isProgressiveRendering = false;
       }
@@ -421,22 +424,6 @@
     // Save to localStorage
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(STORAGE_KEYS.PAGINATION, String(itemsPerPage));
-    }
-
-    // Cancel any ongoing progressive load
-    progressiveLoadRequestId++;
-
-    // Start progressive rendering if switching to "all" with many images
-    if (
-      itemsPerPage === "all" &&
-      filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD
-    ) {
-      isProgressiveRendering = true;
-      progressiveRenderLimit = PAGINATION.CHUNK_SIZE;
-      const currentRequestId = progressiveLoadRequestId;
-      startProgressiveLoad(currentRequestId);
-    } else {
-      isProgressiveRendering = false;
     }
   }
 
@@ -1552,16 +1539,7 @@
         </div>
         <div class="text-sm text-warm-gray">
           {#if itemsPerPage === "all"}
-            {#if isProgressiveRendering}
-              <div class="flex items-center gap-2">
-                <span
-                  >Loading {progressiveRenderLimit} of {filteredImages.length} images...</span
-                >
-                <span class="loading loading-spinner loading-xs"></span>
-              </div>
-            {:else}
-              Showing all {filteredImages.length} images
-            {/if}
+            Showing all {filteredImages.length} images
           {:else}
             Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(
               currentPage * itemsPerPage,
@@ -1579,8 +1557,6 @@
         {currentPage}
         {totalPages}
         {itemsPerPage}
-        {isProgressiveRendering}
-        {progressiveRenderLimit}
         onImageClick={openImageViewer}
         onImageSelect={toggleImageSelectionEnhanced}
         onNextPage={nextPage}

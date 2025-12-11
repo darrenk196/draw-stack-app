@@ -18,8 +18,8 @@ export const STORAGE_KEYS = {
 // ========== Pagination Settings ==========
 export const PAGINATION = {
   DEFAULT_ITEMS_PER_PAGE: 50,
-  PROGRESSIVE_THRESHOLD: 100, // Start progressive rendering above this count
-  CHUNK_SIZE: 50, // Load this many images per chunk (reduced for smoother rendering)
+  PROGRESSIVE_THRESHOLD: 150, // Start progressive rendering above this count
+  CHUNK_SIZE: 60, // Load this many images per chunk - balanced for 100ms delay
   OPTIONS: [
     { value: 10, label: '10' },
     { value: 20, label: '20' },
