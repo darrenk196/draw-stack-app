@@ -297,16 +297,18 @@
   }
 </script>
 
-<div class="h-full overflow-auto bg-cream">
-  <div class="max-w-4xl mx-auto p-8">
-    <div class="mb-8 flex items-center gap-3">
+<div
+  class="h-full overflow-auto bg-gradient-to-b from-cream via-white to-warm-beige/30"
+>
+  <div class="max-w-4xl mx-auto p-8 space-y-6">
+    <div class="mb-4 flex items-center gap-3">
       <div class="flex-1">
         <h1 class="text-3xl font-bold text-warm-charcoal mb-2">Settings</h1>
         <p class="text-warm-gray">Configure your Draw Stack preferences</p>
       </div>
       <div class="tooltip tooltip-left" data-tip="Settings help">
         <button
-          class="btn btn-circle btn-ghost text-warm-gray hover:bg-warm-beige/30"
+          class="btn btn-circle action-ghost text-warm-gray"
           aria-label="Help"
         >
           <svg
@@ -333,8 +335,8 @@
       </div>
     {:else}
       <!-- Library Location -->
-      <div class="card bg-white border border-warm-beige rounded-2xl mb-6">
-        <div class="card-body">
+      <div class="glass-card card mb-6">
+        <div class="card-body space-y-4">
           <h2 class="card-title text-xl text-warm-charcoal mb-4">
             Library Location
           </h2>
@@ -347,14 +349,11 @@
               <input
                 id="library-path-input"
                 type="text"
-                class="input input-bordered flex-1"
+                class="input-soft flex-1"
                 value={libraryPath}
                 readonly
               />
-              <button
-                class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-6 py-3"
-                onclick={browseLibraryPath}
-              >
+              <button class="action-primary gap-2" onclick={browseLibraryPath}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   class="h-5 w-5"
@@ -380,20 +379,20 @@
             </div>
           </div>
 
-          <button class="btn btn-ghost btn-sm" onclick={resetToDefault}>
+          <button class="action-secondary btn-sm" onclick={resetToDefault}>
             Reset to Default Location
           </button>
         </div>
       </div>
 
       <!-- Library Statistics -->
-      <div class="card bg-white border border-warm-beige rounded-2xl mb-6">
-        <div class="card-body">
+      <div class="glass-card card mb-6">
+        <div class="card-body space-y-4">
           <h2 class="card-title text-xl text-warm-charcoal mb-4">
             Library Statistics
           </h2>
 
-          <div class="stats shadow bg-warm-beige border border-warm-beige">
+          <div class="stat-card p-4 grid grid-cols-2 gap-4">
             <div class="stat">
               <div class="stat-title text-warm-gray">Total Images</div>
               <div class="stat-value text-terracotta">{imageCount}</div>
@@ -408,12 +407,15 @@
       </div>
 
       <!-- Library Management -->
-      <div class="card bg-white border border-warm-beige rounded-2xl mb-6">
-        <div class="card-body">
-          <h2 class="card-title text-xl mb-4">Library Management</h2>
+      <div class="glass-card card mb-6">
+        <div class="card-body space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="card-title text-xl">Library Management</h2>
+            <span class="section-label">Library</span>
+          </div>
 
           <div class="flex flex-col gap-3">
-            <button class="btn btn-outline gap-2" onclick={exportLibrary}>
+            <button class="action-secondary gap-2" onclick={exportLibrary}>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-5 w-5"
@@ -431,7 +433,7 @@
               Export Library Backup
             </button>
 
-            <button class="btn btn-outline gap-2" onclick={importLibrary}>
+            <button class="action-secondary gap-2" onclick={importLibrary}>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-5 w-5"
@@ -450,7 +452,7 @@
             </button>
 
             <button
-              class="btn btn-outline gap-2"
+              class="action-secondary gap-2"
               onclick={restoreDefaultCategories}
             >
               <svg
@@ -470,7 +472,7 @@
               Restore Default Categories
             </button>
 
-            <button class="btn btn-outline gap-2" onclick={replayOnboarding}>
+            <button class="action-secondary gap-2" onclick={replayOnboarding}>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-5 w-5"
@@ -490,7 +492,9 @@
 
             <div class="divider"></div>
 
-            <div class="alert alert-warning">
+            <div
+              class="alert bg-warm-beige/60 border border-warm-beige text-warm-charcoal"
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-6 w-6 shrink-0 stroke-current"
@@ -511,7 +515,7 @@
             </div>
 
             <button
-              class="btn btn-error gap-2"
+              class="action-error disabled:!bg-warm-beige disabled:!border-warm-beige disabled:!text-warm-charcoal disabled:!shadow-none"
               onclick={clearLibrary}
               disabled={imageCount === 0}
             >
@@ -543,7 +547,10 @@
               Reset the entire app including all data, settings, and cache. Use
               this for a fresh start or to troubleshoot issues.
             </p>
-            <button class="btn btn-error text-white" onclick={handleResetApp}>
+            <button
+              class="action-error disabled:!bg-warm-beige disabled:!border-warm-beige disabled:!text-warm-charcoal disabled:!shadow-none"
+              onclick={handleResetApp}
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-5 w-5"
@@ -565,9 +572,12 @@
       </div>
 
       <!-- About -->
-      <div class="card bg-white border border-warm-beige rounded-2xl">
-        <div class="card-body">
-          <h2 class="card-title text-xl text-warm-charcoal mb-4">About</h2>
+      <div class="glass-card card">
+        <div class="card-body space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="card-title text-xl text-warm-charcoal">About</h2>
+            <span class="section-label">Build</span>
+          </div>
 
           <div class="space-y-3">
             <div>
@@ -582,7 +592,7 @@
 
             <button
               onclick={handleCheckForUpdates}
-              class="btn btn-primary w-full"
+              class="action-primary w-full"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"

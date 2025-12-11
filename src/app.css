@@ -97,6 +97,60 @@ button {
 
 /* Button and Tag Text Handling */
 @layer components {
+  /* Elevated card styling for warm, soft surfaces */
+  .glass-card {
+    @apply bg-white/90 border border-warm-beige shadow-[0_18px_50px_rgba(62,57,51,0.08)] rounded-2xl backdrop-blur;
+  }
+
+  /* Soft input styling aligned to palette */
+  .input-soft {
+    @apply w-full rounded-xl bg-white/80 border border-warm-beige text-warm-charcoal placeholder:text-warm-gray focus:outline-none focus:border-terracotta focus:ring-2 focus:ring-terracotta/30 transition-shadow shadow-sm px-4 py-3;
+  }
+
+  /* Primary pill actions */
+  .action-primary {
+    @apply btn btn-primary rounded-full shadow-md shadow-[0_10px_30px_rgba(181,137,108,0.22)] border-none px-5;
+  }
+
+  /* Secondary subtle actions */
+  .action-secondary {
+    @apply btn rounded-full border border-warm-beige text-warm-charcoal bg-white/80 hover:bg-warm-beige/60 hover:border-warm-beige-dark px-4 shadow-sm;
+  }
+
+  /* Ghost actions with outline for less emphasis */
+  .action-ghost {
+    @apply btn btn-ghost rounded-full text-warm-gray hover:bg-warm-beige/40 px-4;
+  }
+
+  /* Error/danger actions with high contrast */
+  .action-error {
+    @apply btn rounded-full bg-red-600 hover:bg-red-700 text-white border-none shadow-md px-5 gap-2;
+  }
+
+  /* Section label chip */
+  .section-label {
+    @apply inline-flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-warm-gray-light bg-warm-beige/60 px-3 py-1 rounded-full;
+  }
+
+  /* Stat blocks styling */
+  .stat-card {
+    @apply bg-gradient-to-r from-warm-beige/70 to-white border border-warm-beige shadow-[0_14px_38px_rgba(62,57,51,0.08)] rounded-2xl;
+  }
+
+  /* Accessible disabled states (force palette + readable text) */
+  .btn:disabled,
+  .btn[disabled],
+  .btn.btn-disabled {
+    @apply !bg-warm-beige !border-warm-beige !text-warm-charcoal !opacity-100 !cursor-not-allowed !shadow-none;
+  }
+
+  .btn-error:disabled,
+  .btn-error.btn-disabled,
+  .action-primary:disabled,
+  .action-secondary:disabled {
+    @apply !bg-warm-beige !border-warm-beige !text-warm-charcoal !shadow-none;
+  }
+
   /* Base button styling improvements */
   .btn {
     @apply overflow-hidden;
