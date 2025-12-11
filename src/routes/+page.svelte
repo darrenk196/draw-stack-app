@@ -22,6 +22,13 @@
   import { toast } from "$lib/toast";
   import { focusTrap } from "$lib/focusTrap";
   import { ScreenReaderAnnouncer } from "$lib/accessibility";
+  import {
+    STORAGE_KEYS,
+    PAGINATION,
+    TAG_SYSTEM,
+    DEFAULT_TAG_CATEGORIES,
+    UI,
+  } from "$lib/constants";
 
   // Initialize screen reader announcer
   const announcer = new ScreenReaderAnnouncer();
@@ -62,7 +69,7 @@
   let showProgress = $state(false);
 
   // Progressive rendering for large image sets
-  let progressiveRenderLimit = $state(100); // Start by showing first 100
+  let progressiveRenderLimit = $state<number>(PAGINATION.CHUNK_SIZE); // Start by showing first chunk
   let isProgressiveRendering = $state(false);
 
   // Delete confirmation modals
@@ -78,10 +85,9 @@
   } | null>(null);
 
   // Custom categories persistence
-  const CUSTOM_CATEGORIES_KEY = "customCategories";
   function loadCustomCategories(): Set<string> {
     try {
-      const raw = localStorage.getItem(CUSTOM_CATEGORIES_KEY);
+      const raw = localStorage.getItem(STORAGE_KEYS.CUSTOM_CATEGORIES);
       if (!raw) return new Set();
       const arr = JSON.parse(raw);
       return new Set(Array.isArray(arr) ? arr : []);
@@ -93,7 +99,7 @@
   function saveCustomCategories(set: Set<string>) {
     try {
       localStorage.setItem(
-        CUSTOM_CATEGORIES_KEY,
+        STORAGE_KEYS.CUSTOM_CATEGORIES,
         JSON.stringify(Array.from(set))
       );
     } catch (e) {
@@ -103,10 +109,9 @@
   let customCategories = $state<Set<string>>(loadCustomCategories());
 
   // Tag categories persistence
-  const TAG_CATEGORIES_KEY = "tagCategories";
   function loadTagCategories() {
     try {
-      const raw = localStorage.getItem(TAG_CATEGORIES_KEY);
+      const raw = localStorage.getItem(STORAGE_KEYS.TAG_CATEGORIES);
       if (!raw) return null;
       const arr = JSON.parse(raw);
       return Array.isArray(arr) ? arr : null;
@@ -119,17 +124,16 @@
     categories: Array<{ name: string; tags: string[] }>
   ) {
     try {
-      localStorage.setItem(TAG_CATEGORIES_KEY, JSON.stringify(categories));
+      localStorage.setItem(STORAGE_KEYS.TAG_CATEGORIES, JSON.stringify(categories));
     } catch (e) {
       console.warn("Failed to save tag categories", e);
     }
   }
 
   // Hidden categories persistence
-  const HIDDEN_CATEGORIES_KEY = "hiddenCategories";
   function loadHiddenCategories(): Set<string> {
     try {
-      const raw = localStorage.getItem(HIDDEN_CATEGORIES_KEY);
+      const raw = localStorage.getItem(STORAGE_KEYS.HIDDEN_CATEGORIES);
       if (!raw) return new Set();
       const arr = JSON.parse(raw);
       return new Set(Array.isArray(arr) ? arr : []);
@@ -141,7 +145,7 @@
   function saveHiddenCategories(set: Set<string>) {
     try {
       localStorage.setItem(
-        HIDDEN_CATEGORIES_KEY,
+        STORAGE_KEYS.HIDDEN_CATEGORIES,
         JSON.stringify(Array.from(set))
       );
     } catch (e) {
@@ -151,48 +155,43 @@
   let hiddenCategories = $state<Set<string>>(loadHiddenCategories());
 
   // Pagination state
-  const PAGINATION_STORAGE_KEY = "library-items-per-page";
-  const DELETE_WARNING_KEY = "library-skip-delete-warning";
-  const TAG_DELETE_WARNING_KEY = "library-skip-tag-delete-warning";
-
   function loadDeleteWarningPreference(): boolean {
     if (typeof localStorage === "undefined") return false;
-    return localStorage.getItem(DELETE_WARNING_KEY) === "true";
+    return localStorage.getItem(STORAGE_KEYS.DELETE_WARNING) === "true";
   }
 
   function loadTagDeleteWarningPreference(): boolean {
     if (typeof localStorage === "undefined") return false;
-    return localStorage.getItem(TAG_DELETE_WARNING_KEY) === "true";
+    return localStorage.getItem(STORAGE_KEYS.TAG_DELETE_WARNING) === "true";
   }
 
   let skipDeleteWarningPref = $state(loadDeleteWarningPreference());
   let skipTagDeleteWarningPref = $state(loadTagDeleteWarningPreference());
 
   function loadItemsPerPage(): number | "all" {
-    if (typeof localStorage === "undefined") return 50;
-    const stored = localStorage.getItem(PAGINATION_STORAGE_KEY);
-    if (!stored) return 50;
+    if (typeof localStorage === "undefined") return PAGINATION.DEFAULT_ITEMS_PER_PAGE;
+    const stored = localStorage.getItem(STORAGE_KEYS.PAGINATION);
+    if (!stored) return PAGINATION.DEFAULT_ITEMS_PER_PAGE;
     if (stored === "all") return "all";
     const parsed = parseInt(stored);
-    return isNaN(parsed) ? 50 : parsed;
+    return isNaN(parsed) ? PAGINATION.DEFAULT_ITEMS_PER_PAGE : parsed;
   }
 
   let itemsPerPage = $state<number | "all">(loadItemsPerPage());
   let currentPage = $state(1);
 
   // Sort state
-  const SORT_ORDER_KEY = "library-sort-order";
   type SortOrder = "newest" | "oldest";
 
   function loadSortOrder(): SortOrder {
     if (typeof localStorage === "undefined") return "newest";
-    const stored = localStorage.getItem(SORT_ORDER_KEY);
+    const stored = localStorage.getItem(STORAGE_KEYS.SORT_ORDER);
     return (stored === "oldest" ? "oldest" : "newest") as SortOrder;
   }
 
   function saveSortOrder(order: SortOrder) {
     if (typeof localStorage === "undefined") return;
-    localStorage.setItem(SORT_ORDER_KEY, order);
+    localStorage.setItem(STORAGE_KEYS.SORT_ORDER, order);
   }
 
   let sortOrder = $state<SortOrder>(loadSortOrder());
@@ -202,7 +201,7 @@
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => {
       debouncedSearchQuery = searchQuery;
-    }, 150) as unknown as number;
+    }, UI.DEBOUNCE_MS) as unknown as number;
   });
 
   // Filtered images based on search query and active filters
@@ -288,9 +287,9 @@
     currentPage = 1;
 
     // Reset progressive rendering when filters change
-    if (itemsPerPage === "all" && filteredImages.length > 100) {
+    if (itemsPerPage === "all" && filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD) {
       isProgressiveRendering = true;
-      progressiveRenderLimit = 100;
+      progressiveRenderLimit = PAGINATION.CHUNK_SIZE;
       // Load more images progressively
       scheduleProgressiveLoad();
     } else {
@@ -309,9 +308,9 @@
         return;
       }
 
-      // Load 100 more images at a time
+      // Load more images at a time
       progressiveRenderLimit = Math.min(
-        progressiveRenderLimit + 100,
+        progressiveRenderLimit + PAGINATION.CHUNK_SIZE,
         filteredImages.length
       );
 
@@ -330,99 +329,8 @@
     }
   }
 
-  // Predefined tag categories with subcategories
-  const defaultTagCategories = [
-    {
-      name: "Gender",
-      tags: ["Male", "Female"],
-    },
-    {
-      name: "Pose",
-      tags: [
-        "Standing",
-        "Sitting",
-        "Walking",
-        "Running",
-        "Lying",
-        "Kneeling",
-        "Action",
-        "Crouching",
-        "Jumping",
-      ],
-    },
-    {
-      name: "View Angle",
-      tags: [
-        "Front View",
-        "Side View",
-        "Back View",
-        "3/4 View",
-        "Top View",
-        "Bottom View",
-      ],
-    },
-    {
-      name: "Art Style",
-      tags: ["Realistic", "Anime", "Cartoon", "Abstract", "Sketch"],
-    },
-    {
-      name: "Character Type",
-      tags: ["Human", "Animal", "Fantasy", "Robot", "Monster"],
-    },
-    {
-      name: "Clothing",
-      tags: [
-        "Casual",
-        "Formal",
-        "Athletic",
-        "Swimwear",
-        "Armor",
-        "Robes",
-        "Uniform",
-        "Traditional",
-      ],
-    },
-    {
-      name: "Body Parts",
-      tags: [
-        "Hands",
-        "Feet",
-        "Face",
-        "Torso",
-        "Arms",
-        "Legs",
-        "Head",
-        "Full Body",
-      ],
-    },
-    {
-      name: "Lighting",
-      tags: [
-        "Bright",
-        "Dark",
-        "Backlit",
-        "Natural",
-        "Dramatic",
-        "Soft",
-        "Studio",
-      ],
-    },
-    {
-      name: "Environment",
-      tags: [
-        "Indoor",
-        "Outdoor",
-        "Nature",
-        "Urban",
-        "Studio",
-        "Fantasy Setting",
-        "Abstract BG",
-      ],
-    },
-  ];
-
   let tagCategories = $state<Array<{ name: string; tags: string[] }>>(
-    loadTagCategories() || defaultTagCategories
+    loadTagCategories() || DEFAULT_TAG_CATEGORIES
   );
 
   // Quick tag presets for bulk operations
@@ -496,13 +404,13 @@
     currentPage = 1;
     // Save to localStorage
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem(PAGINATION_STORAGE_KEY, String(itemsPerPage));
+      localStorage.setItem(STORAGE_KEYS.PAGINATION, String(itemsPerPage));
     }
 
     // Start progressive rendering if switching to "all" with many images
-    if (itemsPerPage === "all" && filteredImages.length > 100) {
+    if (itemsPerPage === "all" && filteredImages.length > PAGINATION.PROGRESSIVE_THRESHOLD) {
       isProgressiveRendering = true;
-      progressiveRenderLimit = 100;
+      progressiveRenderLimit = PAGINATION.CHUNK_SIZE;
       scheduleProgressiveLoad();
     } else {
       isProgressiveRendering = false;
@@ -574,7 +482,7 @@
           !activeFilters.includes(tagPath)
         );
       })
-      .slice(0, 10); // Show max 10 suggestions
+      .slice(0, TAG_SYSTEM.MAX_RECENT_TAGS); // Show max suggestions
 
     searchSuggestions = matches;
     showSearchSuggestions = matches.length > 0;
@@ -1189,7 +1097,7 @@
 
     // Save preference if checkbox was checked
     if (skipDeleteWarning) {
-      localStorage.setItem(DELETE_WARNING_KEY, "true");
+      localStorage.setItem(STORAGE_KEYS.DELETE_WARNING, "true");
       skipDeleteWarningPref = true;
     }
 
@@ -1719,11 +1627,9 @@
             bind:value={itemsPerPage}
             onchange={handleItemsPerPageChange}
           >
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-            <option value="all">All</option>
+            {#each PAGINATION.OPTIONS as option}
+              <option value={option.value}>{option.label}</option>
+            {/each}
           </select>
         </div>
         <div class="text-sm text-warm-gray">
@@ -3109,9 +3015,9 @@
                   const showWarning = e.currentTarget.checked;
                   skipDeleteWarningPref = !showWarning;
                   if (showWarning) {
-                    localStorage.removeItem(DELETE_WARNING_KEY);
+                    localStorage.removeItem(STORAGE_KEYS.DELETE_WARNING);
                   } else {
-                    localStorage.setItem(DELETE_WARNING_KEY, "true");
+                    localStorage.setItem(STORAGE_KEYS.DELETE_WARNING, "true");
                   }
                 }}
               />
@@ -3130,9 +3036,9 @@
                   const showWarning = e.currentTarget.checked;
                   skipTagDeleteWarningPref = !showWarning;
                   if (showWarning) {
-                    localStorage.removeItem(TAG_DELETE_WARNING_KEY);
+                    localStorage.removeItem(STORAGE_KEYS.TAG_DELETE_WARNING);
                   } else {
-                    localStorage.setItem(TAG_DELETE_WARNING_KEY, "true");
+                    localStorage.setItem(STORAGE_KEYS.TAG_DELETE_WARNING, "true");
                   }
                 }}
               />
@@ -3197,9 +3103,9 @@
               const skip = e.currentTarget.checked;
               skipTagDeleteWarningPref = skip;
               if (skip) {
-                localStorage.setItem(TAG_DELETE_WARNING_KEY, "true");
+                localStorage.setItem(STORAGE_KEYS.TAG_DELETE_WARNING, "true");
               } else {
-                localStorage.removeItem(TAG_DELETE_WARNING_KEY);
+                localStorage.removeItem(STORAGE_KEYS.TAG_DELETE_WARNING);
               }
             }}
           />
@@ -3257,9 +3163,9 @@
               const skip = e.currentTarget.checked;
               skipTagDeleteWarningPref = skip;
               if (skip) {
-                localStorage.setItem(TAG_DELETE_WARNING_KEY, "true");
+                localStorage.setItem(STORAGE_KEYS.TAG_DELETE_WARNING, "true");
               } else {
-                localStorage.removeItem(TAG_DELETE_WARNING_KEY);
+                localStorage.removeItem(STORAGE_KEYS.TAG_DELETE_WARNING);
               }
             }}
           />
