@@ -333,15 +333,15 @@
         progressiveRenderLimit < filteredImages.length &&
         requestId === progressiveLoadRequestId
       ) {
-        // Schedule next chunk with a 16ms delay (roughly one frame at 60fps)
-        // This allows the browser to paint the current chunk before loading the next
-        setTimeout(scheduleNextChunk, 16);
+        // Schedule next chunk with a 50ms delay to give browser time to render
+        // This allows DOM painting, event processing, and stays responsive
+        setTimeout(scheduleNextChunk, 50);
       } else {
         isProgressiveRendering = false;
       }
     };
 
-    // Start the first chunk load
+    // Start the first chunk load immediately
     setTimeout(scheduleNextChunk, 0);
   }
 
