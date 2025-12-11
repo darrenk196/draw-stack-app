@@ -217,10 +217,8 @@
         // Check if image matches all active filters (AND logic)
         const matchesFilters = activeFilters.every((filter) => {
           const filterLower = filter.toLowerCase();
-          return (
-            imageTagPaths.some((path) => path.includes(filterLower)) ||
-            imageTagNames.some((name) => name.includes(filterLower))
-          );
+          // Use exact match for tag paths to avoid partial matches (e.g., "Male" matching "Female")
+          return imageTagPaths.some((path) => path === filterLower);
         });
 
         if (!matchesFilters) {
@@ -236,7 +234,7 @@
             return true;
           }
 
-          // Check if any tag matches
+          // Check if any tag matches (partial match is OK for search)
           return (
             imageTagPaths.some((path) => path.includes(query)) ||
             imageTagNames.some((name) => name.includes(query))
@@ -1148,7 +1146,7 @@
       // Delete images one by one to track progress
       let successCount = 0;
       let failCount = 0;
-      
+
       for (let i = 0; i < imagesToDelete.length; i++) {
         try {
           await deleteImages([imagesToDelete[i]]);
@@ -1168,7 +1166,7 @@
       selectedImages = new Set();
       lastSelectedIndex = -1;
       skipDeleteWarning = false;
-      
+
       // Notify other components to update library count
       window.dispatchEvent(new CustomEvent("library-updated"));
 
@@ -1181,7 +1179,9 @@
           `Deleted ${successCount} images, ${failCount} failed`
         );
       } else {
-        toast.success(`Successfully deleted ${deleteCount} image${deleteCount !== 1 ? "s" : ""}`);
+        toast.success(
+          `Successfully deleted ${deleteCount} image${deleteCount !== 1 ? "s" : ""}`
+        );
         announcer.announce(
           `Successfully deleted ${deleteCount} image${deleteCount !== 1 ? "s" : ""}`
         );
@@ -2638,17 +2638,18 @@
           Processing {bulkOperationProgress.current} of {bulkOperationProgress.total}
         </p>
       </div>
-      
+
       <!-- Progress Bar -->
       <div class="w-full bg-warm-beige/30 rounded-full h-3 overflow-hidden">
         <div
           class="bg-terracotta h-full transition-all duration-300 rounded-full"
           style="width: {bulkOperationProgress.total > 0
-            ? (bulkOperationProgress.current / bulkOperationProgress.total) * 100
+            ? (bulkOperationProgress.current / bulkOperationProgress.total) *
+              100
             : 0}%"
         ></div>
       </div>
-      
+
       <div class="mt-3 text-right text-sm text-warm-gray">
         {Math.round(
           (bulkOperationProgress.current / bulkOperationProgress.total) * 100
@@ -2692,9 +2693,13 @@
             Delete {deleteCount} Image{deleteCount !== 1 ? "s" : ""}?
           </h3>
           <div class="bg-error/10 border border-error/20 rounded-lg p-3 mb-4">
-            <p class="text-sm font-semibold text-error mb-1">⚠️ Permanent Action</p>
+            <p class="text-sm font-semibold text-error mb-1">
+              ⚠️ Permanent Action
+            </p>
             <p class="text-sm text-warm-charcoal">
-              This will permanently delete the selected image{deleteCount !== 1 ? "s" : ""} from your library. This action cannot be undone.
+              This will permanently delete the selected image{deleteCount !== 1
+                ? "s"
+                : ""} from your library. This action cannot be undone.
             </p>
           </div>
           <div class="form-control mt-4">

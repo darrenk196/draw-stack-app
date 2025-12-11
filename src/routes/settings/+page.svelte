@@ -298,7 +298,7 @@
       showImportProgress = true;
       const totalItems = importData.tags.length + importData.images.length;
       let processedItems = 0;
-      
+
       let tagsImported = 0;
       let tagsFailed = 0;
       const tagErrors: string[] = [];
@@ -341,7 +341,7 @@
         ...importProgress,
         label: "Importing images",
       };
-      
+
       const validImages: Image[] = [];
       const imageErrors: string[] = [];
 
@@ -828,7 +828,7 @@
           Processing {importProgress.current} of {importProgress.total}
         </p>
       </div>
-      
+
       <!-- Progress Bar -->
       <div class="w-full bg-warm-beige/30 rounded-full h-3 overflow-hidden">
         <div
@@ -838,11 +838,10 @@
             : 0}%"
         ></div>
       </div>
-      
+
       <div class="mt-3 text-right text-sm text-warm-gray">
-        {Math.round(
-          (importProgress.current / importProgress.total) * 100
-        )}% complete
+        {Math.round((importProgress.current / importProgress.total) * 100)}%
+        complete
       </div>
     </div>
   </div>
