@@ -209,7 +209,8 @@
           });
           toast.success(SUCCESS_MESSAGES.LIBRARY_EXPORTED);
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
           console.error("Failed to write export file:", error);
           toast.error(`${ERROR_MESSAGES.FILE_WRITE_FAILED}: ${errorMsg}`);
         }
@@ -263,7 +264,7 @@
       if (!validation.isValid) {
         const errorDetails = validation.errors
           .slice(0, 3)
-          .map(e => `${e.field}: ${e.message}`)
+          .map((e) => `${e.field}: ${e.message}`)
           .join("; ");
         console.error("Validation errors:", validation.errors);
         toast.error(
@@ -299,7 +300,9 @@
           const tagValidation = validateTag(tag);
           if (!tagValidation.isValid) {
             tagsFailed++;
-            tagErrors.push(`Tag "${tag.name}": ${tagValidation.getErrorMessage()}`);
+            tagErrors.push(
+              `Tag "${tag.name}": ${tagValidation.getErrorMessage()}`
+            );
             continue;
           }
           await addTag(tag as Tag);
@@ -311,9 +314,7 @@
             // Tag might already exist, count as duplicate
             tagsImported++;
           } else {
-            tagErrors.push(
-              `Tag "${tag.name}": ${errorMsg}`
-            );
+            tagErrors.push(`Tag "${tag.name}": ${errorMsg}`);
           }
           console.warn("Failed to import tag:", tag.name, err);
         }
@@ -326,7 +327,9 @@
       for (const img of importData.images) {
         const imgValidation = validateImage(img);
         if (!imgValidation.isValid) {
-          imageErrors.push(`Image "${img.filename}": ${imgValidation.getErrorMessage()}`);
+          imageErrors.push(
+            `Image "${img.filename}": ${imgValidation.getErrorMessage()}`
+          );
           continue;
         }
         validImages.push(img as Image);
@@ -340,15 +343,16 @@
           const result = await addImages(validImages);
           imagesImported = result.success + result.duplicates;
           imagesFailed = result.failed;
-          
+
           // Add any errors from transaction to our list
           if (result.errors.length > 0) {
-            result.errors.forEach(err => {
+            result.errors.forEach((err) => {
               imageErrors.push(`Image ${err.itemId}: ${err.error}`);
             });
           }
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
           console.error("Failed to import images:", error);
           toast.error(`${ERROR_MESSAGES.IMPORT_PARTIAL_SUCCESS}\n${errorMsg}`);
           imagesFailed = validImages.length;
@@ -366,7 +370,8 @@
         );
       } else {
         const details = [];
-        if (imagesImported > 0) details.push(`${imagesImported} images imported`);
+        if (imagesImported > 0)
+          details.push(`${imagesImported} images imported`);
         if (tagsImported > 0) details.push(`${tagsImported} tags imported`);
         if (imagesFailed > 0) details.push(`${imagesFailed} images failed`);
         if (tagsFailed > 0) details.push(`${tagsFailed} tags failed`);
