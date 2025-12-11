@@ -177,31 +177,58 @@ export async function addImage(image: Image): Promise<void> {
   await db.add('images', image);
 }
 
-export async function addImages(images: Image[]): Promise<void> {
-  const db = await getDB();
-  const tx = db.transaction('images', 'readwrite');
-  
-  console.log('addImages: Starting transaction for', images.length, 'images');
-  console.log('addImages: Sample image data:', images[0]);
-  
-  // Use Promise.all with tx.done to ensure all operations complete
-  await Promise.all([
-    ...images.map(img => 
-      tx.store.add(img).then(() => {
-        console.log('addImages: Successfully added image:', img.id);
-      }).catch((err: any) => {
-        if (err.name === 'ConstraintError') {
-          console.warn('Duplicate image skipped:', img.id);
-        } else {
-          console.error('Error adding image:', img.id, err);
-          throw err;
-        }
-      })
-    ),
-    tx.done
-  ]);
-  
-  console.log(`addImages: Transaction completed for ${images.length} images`);
+export interface TransactionResult {
+  success: number;
+  failed: number;
+  duplicates: number;
+  errors: Array<{ itemId: string; error: string }>;
+}
+
+export async function addImages(images: Image[]): Promise<TransactionResult> {
+  const result: TransactionResult = {
+    success: 0,
+    failed: 0,
+    duplicates: 0,
+    errors: [],
+  };
+
+  try {
+    const db = await getDB();
+    const tx = db.transaction('images', 'readwrite');
+    
+    console.log('addImages: Starting transaction for', images.length, 'images');
+    
+    // Process each image with proper error handling
+    const promises = images.map(img => 
+      tx.store.add(img)
+        .then(() => {
+          result.success++;
+          console.log('addImages: Successfully added image:', img.id);
+        })
+        .catch((err: any) => {
+          if (err.name === 'ConstraintError') {
+            result.duplicates++;
+            console.warn('Duplicate image skipped:', img.id);
+          } else {
+            result.failed++;
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            result.errors.push({ itemId: img.id, error: errorMsg });
+            console.error('Error adding image:', img.id, err);
+          }
+        })
+    );
+
+    // Wait for all operations and transaction to complete
+    await Promise.all([...promises, tx.done]);
+    
+    console.log(`addImages: Transaction completed - Success: ${result.success}, Failed: ${result.failed}, Duplicates: ${result.duplicates}`);
+    return result;
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('addImages: Transaction failed:', error);
+    result.errors.push({ itemId: 'batch', error: errorMsg });
+    throw new Error(`Transaction failed: ${errorMsg}`);
+  }
 }
 
 export async function getImage(id: string): Promise<Image | undefined> {
@@ -246,36 +273,66 @@ export async function deleteImage(id: string): Promise<void> {
 }
 
 // Bulk delete images and their tag associations (and decrement usage counts)
-export async function deleteImages(imageIds: string[]): Promise<void> {
-  const db = await getDB();
-  const tx = db.transaction(['images', 'imageTags', 'tagUsage'], 'readwrite');
-  const imagesStore = tx.objectStore('images');
-  const imageTagsStore = tx.objectStore('imageTags');
-  const tagUsageStore = tx.objectStore('tagUsage');
+export async function deleteImages(imageIds: string[]): Promise<TransactionResult> {
+  const result: TransactionResult = {
+    success: 0,
+    failed: 0,
+    duplicates: 0,
+    errors: [],
+  };
 
-  for (const imageId of imageIds) {
-    // Get all tag associations for this image
-    const associatedTags: ImageTag[] = await imageTagsStore.index('by-image').getAll(imageId);
-    for (const it of associatedTags) {
-      // Remove image-tag association
-      await imageTagsStore.delete([it.imageId, it.tagId]);
-      // Decrement usage count if present
-      const usage = await tagUsageStore.get(it.tagId);
-      if (usage) {
-        const newCount = Math.max(usage.usageCount - 1, 0);
-        if (newCount === 0) {
-          await tagUsageStore.delete(it.tagId);
-        } else {
-          await tagUsageStore.put({ tagId: it.tagId, lastUsed: usage.lastUsed, usageCount: newCount });
+  try {
+    const db = await getDB();
+    const tx = db.transaction(['images', 'imageTags', 'tagUsage'], 'readwrite');
+    const imagesStore = tx.objectStore('images');
+    const imageTagsStore = tx.objectStore('imageTags');
+    const tagUsageStore = tx.objectStore('tagUsage');
+
+    for (const imageId of imageIds) {
+      try {
+        // Get all tag associations for this image
+        const associatedTags: ImageTag[] = await imageTagsStore.index('by-image').getAll(imageId);
+        for (const it of associatedTags) {
+          try {
+            // Remove image-tag association
+            await imageTagsStore.delete([it.imageId, it.tagId]);
+            // Decrement usage count if present
+            const usage = await tagUsageStore.get(it.tagId);
+            if (usage) {
+              const newCount = Math.max(usage.usageCount - 1, 0);
+              if (newCount === 0) {
+                await tagUsageStore.delete(it.tagId);
+              } else {
+                await tagUsageStore.put({ tagId: it.tagId, lastUsed: usage.lastUsed, usageCount: newCount });
+              }
+            }
+          } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            console.warn(`Failed to update tag usage for ${it.tagId}:`, err);
+            result.errors.push({ itemId: it.tagId, error: `Tag usage update: ${errorMsg}` });
+          }
         }
+        // Delete the image itself
+        await imagesStore.delete(imageId);
+        result.success++;
+        console.log('Deleted image:', imageId);
+      } catch (err) {
+        result.failed++;
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        result.errors.push({ itemId: imageId, error: errorMsg });
+        console.error('Error deleting image:', imageId, err);
       }
     }
-    // Delete the image itself
-    await imagesStore.delete(imageId);
-  }
 
-  await tx.done;
-  console.log('Deleted images:', imageIds.length);
+    await tx.done;
+    console.log(`Deleted images: Success: ${result.success}, Failed: ${result.failed}`);
+    return result;
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('deleteImages: Transaction failed:', error);
+    result.errors.push({ itemId: 'batch', error: errorMsg });
+    throw new Error(`Delete transaction failed: ${errorMsg}`);
+  }
 }
 
 // ============= Tag Operations =============

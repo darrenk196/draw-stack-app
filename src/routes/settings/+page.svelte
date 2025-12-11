@@ -12,6 +12,13 @@
     type Image,
     type Tag,
   } from "$lib/db";
+  import {
+    ERROR_MESSAGES,
+    SUCCESS_MESSAGES,
+    validateBackupData,
+    validateImage,
+    validateTag,
+  } from "$lib/errors";
   import { onMount } from "svelte";
   import { checkForUpdates } from "$lib/updater";
 
@@ -44,8 +51,9 @@
       libraryPath = await invoke<string>("get_library_path");
       defaultLibraryPath = await invoke<string>("get_default_library_path");
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Failed to load settings:", error);
-      toast.error("Failed to load settings");
+      toast.error(`${ERROR_MESSAGES.SETTINGS_LOAD_FAILED}: ${errorMsg}`);
     }
   }
 
@@ -56,7 +64,9 @@
       imageCount = images.length;
       tagCount = tags.length;
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Failed to load stats:", error);
+      toast.error(`${ERROR_MESSAGES.DB_QUERY_FAILED}: ${errorMsg}`);
     }
   }
 
@@ -71,10 +81,11 @@
       try {
         await invoke("set_library_path", { path: selected });
         libraryPath = selected;
-        toast.success("Library path updated");
+        toast.success(SUCCESS_MESSAGES.LIBRARY_PATH_UPDATED);
       } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
         console.error("Failed to set library path:", error);
-        toast.error(`Failed to set library path: ${error}`);
+        toast.error(`${ERROR_MESSAGES.SETTINGS_SAVE_FAILED}: ${errorMsg}`);
       }
     }
   }
@@ -91,10 +102,11 @@
     try {
       await invoke("set_library_path", { path: defaultLibraryPath });
       libraryPath = defaultLibraryPath;
-      toast.success("Library path reset to default");
+      toast.success(SUCCESS_MESSAGES.LIBRARY_PATH_UPDATED);
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Failed to reset library path:", error);
-      toast.error("Failed to reset library path");
+      toast.error(`${ERROR_MESSAGES.SETTINGS_SAVE_FAILED}: ${errorMsg}`);
     }
   }
 
@@ -111,7 +123,7 @@
       'Type "DELETE" to confirm clearing your entire library:'
     );
     if (confirmation !== "DELETE") {
-      toast.info("Library clear cancelled");
+      toast.info(ERROR_MESSAGES.OPERATION_CANCELLED);
       return;
     }
 
@@ -119,10 +131,11 @@
       await clearAllData();
       await loadStats();
       window.dispatchEvent(new CustomEvent("library-updated"));
-      toast.success("Library cleared successfully");
+      toast.success(SUCCESS_MESSAGES.LIBRARY_CLEARED);
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Failed to clear library:", error);
-      toast.error("Failed to clear library");
+      toast.error(`${ERROR_MESSAGES.DB_DELETE_FAILED}: ${errorMsg}`);
     }
   }
 
@@ -139,19 +152,20 @@
       'Type "RESET" to confirm resetting the entire app:'
     );
     if (confirmation !== "RESET") {
-      toast.info("App reset cancelled");
+      toast.info(ERROR_MESSAGES.OPERATION_CANCELLED);
       return;
     }
 
     try {
       await resetDatabase();
-      toast.success("App reset successfully. Reloading...");
+      toast.success(SUCCESS_MESSAGES.APP_RESET);
       setTimeout(() => {
         window.location.reload();
       }, 1000);
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Failed to reset app:", error);
-      toast.error("Failed to reset app");
+      toast.error(`${ERROR_MESSAGES.DB_DELETE_FAILED}: ${errorMsg}`);
     }
   }
 
@@ -159,8 +173,9 @@
     try {
       await checkForUpdates(false);
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Update check failed:", error);
-      toast.error("Failed to check for updates");
+      toast.error(`Failed to check for updates: ${errorMsg}`);
     }
   }
 
@@ -187,15 +202,22 @@
       });
 
       if (filePath) {
-        await invoke("write_file", {
-          path: filePath,
-          contents: JSON.stringify(exportData, null, 2),
-        });
-        toast.success("Library exported successfully");
+        try {
+          await invoke("write_file", {
+            path: filePath,
+            contents: JSON.stringify(exportData, null, 2),
+          });
+          toast.success(SUCCESS_MESSAGES.LIBRARY_EXPORTED);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error("Failed to write export file:", error);
+          toast.error(`${ERROR_MESSAGES.FILE_WRITE_FAILED}: ${errorMsg}`);
+        }
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Failed to export library:", error);
-      toast.error("Failed to export library");
+      toast.error(`${ERROR_MESSAGES.EXPORT_FAILED}: ${errorMsg}`);
     }
   }
 
@@ -213,55 +235,158 @@
     if (!filePath || typeof filePath !== "string") return;
 
     try {
-      // Read the file using Tauri
-      const contents = await invoke<string>("read_file_contents", {
-        path: filePath,
-      });
-
-      const importData = JSON.parse(contents);
-
-      // Validate the data structure
-      if (!importData.images || !importData.tags) {
-        toast.error("Invalid backup file format. Missing images or tags data.");
+      // Step 1: Read the file
+      let contents: string;
+      try {
+        contents = await invoke<string>("read_file_contents", {
+          path: filePath,
+        });
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error("Failed to read file:", error);
+        toast.error(`${ERROR_MESSAGES.FILE_READ_FAILED}: ${errorMsg}`);
         return;
       }
 
-      // Confirm with user
+      // Step 2: Parse the file
+      let importData: any;
+      try {
+        importData = JSON.parse(contents);
+      } catch (error) {
+        console.error("Failed to parse JSON:", error);
+        toast.error(ERROR_MESSAGES.IMPORT_PARSE_ERROR);
+        return;
+      }
+
+      // Step 3: Validate the data structure
+      const validation = validateBackupData(importData);
+      if (!validation.isValid) {
+        const errorDetails = validation.errors
+          .slice(0, 3)
+          .map(e => `${e.field}: ${e.message}`)
+          .join("; ");
+        console.error("Validation errors:", validation.errors);
+        toast.error(
+          `${ERROR_MESSAGES.IMPORT_INVALID_FORMAT}\n${errorDetails}${validation.errors.length > 3 ? `... and ${validation.errors.length - 3} more` : ""}`
+        );
+        return;
+      }
+
+      // Step 4: Confirm with user (with actual count)
+      const imageCount = Array.isArray(importData.images)
+        ? importData.images.length
+        : 0;
+      const tagCount = Array.isArray(importData.tags)
+        ? importData.tags.length
+        : 0;
+
       const confirm = window.confirm(
-        `Import ${importData.images.length} images and ${importData.tags.length} tags?\n\nThis will add to your existing library. To replace your library completely, clear it first.`
+        `Import ${imageCount} images and ${tagCount} tags?\n\nThis will add to your existing library. To replace your library completely, clear it first.`
       );
 
-      if (!confirm) return;
+      if (!confirm) {
+        toast.info(ERROR_MESSAGES.OPERATION_CANCELLED);
+        return;
+      }
 
-      // Import tags first
+      // Step 5: Import tags with error handling
+      let tagsImported = 0;
+      let tagsFailed = 0;
+      const tagErrors: string[] = [];
+
       for (const tag of importData.tags) {
         try {
+          const tagValidation = validateTag(tag);
+          if (!tagValidation.isValid) {
+            tagsFailed++;
+            tagErrors.push(`Tag "${tag.name}": ${tagValidation.getErrorMessage()}`);
+            continue;
+          }
           await addTag(tag as Tag);
+          tagsImported++;
         } catch (err) {
-          // Tag might already exist, continue
+          tagsFailed++;
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          if (errorMsg.includes("ConstraintError")) {
+            // Tag might already exist, count as duplicate
+            tagsImported++;
+          } else {
+            tagErrors.push(
+              `Tag "${tag.name}": ${errorMsg}`
+            );
+          }
           console.warn("Failed to import tag:", tag.name, err);
         }
       }
 
-      // Import images
-      const validImages = importData.images.filter(
-        (img: any) => img.id && img.filename && img.fullPath
-      );
+      // Step 6: Import images with error handling and validation
+      const validImages: Image[] = [];
+      const imageErrors: string[] = [];
 
-      if (validImages.length > 0) {
-        await addImages(validImages as Image[]);
+      for (const img of importData.images) {
+        const imgValidation = validateImage(img);
+        if (!imgValidation.isValid) {
+          imageErrors.push(`Image "${img.filename}": ${imgValidation.getErrorMessage()}`);
+          continue;
+        }
+        validImages.push(img as Image);
       }
 
+      let imagesImported = 0;
+      let imagesFailed = 0;
+
+      if (validImages.length > 0) {
+        try {
+          const result = await addImages(validImages);
+          imagesImported = result.success + result.duplicates;
+          imagesFailed = result.failed;
+          
+          // Add any errors from transaction to our list
+          if (result.errors.length > 0) {
+            result.errors.forEach(err => {
+              imageErrors.push(`Image ${err.itemId}: ${err.error}`);
+            });
+          }
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error("Failed to import images:", error);
+          toast.error(`${ERROR_MESSAGES.IMPORT_PARTIAL_SUCCESS}\n${errorMsg}`);
+          imagesFailed = validImages.length;
+        }
+      }
+
+      // Step 7: Reload stats and notify user
       await loadStats();
       window.dispatchEvent(new CustomEvent("library-updated"));
-      toast.success(
-        `Successfully imported ${validImages.length} images and ${importData.tags.length} tags!`
-      );
+
+      // Provide detailed feedback
+      if (imagesFailed === 0 && tagsFailed === 0) {
+        toast.success(
+          `${SUCCESS_MESSAGES.LIBRARY_IMPORTED}\n${imagesImported} images and ${tagsImported} tags added`
+        );
+      } else {
+        const details = [];
+        if (imagesImported > 0) details.push(`${imagesImported} images imported`);
+        if (tagsImported > 0) details.push(`${tagsImported} tags imported`);
+        if (imagesFailed > 0) details.push(`${imagesFailed} images failed`);
+        if (tagsFailed > 0) details.push(`${tagsFailed} tags failed`);
+
+        const message =
+          imagesFailed > 0 || tagsFailed > 0
+            ? `${ERROR_MESSAGES.IMPORT_PARTIAL_SUCCESS}\n${details.join(", ")}`
+            : `${SUCCESS_MESSAGES.LIBRARY_IMPORTED}\n${details.join(", ")}`;
+
+        toast.success(message);
+
+        // Log errors for debugging
+        if (imageErrors.length > 0 || tagErrors.length > 0) {
+          console.warn("Import errors:", { imageErrors, tagErrors });
+        }
+      }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Failed to import library:", error);
-      toast.error(
-        "Failed to import library. Please check the file format and try again."
-      );
+      toast.error(`${ERROR_MESSAGES.IMPORT_FAILED}\n${errorMsg}`);
     }
   }
 
