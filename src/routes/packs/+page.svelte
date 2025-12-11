@@ -2512,58 +2512,58 @@
                         )}
                         {@const tagId = existingTag?.id}
                         {@const isSelected = tagId && selectedTags.has(tagId)}
-                          <div class="flex items-center gap-1">
-                            <button
-                              class="btn btn-sm rounded-full {isSelected
-                                ? 'bg-terracotta text-white border-none'
-                                : 'btn-ghost text-warm-gray hover:bg-warm-beige/30'}"
-                              onclick={() => {
-                                if (!existingTag) {
-                                  const newTag = {
-                                    id: generateId(),
-                                    name: tagName,
-                                    parentId: category.name,
-                                    createdAt: Date.now(),
-                                  };
-                                  addTag(newTag).then(() => {
-                                    allTags = [...allTags, newTag];
-                                    toggleTagSelection(newTag.id);
-                                  });
-                                } else {
-                                  toggleTagSelection(existingTag.id);
-                                }
-                              }}
+                        <div class="flex items-center gap-1">
+                          <button
+                            class="btn btn-sm rounded-full {isSelected
+                              ? 'bg-terracotta text-white border-none'
+                              : 'btn-ghost text-warm-gray hover:bg-warm-beige/30'}"
+                            onclick={() => {
+                              if (!existingTag) {
+                                const newTag = {
+                                  id: generateId(),
+                                  name: tagName,
+                                  parentId: category.name,
+                                  createdAt: Date.now(),
+                                };
+                                addTag(newTag).then(() => {
+                                  allTags = [...allTags, newTag];
+                                  toggleTagSelection(newTag.id);
+                                });
+                              } else {
+                                toggleTagSelection(existingTag.id);
+                              }
+                            }}
+                          >
+                            {tagName}
+                          </button>
+                          <button
+                            class="btn btn-ghost btn-xs btn-square text-warm-gray hover:bg-warm-beige/30"
+                            onclick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTag(
+                                existingTag?.id || "",
+                                tagName,
+                                category.name
+                              );
+                            }}
+                            title="Delete tag"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-3 w-3"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
                             >
-                              {tagName}
-                            </button>
-                            <button
-                              class="btn btn-ghost btn-xs btn-square text-warm-gray hover:bg-warm-beige/30"
-                              onclick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteTag(
-                                  existingTag?.id || "",
-                                  tagName,
-                                  category.name
-                                );
-                              }}
-                              title="Delete tag"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-3 w-3"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  stroke-linecap="round"
-                                  stroke-linejoin="round"
-                                  stroke-width="2"
-                                  d="M6 18L18 6M6 6l12 12"
-                                />
-                              </svg>
-                            </button>
-                          </div>
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        </div>
                       {/each}
                       <!-- Dynamic tags from database for this category -->
                       {#each allTags.filter((t) => t.parentId === category.name && !category.tags.includes(t.name)) as tag}
@@ -2612,108 +2612,108 @@
                 {@const customTags = allTags.filter(
                   (t) => t.parentId === customCat
                 )}
-                  <div class="border border-warm-beige rounded-2xl bg-white">
-                    <div class="flex items-center">
-                      <button
-                        class="flex-1 flex items-center justify-between p-4 hover:bg-warm-beige/20 transition-colors rounded-2xl"
-                        onclick={() => toggleCategory(customCat)}
+                <div class="border border-warm-beige rounded-2xl bg-white">
+                  <div class="flex items-center">
+                    <button
+                      class="flex-1 flex items-center justify-between p-4 hover:bg-warm-beige/20 transition-colors rounded-2xl"
+                      onclick={() => toggleCategory(customCat)}
+                    >
+                      <span class="font-semibold text-base text-warm-charcoal"
+                        >{customCat}</span
                       >
-                        <span class="font-semibold text-base text-warm-charcoal"
-                          >{customCat}</span
-                        >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-5 w-5 transition-transform {expandedCategories.has(
-                            customCat
-                          )
-                            ? 'rotate-180'
-                            : ''}"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        class="btn btn-ghost btn-sm btn-square mr-2 text-warm-gray hover:bg-warm-beige/30"
-                        onclick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteCategory(customCat);
-                        }}
-                        title="Delete category"
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-5 w-5 transition-transform {expandedCategories.has(
+                          customCat
+                        )
+                          ? 'rotate-180'
+                          : ''}"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-
-                    {#if expandedCategories.has(customCat)}
-                      <div class="p-3 pt-0 flex flex-wrap gap-2">
-                        {#if customTags.length === 0}
-                          <p
-                            class="text-sm text-warm-gray w-full text-center py-2"
-                          >
-                            No tags yet
-                          </p>
-                        {:else}
-                          {#each customTags as tag}
-                            {@const isSelected = selectedTags.has(tag.id)}
-                            <div class="flex items-center gap-1">
-                              <button
-                                class="btn btn-sm rounded-full {isSelected
-                                  ? 'bg-terracotta text-white border-none'
-                                  : 'btn-ghost text-warm-gray hover:bg-warm-beige/30'}"
-                                onclick={() => toggleTagSelection(tag.id)}
-                              >
-                                {tag.name}
-                              </button>
-                              <button
-                                class="btn btn-ghost btn-xs btn-square text-warm-gray hover:bg-warm-beige/30"
-                                onclick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteTag(tag.id, tag.name);
-                                }}
-                                title="Delete tag"
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  class="h-3 w-3"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M6 18L18 6M6 6l12 12"
-                                  />
-                                </svg>
-                              </button>
-                            </div>
-                          {/each}
-                        {/if}
-                      </div>
-                    {/if}
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      class="btn btn-ghost btn-sm btn-square mr-2 text-warm-gray hover:bg-warm-beige/30"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCategory(customCat);
+                      }}
+                      title="Delete category"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
                   </div>
+
+                  {#if expandedCategories.has(customCat)}
+                    <div class="p-3 pt-0 flex flex-wrap gap-2">
+                      {#if customTags.length === 0}
+                        <p
+                          class="text-sm text-warm-gray w-full text-center py-2"
+                        >
+                          No tags yet
+                        </p>
+                      {:else}
+                        {#each customTags as tag}
+                          {@const isSelected = selectedTags.has(tag.id)}
+                          <div class="flex items-center gap-1">
+                            <button
+                              class="btn btn-sm rounded-full {isSelected
+                                ? 'bg-terracotta text-white border-none'
+                                : 'btn-ghost text-warm-gray hover:bg-warm-beige/30'}"
+                              onclick={() => toggleTagSelection(tag.id)}
+                            >
+                              {tag.name}
+                            </button>
+                            <button
+                              class="btn btn-ghost btn-xs btn-square text-warm-gray hover:bg-warm-beige/30"
+                              onclick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTag(tag.id, tag.name);
+                              }}
+                              title="Delete tag"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-3 w-3"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        {/each}
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
               {/each}
             </div>
           </div>
