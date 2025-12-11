@@ -1,5 +1,23 @@
+/**
+ * IndexedDB database layer for Draw Stack application.
+ * Manages packs, images, tags, and their relationships using IndexedDB.
+ * Provides CRUD operations and specialized queries for the app.
+ * 
+ * Database schema:
+ * - packs: Image pack metadata
+ * - images: Image records with pack/library associations
+ * - tags: Hierarchical tag structure
+ * - imageTags: Many-to-many image-tag relationships
+ * - tagUsage: Tag usage statistics
+ * 
+ * @module db
+ */
+
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 
+/**
+ * Image pack representing a folder of imported images.
+ */
 export interface Pack {
   id: string;
   name: string;
@@ -10,32 +28,63 @@ export interface Pack {
   isExpanded?: boolean;
 }
 
+/**
+ * Image record with pack and library associations.
+ * Images can belong to a pack, be in the library, or both.
+ */
 export interface Image {
+  /** Unique image identifier */
   id: string;
+  /** Pack ID if image belongs to a pack, null for library-only images */
   packId: string | null;
+  /** Image filename */
   filename: string;
+  /** Original file path before import */
   originalPath: string;
+  /** Path to thumbnail image */
   thumbnailPath: string;
+  /** Full path to image file */
   fullPath: string;
+  /** Whether image is in the user's library */
   isInLibrary: boolean;
+  /** Timestamp when added to library (null if not in library) */
   addedToLibraryAt: number | null;
 }
 
+/**
+ * Hierarchical tag for organizing images.
+ * Tags can have parent tags to form a category tree.
+ */
 export interface Tag {
+  /** Unique tag identifier */
   id: string;
+  /** Tag display name */
   name: string;
+  /** Parent tag ID for hierarchical organization, null for top-level tags */
   parentId: string | null;
+  /** Timestamp when tag was created */
   createdAt: number;
 }
 
+/**
+ * Many-to-many relationship between images and tags.
+ */
 export interface ImageTag {
+  /** Image ID */
   imageId: string;
+  /** Tag ID */
   tagId: string;
 }
 
+/**
+ * Tag usage statistics for sorting tags by frequency.
+ */
 export interface TagUsage {
+  /** Tag ID */
   tagId: string;
+  /** Last time tag was used (timestamp) */
   lastUsed: number;
+  /** Number of times tag has been used */
   usageCount: number;
 }
 

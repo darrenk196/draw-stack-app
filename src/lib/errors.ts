@@ -1,8 +1,14 @@
 /**
- * Centralized error handling and messages for Draw Stack
- * Ensures consistent error reporting across the app
+ * Centralized error handling and messages for Draw Stack.
+ * Provides typed error classes, validation utilities, and user-friendly error messages.
+ * Ensures consistent error reporting across the app.
+ * 
+ * @module errors
  */
 
+/**
+ * Severity level for error reporting.
+ */
 export type ErrorSeverity = 'error' | 'warning' | 'info';
 
 /**
@@ -65,13 +71,35 @@ export enum ErrorCode {
 }
 
 /**
- * Custom base error class for Draw Stack
+ * Base error class for all application errors.
+ * Provides error code, context, and original error tracking.
+ * 
+ * @example
+ * ```typescript
+ * throw new AppError(
+ *   ErrorCode.VALIDATION_FAILED,
+ *   'Invalid image data',
+ *   originalError,
+ *   'Image Import'
+ * );
+ * ```
  */
 export class AppError extends Error {
+  /** Error code for categorization */
   code: ErrorCode;
+  /** Original error that caused this error */
   originalError?: unknown;
+  /** Context where the error occurred */
   context?: string;
 
+  /**
+   * Creates a new application error.
+   * 
+   * @param code - Error code enum value
+   * @param message - Human-readable error message
+   * @param originalError - Original error if this is a wrapped error
+   * @param context - Context string (e.g., 'Database', 'Image Import')
+   */
   constructor(code: ErrorCode, message: string, originalError?: unknown, context?: string) {
     super(message);
     this.name = 'AppError';
@@ -80,6 +108,11 @@ export class AppError extends Error {
     this.context = context;
   }
 
+  /**
+   * Gets the full error message including context.
+   * 
+   * @returns Formatted error message with context prefix if available
+   */
   getFullMessage(): string {
     if (this.context) {
       return `${this.context}: ${this.message}`;
@@ -89,7 +122,17 @@ export class AppError extends Error {
 }
 
 /**
- * Database-specific error
+ * Database-specific error for SQL operations.
+ * Automatically sets context to 'Database'.
+ * 
+ * @example
+ * ```typescript
+ * throw new DatabaseError(
+ *   'Failed to insert image record',
+ *   ErrorCode.DB_ADD_FAILED,
+ *   sqlError
+ * );
+ * ```
  */
 export class DatabaseError extends AppError {
   constructor(message: string, code: ErrorCode = ErrorCode.DB_QUERY_FAILED, originalError?: unknown) {
@@ -99,9 +142,21 @@ export class DatabaseError extends AppError {
 }
 
 /**
- * Image-specific error
+ * Image-specific error for image operations.
+ * Includes optional imageId for tracking which image failed.
+ * 
+ * @example
+ * ```typescript
+ * throw new ImageError(
+ *   'Image file not found',
+ *   ErrorCode.IMAGE_NOT_FOUND,
+ *   'img_123',
+ *   originalError
+ * );
+ * ```
  */
 export class ImageError extends AppError {
+  /** ID of the image that caused the error */
   imageId?: string;
 
   constructor(message: string, code: ErrorCode = ErrorCode.IMAGE_LOAD_FAILED, imageId?: string, originalError?: unknown) {
@@ -112,9 +167,20 @@ export class ImageError extends AppError {
 }
 
 /**
- * Tag-specific error
+ * Tag-specific error for tag operations.
+ * Includes optional tagId for tracking which tag failed.
+ * 
+ * @example
+ * ```typescript
+ * throw new TagError(
+ *   'Tag already exists',
+ *   ErrorCode.TAG_DUPLICATE,
+ *   'tag_456'
+ * );
+ * ```
  */
 export class TagError extends AppError {
+  /** ID of the tag that caused the error */
   tagId?: string;
 
   constructor(message: string, code: ErrorCode = ErrorCode.TAG_NOT_FOUND, tagId?: string, originalError?: unknown) {
@@ -125,9 +191,20 @@ export class TagError extends AppError {
 }
 
 /**
- * Validation error
+ * Validation error for form and data validation.
+ * Includes optional field name to identify which field failed validation.
+ * 
+ * @example
+ * ```typescript
+ * throw new ValidationError(
+ *   'Email format is invalid',
+ *   'email',
+ *   ErrorCode.INVALID_INPUT
+ * );
+ * ```
  */
 export class ValidationError extends AppError {
+  /** Name of the field that failed validation */
   field?: string;
 
   constructor(message: string, field?: string, code: ErrorCode = ErrorCode.VALIDATION_FAILED, originalError?: unknown) {
@@ -138,9 +215,20 @@ export class ValidationError extends AppError {
 }
 
 /**
- * Import/Export error
+ * Import/Export error for backup/restore operations.
+ * Tracks number of failed items in partial failures.
+ * 
+ * @example
+ * ```typescript
+ * throw new ImportExportError(
+ *   'Import partially failed',
+ *   ErrorCode.IMPORT_PARTIAL_SUCCESS,
+ *   5 // 5 items failed
+ * );
+ * ```
  */
 export class ImportExportError extends AppError {
+  /** Number of items that failed during import/export */
   failedItems?: number;
 
   constructor(message: string, code: ErrorCode = ErrorCode.IMPORT_FAILED, failedItems?: number, originalError?: unknown) {
@@ -158,15 +246,43 @@ export interface ValidationFieldError {
   message: string;
 }
 
+/**
+ * Result object for form/data validation.
+ * Accumulates multiple field errors and provides formatted messages.
+ * 
+ * @example
+ * ```typescript
+ * const result = new ValidationResult();
+ * if (!tag.name) result.addError('name', 'Name is required');
+ * if (result.isValid) {
+ *   // Proceed with save
+ * } else {
+ *   toast.error(result.getErrorMessage());
+ * }
+ * ```
+ */
 export class ValidationResult {
+  /** Array of field-specific errors */
   public errors: ValidationFieldError[] = [];
+  /** Whether validation passed (no errors) */
   public isValid = true;
 
+  /**
+   * Adds a validation error for a specific field.
+   * 
+   * @param field - Field name that failed validation
+   * @param message - Error message describing the validation failure
+   */
   addError(field: string, message: string): void {
     this.errors.push({ field, message });
     this.isValid = false;
   }
 
+  /**
+   * Gets a formatted error message with all field errors.
+   * 
+   * @returns Newline-separated error messages, or empty string if valid
+   */
   getErrorMessage(): string {
     if (this.isValid) return '';
     return this.errors.map(e => `${e.field}: ${e.message}`).join('\n');
@@ -237,7 +353,19 @@ export const SUCCESS_MESSAGES = {
 };
 
 /**
- * Validate image data structure
+ * Validates image data structure for required fields.
+ * Checks id, filename, and fullPath are present and correct types.
+ * 
+ * @param image - Image object to validate
+ * @returns ValidationResult with any errors found
+ * 
+ * @example
+ * ```typescript
+ * const result = validateImage(imageData);
+ * if (!result.isValid) {
+ *   toast.error(result.getErrorMessage());
+ * }
+ * ```
  */
 export function validateImage(image: any): ValidationResult {
   const result = new ValidationResult();
@@ -256,7 +384,19 @@ export function validateImage(image: any): ValidationResult {
 }
 
 /**
- * Validate tag data structure
+ * Validates tag data structure for required fields.
+ * Checks id and name are present, correct types, and name is not empty.
+ * 
+ * @param tag - Tag object to validate
+ * @returns ValidationResult with any errors found
+ * 
+ * @example
+ * ```typescript
+ * const result = validateTag(tagData);
+ * if (!result.isValid) {
+ *   throw new ValidationError(result.getErrorMessage());
+ * }
+ * ```
  */
 export function validateTag(tag: any): ValidationResult {
   const result = new ValidationResult();
@@ -275,7 +415,20 @@ export function validateTag(tag: any): ValidationResult {
 }
 
 /**
- * Validate backup file structure
+ * Validates backup/export file structure.
+ * Checks for required images and tags arrays, then validates each item.
+ * 
+ * @param data - Backup data object to validate
+ * @returns ValidationResult with detailed errors for each invalid item
+ * 
+ * @example
+ * ```typescript
+ * const backupData = JSON.parse(fileContent);
+ * const result = validateBackupData(backupData);
+ * if (!result.isValid) {
+ *   throw new ImportExportError(result.getErrorMessage());
+ * }
+ * ```
  */
 export function validateBackupData(data: any): ValidationResult {
   const result = new ValidationResult();
@@ -310,8 +463,20 @@ export function validateBackupData(data: any): ValidationResult {
 }
 
 /**
- * Format error message for user display
- * Handles both standard Error objects and custom AppError classes
+ * Formats any error into a user-friendly message string.
+ * Handles AppError (with context), Error, string, and unknown types.
+ * 
+ * @param error - Error of any type to format
+ * @returns User-friendly error message string
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   await riskyOperation();
+ * } catch (error) {
+ *   toast.error(formatErrorMessage(error));
+ * }
+ * ```
  */
 export function formatErrorMessage(error: unknown): string {
   if (error instanceof AppError) {
@@ -327,7 +492,19 @@ export function formatErrorMessage(error: unknown): string {
 }
 
 /**
- * Check if an error is a specific type of AppError
+ * Type guard to check if an error is an AppError.
+ * Optionally checks for a specific error code.
+ * 
+ * @param error - Error to check
+ * @param code - Optional error code to match
+ * @returns true if error is AppError (and matches code if provided)
+ * 
+ * @example
+ * ```typescript
+ * if (isAppError(error, ErrorCode.IMAGE_NOT_FOUND)) {
+ *   // Handle specific error code
+ * }
+ * ```
  */
 export function isAppError(error: unknown, code?: ErrorCode): error is AppError {
   if (!(error instanceof AppError)) return false;
@@ -336,16 +513,39 @@ export function isAppError(error: unknown, code?: ErrorCode): error is AppError 
 }
 
 /**
- * Check if an error is a specific type
+ * Type guards for specific error classes.
+ * Useful for narrowing error types in catch blocks.
+ * 
+ * @param error - Error to check
+ * @returns true if error is the specific error type
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   await db.query();
+ * } catch (error) {
+ *   if (isDatabaseError(error)) {
+ *     console.log('DB error:', error.code);
+ *   }
+ * }
+ * ```
  */
 export function isDatabaseError(error: unknown): error is DatabaseError {
   return error instanceof DatabaseError;
 }
 
+/**
+ * Type guard for ImageError.
+ * @param error - Error to check
+ */
 export function isImageError(error: unknown): error is ImageError {
   return error instanceof ImageError;
 }
 
+/**
+ * Type guard for TagError.
+ * @param error - Error to check
+ */
 export function isTagError(error: unknown): error is TagError {
   return error instanceof TagError;
 }

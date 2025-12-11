@@ -1,7 +1,18 @@
+/**
+ * Auto-updater utilities for Tauri application.
+ * Checks for new versions, downloads updates, and handles relaunch.
+ * Uses Tauri's plugin-updater for seamless app updates.
+ * 
+ * @module updater
+ */
+
 import { check } from '@tauri-apps/plugin-updater';
 import { ask, message } from '@tauri-apps/plugin-dialog';
 import { relaunch } from '@tauri-apps/plugin-process';
 
+/**
+ * Result of an update check operation.
+ */
 export interface UpdateCheckResult {
   updateAvailable: boolean;
   currentVersion: string;
@@ -10,9 +21,20 @@ export interface UpdateCheckResult {
 }
 
 /**
- * Check for application updates and optionally install them
- * @param silent - If true, only show UI when an update is available
- * @returns Promise with update check result
+ * Checks for application updates and prompts user to install if available.
+ * Downloads and installs the update if user confirms, then offers to relaunch.
+ * 
+ * @param silent - If true, only show UI when an update is available (default: false)
+ * @returns Promise resolving to update check result with version info
+ * 
+ * @example
+ * ```typescript
+ * // Manual check with UI
+ * await checkForUpdates(false);
+ * 
+ * // Silent check (only show if update available)
+ * await checkForUpdates(true);
+ * ```
  */
 export async function checkForUpdates(silent: boolean = false): Promise<UpdateCheckResult> {
   try {
@@ -97,7 +119,15 @@ export async function checkForUpdates(silent: boolean = false): Promise<UpdateCh
 }
 
 /**
- * Check for updates automatically on app start (silent)
+ * Checks for updates automatically on app start in silent mode.
+ * Waits 5 seconds after startup to avoid blocking initial load.
+ * Only shows UI if an update is available.
+ * 
+ * @example
+ * ```typescript
+ * // Call this in app initialization
+ * checkForUpdatesOnStartup();
+ * ```
  */
 export async function checkForUpdatesOnStartup(): Promise<void> {
   // Wait a few seconds after startup to avoid blocking initial load

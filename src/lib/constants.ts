@@ -1,9 +1,18 @@
 /**
- * Application-wide constants for Draw Stack
- * Centralized configuration and default values
+ * Application-wide constants for Draw Stack.
+ * Centralized configuration for pagination, virtual scrolling, UI settings,
+ * default tag categories, and localStorage keys.
+ * 
+ * All exported constants use `as const` for strict type safety.
+ * 
+ * @module constants
  */
 
 // ========== LocalStorage Keys ==========
+/**
+ * LocalStorage keys for persisting user preferences.
+ * Use these constants instead of string literals to prevent typos.
+ */
 export const STORAGE_KEYS = {
   // Library page
   CUSTOM_CATEGORIES: 'customCategories',
@@ -16,6 +25,10 @@ export const STORAGE_KEYS = {
 } as const;
 
 // ========== Pagination Settings ==========
+/**
+ * Pagination configuration for library image grid.
+ * Defines page size options and progressive rendering thresholds.
+ */
 export const PAGINATION = {
   DEFAULT_ITEMS_PER_PAGE: 50,
   PROGRESSIVE_THRESHOLD: 150, // Start progressive rendering above this count
@@ -30,11 +43,19 @@ export const PAGINATION = {
 } as const;
 
 // ========== Tag System ==========
+/**
+ * Tag system configuration.
+ */
 export const TAG_SYSTEM = {
   MAX_RECENT_TAGS: 10,
 } as const;
 
 // ========== Default Tag Categories ==========
+/**
+ * Default tag categories provided on first launch.
+ * Users can customize these through the settings page.
+ * Covers common reference image categories: pose, gender, view angle, etc.
+ */
 export const DEFAULT_TAG_CATEGORIES: Array<{ name: string; tags: string[] }> = [
   {
     name: 'Gender',
@@ -126,6 +147,9 @@ export const DEFAULT_TAG_CATEGORIES: Array<{ name: string; tags: string[] }> = [
 ] as const;
 
 // ========== UI Constants ==========
+/**
+ * General UI configuration values.
+ */
 export const UI = {
   DEBOUNCE_MS: 150,
   GRID_COLUMNS: {
@@ -135,6 +159,14 @@ export const UI = {
 } as const;
 
 // ========== Virtual Scrolling ==========
+/**
+ * Virtual scrolling configuration for large image lists.
+ * Used by VirtualImageGrid component to efficiently render 10K+ images.
+ * 
+ * GRID_ITEM_HEIGHT: Must match grid CSS (160px per row for 8-column grid)
+ * BUFFER_ROWS: Extra rows above/below viewport (prevents white flashes)
+ * THRESHOLD: Switch to virtual scrolling when count exceeds this
+ */
 export const VIRTUAL_SCROLL = {
   // Grid item dimensions (aspect-square with gap-2)
   GRID_ITEM_HEIGHT: 160, // Height per row in pixels (8 columns)
@@ -147,6 +179,9 @@ export const VIRTUAL_SCROLL = {
 } as const;
 
 // ========== Application Info ==========
+/**
+ * Application metadata.
+ */
 export const APP = {
   VERSION: '0.1.2-beta',
   NAME: 'Draw Stack',

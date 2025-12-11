@@ -1,8 +1,15 @@
 /**
- * Timer page keyboard handler utilities
- * Modularized keyboard event handling for angle mode, grid tools, and navigation
+ * Timer page keyboard handler utilities.
+ * Modularized keyboard event handling for angle mode, grid tools, navigation, and playback.
+ * Provides reusable handlers that can be composed in Svelte components.
+ * 
+ * @module timerKeyboardHandlers
  */
 
+/**
+ * Context object containing all state and callbacks for keyboard handlers.
+ * Passed to each handler function to enable stateless keyboard handling.
+ */
 export interface KeyboardHandlerContext {
   // Angle mode state
   angleMode: boolean;
@@ -61,7 +68,20 @@ export interface KeyboardHandlerContext {
 }
 
 /**
- * Handles angle mode keyboard controls (V, H, A, Delete/Backspace, L, Escape)
+ * Handles angle mode keyboard controls.
+ * Keys: V (vertical), H (horizontal), A (angle toggle), Alt+A (clear all), Delete/Backspace (remove), L (plumb line), Escape (exit)
+ * 
+ * @param e - The keyboard event
+ * @param ctx - Keyboard handler context with state and callbacks
+ * @returns true if key was handled, false otherwise
+ * 
+ * @example
+ * ```typescript
+ * function onKeyDown(e: KeyboardEvent) {
+ *   if (handleAngleModeKeys(e, context)) return;
+ *   // Handle other keys...
+ * }
+ * ```
  */
 export function handleAngleModeKeys(
   e: KeyboardEvent,
@@ -141,7 +161,20 @@ export function handleAngleModeKeys(
 }
 
 /**
- * Handles grid tool keyboard shortcuts (G, D, C, =, -)
+ * Handles grid tool keyboard shortcuts.
+ * Keys: G (cycle grid modes 0-3), D (toggle diagonals), C (cycle colors), +/= (increase width), - (decrease width)
+ * 
+ * @param e - The keyboard event
+ * @param ctx - Keyboard handler context with state and callbacks
+ * @returns true if key was handled, false otherwise
+ * 
+ * @example
+ * ```typescript
+ * function onKeyDown(e: KeyboardEvent) {
+ *   if (handleGridToolKeys(e, context)) return;
+ *   // Handle other keys...
+ * }
+ * ```
  */
 export function handleGridToolKeys(
   e: KeyboardEvent,
@@ -200,7 +233,22 @@ export function handleGridToolKeys(
 }
 
 /**
- * Handles arrow key navigation with modifiers for line movement
+ * Handles arrow key navigation with modifiers for line movement.
+ * When V/H keys are held, arrow keys move vertical/horizontal lines by 1% increments.
+ * 
+ * @param e - The keyboard event
+ * @param ctx - Keyboard handler context with state and callbacks
+ * @returns true if key was handled, false otherwise
+ * 
+ * @example
+ * ```typescript
+ * // Hold V, then press Left/Right to move vertical line
+ * // Hold H, then press Up/Down to move horizontal line
+ * function onKeyDown(e: KeyboardEvent) {
+ *   if (handleNavigationKeys(e, context)) return;
+ *   // Handle other keys...
+ * }
+ * ```
  */
 export function handleNavigationKeys(
   e: KeyboardEvent,
@@ -279,7 +327,20 @@ export function handleNavigationKeys(
 }
 
 /**
- * Handles playback control shortcuts (Space, R, F, M, Escape)
+ * Handles playback control shortcuts.
+ * Keys: Space (pause/resume), R (reset), F (fullscreen), M (mute), Escape (exit fullscreen/practice)
+ * 
+ * @param e - The keyboard event
+ * @param ctx - Keyboard handler context with state and callbacks
+ * @returns true if key was handled, false otherwise
+ * 
+ * @example
+ * ```typescript
+ * function onKeyDown(e: KeyboardEvent) {
+ *   if (handlePlaybackKeys(e, context)) return;
+ *   // Handle other keys...
+ * }
+ * ```
  */
 export function handlePlaybackKeys(
   e: KeyboardEvent,
@@ -333,8 +394,24 @@ export function handlePlaybackKeys(
 }
 
 /**
- * Handles V/H key release logic for toggling visibility
- * Call this in keyup event handler
+ * Handles V/H key release logic for toggling line visibility.
+ * Only toggles if arrows weren't used for movement (prevents accidental toggles).
+ * Call this in keyup event handler.
+ * 
+ * @param e - The keyboard event
+ * @param ctx - Keyboard handler context with state and callbacks
+ * @param arrowUsedWithModifier - Whether arrow keys were used for line movement
+ * @returns true if key was handled, false otherwise
+ * 
+ * @example
+ * ```typescript
+ * function onKeyUp(e: KeyboardEvent) {
+ *   if (handleLineModifierKeyUp(e, context, arrowUsedWithModifier)) {
+ *     setArrowUsedWithModifier(false);
+ *     return;
+ *   }
+ * }
+ * ```
  */
 export function handleLineModifierKeyUp(
   e: KeyboardEvent,

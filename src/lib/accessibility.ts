@@ -4,8 +4,18 @@
  */
 
 /**
- * Skip to main content link - should be first focusable element in layout
- * Usage: Add <a use:skipToMain href="#main-content">Skip to main content</a>
+ * Skip to main content link - should be first focusable element in layout.
+ * Provides keyboard users a way to bypass navigation and jump directly to main content.
+ * 
+ * @param element - The anchor element that triggers skip navigation
+ * @returns Svelte action with destroy method for cleanup
+ * 
+ * @example
+ * ```svelte
+ * <a use:skipToMain href="#main-content" class="sr-only focus:not-sr-only">
+ *   Skip to main content
+ * </a>
+ * ```
  */
 export function skipToMain(element: HTMLAnchorElement) {
   element.addEventListener('click', (e) => {
@@ -25,7 +35,15 @@ export function skipToMain(element: HTMLAnchorElement) {
 }
 
 /**
- * Announce screen reader messages
+ * Screen reader announcer for dynamic content updates.
+ * Creates an ARIA live region to announce messages to screen reader users.
+ * 
+ * @example
+ * ```typescript
+ * const announcer = new ScreenReaderAnnouncer();
+ * announcer.announce("5 images deleted", "polite");
+ * announcer.announce("Error: Connection failed", "assertive");
+ * ```
  */
 export class ScreenReaderAnnouncer {
   private liveRegion: HTMLDivElement | null = null;
@@ -52,6 +70,12 @@ export class ScreenReaderAnnouncer {
     this.liveRegion = region;
   }
 
+  /**
+   * Announces a message to screen readers via ARIA live region.
+   * 
+   * @param message - The text message to announce
+   * @param priority - 'polite' waits for pause, 'assertive' interrupts immediately
+   */
   announce(message: string, priority: 'polite' | 'assertive' = 'polite'): void {
     if (this.liveRegion) {
       this.liveRegion.setAttribute('aria-live', priority);
