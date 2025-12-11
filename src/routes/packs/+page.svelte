@@ -2946,22 +2946,26 @@
         <button
           class="btn rounded-full bg-terracotta hover:bg-terracotta-dark text-white border-none px-5 py-2.5"
           onclick={confirmAddToLibrary}
-          disabled={!customPackName.trim()}
+          disabled={!customPackName.trim() || isAddingToLibrary}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
+          {#if isAddingToLibrary}
+            <span class="loading loading-spinner loading-sm"></span>
+          {:else}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          {/if}
           Add to Library
         </button>
       </div>

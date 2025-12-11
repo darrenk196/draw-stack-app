@@ -28,6 +28,10 @@
   let tagCount = $state(0);
   let isLoading = $state(true);
 
+  // Progress tracking
+  let importProgress = $state({ current: 0, total: 0, label: "" });
+  let showImportProgress = $state(false);
+
   const APP_VERSION = "0.1.2-beta";
 
   onMount(() => {
@@ -291,9 +295,19 @@
       }
 
       // Step 5: Import tags with error handling
+      showImportProgress = true;
+      const totalItems = importData.tags.length + importData.images.length;
+      let processedItems = 0;
+      
       let tagsImported = 0;
       let tagsFailed = 0;
       const tagErrors: string[] = [];
+
+      importProgress = {
+        current: 0,
+        total: totalItems,
+        label: "Importing tags",
+      };
 
       for (const tag of importData.tags) {
         try {
@@ -318,9 +332,16 @@
           }
           console.warn("Failed to import tag:", tag.name, err);
         }
+        processedItems++;
+        importProgress = { ...importProgress, current: processedItems };
       }
 
       // Step 6: Import images with error handling and validation
+      importProgress = {
+        ...importProgress,
+        label: "Importing images",
+      };
+      
       const validImages: Image[] = [];
       const imageErrors: string[] = [];
 
@@ -360,6 +381,7 @@
       }
 
       // Step 7: Reload stats and notify user
+      showImportProgress = false;
       await loadStats();
       window.dispatchEvent(new CustomEvent("library-updated"));
 
@@ -389,6 +411,7 @@
         }
       }
     } catch (error) {
+      showImportProgress = false;
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Failed to import library:", error);
       toast.error(`${ERROR_MESSAGES.IMPORT_FAILED}\n${errorMsg}`);
@@ -788,3 +811,39 @@
     {/if}
   </div>
 </div>
+
+<!-- Import Progress Modal -->
+{#if showImportProgress}
+  <div
+    class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-8"
+    role="status"
+    aria-live="polite"
+  >
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+      <div class="mb-4">
+        <h3 class="text-lg font-bold mb-2 text-warm-charcoal">
+          {importProgress.label}
+        </h3>
+        <p class="text-warm-gray text-sm">
+          Processing {importProgress.current} of {importProgress.total}
+        </p>
+      </div>
+      
+      <!-- Progress Bar -->
+      <div class="w-full bg-warm-beige/30 rounded-full h-3 overflow-hidden">
+        <div
+          class="bg-terracotta h-full transition-all duration-300 rounded-full"
+          style="width: {importProgress.total > 0
+            ? (importProgress.current / importProgress.total) * 100
+            : 0}%"
+        ></div>
+      </div>
+      
+      <div class="mt-3 text-right text-sm text-warm-gray">
+        {Math.round(
+          (importProgress.current / importProgress.total) * 100
+        )}% complete
+      </div>
+    </div>
+  </div>
+{/if}

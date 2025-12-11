@@ -57,6 +57,10 @@
   let isDeletingImages = $state(false);
   let isApplyingBulkTags = $state(false);
 
+  // Progress tracking
+  let bulkOperationProgress = $state({ current: 0, total: 0, label: "" });
+  let showProgress = $state(false);
+
   // Delete confirmation modals
   let deleteTagModal = $state<{
     tagId: string;
@@ -1043,21 +1047,42 @@
     if (selectedImages.size === 0 || imageTags.length === 0) return;
 
     isApplyingBulkTags = true;
-    try {
-      const imageCount = selectedImages.size;
-      const tagCount = imageTags.length;
+    showProgress = true;
+    const imageCount = selectedImages.size;
+    const tagCount = imageTags.length;
+    const totalOperations = imageCount * tagCount;
+    let completedOperations = 0;
+    let successCount = 0;
+    let failCount = 0;
 
+    try {
       console.log(`Applying ${tagCount} tags to ${imageCount} images...`);
+      bulkOperationProgress = {
+        current: 0,
+        total: totalOperations,
+        label: "Applying tags",
+      };
 
       // Apply all selected tags to all selected images
       for (const imageId of selectedImages) {
         for (const tag of imageTags) {
-          await addImageTag(imageId, tag.id);
+          try {
+            await addImageTag(imageId, tag.id);
+            successCount++;
+          } catch (error) {
+            console.error(`Failed to add tag ${tag.name} to image:`, error);
+            failCount++;
+          }
+          completedOperations++;
+          bulkOperationProgress = {
+            ...bulkOperationProgress,
+            current: completedOperations,
+          };
         }
       }
 
       console.log(
-        `Successfully applied ${tagCount} tags to ${imageCount} images`
+        `Successfully applied ${successCount} tags (${failCount} failed)`
       );
 
       // Close bulk editor and clear selection
@@ -1067,15 +1092,22 @@
       // Reload image tags for filtering
       await loadAllImageTags();
 
-      // Announce to screen readers
-      announcer.announce(
-        `Applied ${tagCount} tag${tagCount !== 1 ? "s" : ""} to ${imageCount} image${imageCount !== 1 ? "s" : ""}`
-      );
+      // Show results
+      const successMsg = `Applied ${tagCount} tag${tagCount !== 1 ? "s" : ""} to ${imageCount} image${imageCount !== 1 ? "s" : ""}`;
+      if (failCount > 0) {
+        toast.success(`${successMsg} (${failCount} operations failed)`);
+        announcer.announce(`${successMsg}, ${failCount} failed`);
+      } else {
+        toast.success(successMsg);
+        announcer.announce(successMsg);
+      }
     } catch (error) {
       console.error("Failed to apply bulk tags:", error);
+      toast.error("Failed to apply tags");
       announcer.announce("Failed to apply tags");
     } finally {
       isApplyingBulkTags = false;
+      showProgress = false;
     }
   }
 
@@ -1095,6 +1127,8 @@
 
   async function confirmDelete() {
     showDeleteConfirm = false;
+    isDeletingImages = true;
+    showProgress = true;
 
     // Save preference if checkbox was checked
     if (skipDeleteWarning) {
@@ -1103,20 +1137,55 @@
     }
 
     const deleteCount = selectedImages.size;
+    const imagesToDelete = Array.from(selectedImages);
+    bulkOperationProgress = {
+      current: 0,
+      total: deleteCount,
+      label: "Deleting images",
+    };
+
     try {
-      await deleteImages(Array.from(selectedImages));
+      // Delete images one by one to track progress
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (let i = 0; i < imagesToDelete.length; i++) {
+        try {
+          await deleteImages([imagesToDelete[i]]);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to delete image:`, error);
+          failCount++;
+        }
+        bulkOperationProgress = {
+          ...bulkOperationProgress,
+          current: i + 1,
+        };
+      }
+
       // Refresh library
       await loadLibraryImages();
       selectedImages = new Set();
       lastSelectedIndex = -1;
       skipDeleteWarning = false;
+      
       // Notify other components to update library count
       window.dispatchEvent(new CustomEvent("library-updated"));
 
-      // Announce to screen readers
-      announcer.announce(
-        `Successfully deleted ${deleteCount} image${deleteCount !== 1 ? "s" : ""}`
-      );
+      // Show results
+      if (failCount > 0) {
+        toast.success(
+          `Deleted ${successCount} of ${deleteCount} images (${failCount} failed)`
+        );
+        announcer.announce(
+          `Deleted ${successCount} images, ${failCount} failed`
+        );
+      } else {
+        toast.success(`Successfully deleted ${deleteCount} image${deleteCount !== 1 ? "s" : ""}`);
+        announcer.announce(
+          `Successfully deleted ${deleteCount} image${deleteCount !== 1 ? "s" : ""}`
+        );
+      }
     } catch (error) {
       console.error("Failed to delete images:", error);
       toast.error(
@@ -1125,6 +1194,7 @@
       announcer.announce("Failed to delete images");
     } finally {
       isDeletingImages = false;
+      showProgress = false;
     }
   }
 
@@ -2552,6 +2622,42 @@
   </div>
 {/if}
 
+<!-- Progress Indicator Modal -->
+{#if showProgress}
+  <div
+    class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-8"
+    role="status"
+    aria-live="polite"
+  >
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+      <div class="mb-4">
+        <h3 class="text-lg font-bold mb-2 text-warm-charcoal">
+          {bulkOperationProgress.label}
+        </h3>
+        <p class="text-warm-gray text-sm">
+          Processing {bulkOperationProgress.current} of {bulkOperationProgress.total}
+        </p>
+      </div>
+      
+      <!-- Progress Bar -->
+      <div class="w-full bg-warm-beige/30 rounded-full h-3 overflow-hidden">
+        <div
+          class="bg-terracotta h-full transition-all duration-300 rounded-full"
+          style="width: {bulkOperationProgress.total > 0
+            ? (bulkOperationProgress.current / bulkOperationProgress.total) * 100
+            : 0}%"
+        ></div>
+      </div>
+      
+      <div class="mt-3 text-right text-sm text-warm-gray">
+        {Math.round(
+          (bulkOperationProgress.current / bulkOperationProgress.total) * 100
+        )}% complete
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- Delete Confirmation Modal -->
 {#if showDeleteConfirm}
   <div
@@ -2568,7 +2674,7 @@
         <div class="flex-shrink-0">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            class="h-8 w-8 text-warning"
+            class="h-12 w-12 text-error"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -2582,13 +2688,15 @@
           </svg>
         </div>
         <div class="flex-1">
-          <h3 class="text-lg font-bold mb-2" id="delete-modal-title">
-            Delete Images
+          <h3 class="text-xl font-bold mb-2 text-error" id="delete-modal-title">
+            Delete {deleteCount} Image{deleteCount !== 1 ? "s" : ""}?
           </h3>
-          <p class="text-warm-charcoal">
-            Delete {deleteCount} selected image{deleteCount !== 1 ? "s" : ""}?
-            This cannot be undone.
-          </p>
+          <div class="bg-error/10 border border-error/20 rounded-lg p-3 mb-4">
+            <p class="text-sm font-semibold text-error mb-1">⚠️ Permanent Action</p>
+            <p class="text-sm text-warm-charcoal">
+              This will permanently delete the selected image{deleteCount !== 1 ? "s" : ""} from your library. This action cannot be undone.
+            </p>
+          </div>
           <div class="form-control mt-4">
             <label class="label cursor-pointer justify-start gap-3">
               <input
