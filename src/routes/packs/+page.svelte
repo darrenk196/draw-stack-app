@@ -18,6 +18,11 @@
     type Tag,
   } from "$lib/db";
   import { toast } from "$lib/toast";
+  import { focusTrap } from "$lib/focusTrap";
+  import { ScreenReaderAnnouncer } from "$lib/accessibility";
+
+  // Initialize screen reader announcer
+  const announcer = new ScreenReaderAnnouncer();
 
   interface FolderInfo {
     path: string;
@@ -1081,8 +1086,12 @@
       toast.success(
         `Successfully added ${imageCount} images to library with tags!`
       );
+      
+      // Announce to screen readers
+      announcer.announce(`Successfully added ${imageCount} image${imageCount !== 1 ? 's' : ''} to library`);
     } catch (error) {
       console.error("Failed to apply tags:", error);
+      announcer.announce("Failed to add images to library");
       toast.error(`Failed to apply tags: ${error}`);
     }
   }
@@ -2312,19 +2321,24 @@
   <div
     class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8"
     onclick={closeAddPopup}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="add-to-library-title"
+    tabindex="-1"
   >
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="bg-white rounded-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl"
       onclick={(e) => e.stopPropagation()}
+      use:focusTrap
     >
       <!-- Header -->
       <div
         class="flex items-center justify-between p-8 border-b border-warm-beige"
       >
         <div>
-          <h2 class="text-3xl font-bold text-warm-charcoal">Add to Library</h2>
+          <h2 class="text-3xl font-bold text-warm-charcoal" id="add-to-library-title">Add to Library</h2>
           <p class="text-base text-warm-gray mt-2">
             Customize pack name and select tags for {imagesToAdd.length} image{imagesToAdd.length !==
             1
