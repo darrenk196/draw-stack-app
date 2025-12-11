@@ -28,8 +28,10 @@
     TAG_SYSTEM,
     DEFAULT_TAG_CATEGORIES,
     UI,
+    VIRTUAL_SCROLL,
   } from "$lib/constants";
   import ImageGrid from "$lib/components/ImageGrid.svelte";
+  import VirtualImageGrid from "$lib/components/VirtualImageGrid.svelte";
   import SearchAndFilter from "$lib/components/SearchAndFilter.svelte";
 
   // Initialize screen reader announcer
@@ -69,11 +71,6 @@
   // Progress tracking
   let bulkOperationProgress = $state({ current: 0, total: 0, label: "" });
   let showProgress = $state(false);
-
-  // Progressive rendering for large image sets
-  let progressiveRenderLimit = $state<number>(PAGINATION.CHUNK_SIZE); // Start by showing first chunk
-  let isProgressiveRendering = $state(false);
-  let progressiveLoadRequestId = 0; // Track current load cycle to prevent overlaps
 
   // Delete confirmation modals
   let deleteTagModal = $state<{
@@ -304,49 +301,6 @@
     // Reset page
     currentPage = 1;
   });
-
-  // Start progressive loading with a specific request ID
-  function startProgressiveLoad(requestId: number) {
-    if (!isProgressiveRendering || requestId !== progressiveLoadRequestId)
-      return;
-
-    const scheduleNextChunk = () => {
-      // Check if this load cycle is still valid
-      if (requestId !== progressiveLoadRequestId) return;
-
-      if (progressiveRenderLimit >= filteredImages.length) {
-        isProgressiveRendering = false;
-        return;
-      }
-
-      // Load more images at a time
-      progressiveRenderLimit = Math.min(
-        progressiveRenderLimit + PAGINATION.CHUNK_SIZE,
-        filteredImages.length
-      );
-
-      // Continue loading if there are more images
-      if (
-        progressiveRenderLimit < filteredImages.length &&
-        requestId === progressiveLoadRequestId
-      ) {
-        // Use requestIdleCallback for true non-blocking rendering
-        // Falls back to setTimeout(0) if not supported
-        // This ensures we only update when the browser is actually idle
-        if ("requestIdleCallback" in window) {
-          requestIdleCallback(scheduleNextChunk, { timeout: 100 });
-        } else {
-          // Timeout of 100ms ensures we don't wait too long on unsupported browsers
-          setTimeout(scheduleNextChunk, 16);
-        }
-      } else {
-        isProgressiveRendering = false;
-      }
-    };
-
-    // Start the first chunk load immediately
-    setTimeout(scheduleNextChunk, 0);
-  }
 
   let tagCategories = $state<Array<{ name: string; tags: string[] }>>(
     loadTagCategories() || DEFAULT_TAG_CATEGORIES
@@ -1549,21 +1503,36 @@
         </div>
       </div>
 
-      <ImageGrid
-        images={displayedLibraryImages}
-        {viewMode}
-        {selectedImages}
-        {allImageTags}
-        {currentPage}
-        {totalPages}
-        {itemsPerPage}
-        onImageClick={openImageViewer}
-        onImageSelect={toggleImageSelectionEnhanced}
-        onNextPage={nextPage}
-        onPreviousPage={previousPage}
-        {buildTagPath}
-        {allTags}
-      />
+      {#if itemsPerPage === "all" && filteredImages.length > VIRTUAL_SCROLL.THRESHOLD}
+        <!-- Virtual scrolling for large "all" lists -->
+        <VirtualImageGrid
+          images={filteredImages}
+          {viewMode}
+          {selectedImages}
+          {allImageTags}
+          onImageClick={openImageViewer}
+          onImageSelect={toggleImageSelectionEnhanced}
+          {buildTagPath}
+          {allTags}
+        />
+      {:else}
+        <!-- Regular pagination rendering -->
+        <ImageGrid
+          images={displayedLibraryImages}
+          {viewMode}
+          {selectedImages}
+          {allImageTags}
+          {currentPage}
+          {totalPages}
+          {itemsPerPage}
+          onImageClick={openImageViewer}
+          onImageSelect={toggleImageSelectionEnhanced}
+          onNextPage={nextPage}
+          onPreviousPage={previousPage}
+          {buildTagPath}
+          {allTags}
+        />
+      {/if}
     {/if}
   </div>
 </div>

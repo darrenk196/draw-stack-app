@@ -134,6 +134,18 @@ export const UI = {
   },
 } as const;
 
+// ========== Virtual Scrolling ==========
+export const VIRTUAL_SCROLL = {
+  // Grid item dimensions (aspect-square with gap-2)
+  GRID_ITEM_HEIGHT: 160, // Height per row in pixels (8 columns)
+  
+  // Buffer items to render above/below viewport
+  BUFFER_ROWS: 3, // Render 3 extra rows above and below
+  
+  // Enable virtual scrolling when item count exceeds this threshold
+  THRESHOLD: 200,
+} as const;
+
 // ========== Application Info ==========
 export const APP = {
   VERSION: '0.1.2-beta',
