@@ -12,6 +12,14 @@
   import { convertFileSrc } from "@tauri-apps/api/core";
   import { toast } from "$lib/toast";
   import TimeInput from "$lib/components/TimeInput.svelte";
+  import {
+    handleAngleModeKeys,
+    handleGridToolKeys,
+    handleNavigationKeys,
+    handlePlaybackKeys,
+    handleLineModifierKeyUp,
+    type KeyboardHandlerContext,
+  } from "$lib/timerKeyboardHandlers";
 
   interface TimerEntry {
     imageId: string;
@@ -835,212 +843,127 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (showSetup) return;
-
     // Track held keys
     heldKeys.add(e.key.toLowerCase());
 
-    // V and H keys - only prevent default, don't toggle yet (toggle on keyup)
-    if (e.key === "v" || e.key === "V") {
-      if (!e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        return;
-      }
-    }
-    if (e.key === "h" || e.key === "H") {
-      if (!e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        return;
-      }
-    }
-    if (e.key === "a" || e.key === "A") {
-      if (e.altKey) {
-        // Alt+A - Clear all angles
-        e.preventDefault();
-        angleLines = [];
-        currentAngleLine = null;
-        return;
-      }
-      if (!e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        angleMode = !angleMode;
-        if (angleMode) showPlumbTool = true;
-        return;
-      }
-    }
-    if (e.key === "Delete" || e.key === "Backspace") {
-      if (currentAngleLine) {
-        e.preventDefault();
-        currentAngleLine = null;
-        return;
-      }
-      if (angleLines.length > 0) {
-        e.preventDefault();
-        angleLines = angleLines.slice(0, -1);
-        return;
-      }
-    }
-    if (e.key === "l" || e.key === "L") {
-      if (!e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        // Toggle UI lock (same as clicking lock icon)
-        uiLocked = !uiLocked;
-        return;
-      }
-    }
-    if (e.key === "Escape") {
-      if (angleMode) {
-        e.preventDefault();
-        angleMode = false;
-        currentAngleLine = null;
-        return;
-      }
-    }
+    // Create context object for keyboard handlers
+    const keyboardContext: KeyboardHandlerContext = {
+      angleMode,
+      currentAngleLine,
+      angleLines,
+      showPlumbTool,
+      gridMode,
+      gridLocked,
+      gridLineWidth,
+      showDiagonals,
+      currentColorIndex,
+      colorPresetsLength: colorPresets.length,
+      showSetup,
+      uiLocked,
+      isFullscreen,
+      isPaused,
+      isMuted,
+      heldKeys,
+      arrowUsedWithModifier,
+      dragTarget,
+      verticalLine2X,
+      horizontalLine2Y,
+      showVerticalLines,
+      showHorizontalLines,
+      onAngleModeChange: (v) => (angleMode = v),
+      onCurrentAngleLineChange: (v) => (currentAngleLine = v),
+      onAngleLinesChange: (v) => (angleLines = v),
+      onShowPlumbToolChange: (v) => (showPlumbTool = v),
+      onGridModeChange: (v) => (gridMode = v),
+      onShowDiagonalsChange: (v) => (showDiagonals = v),
+      onGridLineWidthChange: (v) => (gridLineWidth = v),
+      onCurrentColorIndexChange: (v) => (currentColorIndex = v),
+      onUILockedChange: (v) => (uiLocked = v),
+      onShowVerticalLinesChange: (v) => (showVerticalLines = v),
+      onShowHorizontalLinesChange: (v) => (showHorizontalLines = v),
+      onDragTargetChange: (v) => (dragTarget = v),
+      onVerticalLine2XChange: (v) => (verticalLine2X = v),
+      onHorizontalLine2YChange: (v) => (horizontalLine2Y = v),
+      onArrowUsedWithModifierChange: (v) => (arrowUsedWithModifier = v),
+      onResumeTimer: resumeTimer,
+      onPauseTimer: pauseTimer,
+      onRevealUI: revealUI,
+      onResetTimer: resetCurrentTimer,
+      onToggleFullscreen: toggleFullscreen,
+      onExitPractice: exitPractice,
+    };
 
-    // Grid tool shortcuts
-    if (e.key === "g" || e.key === "G") {
-      if (!e.ctrlKey && !e.metaKey && !gridLocked) {
-        e.preventDefault();
-        // Cycle through grid modes: 0 -> 1 -> 2 -> 3 -> 0
-        gridMode = ((gridMode + 1) % 4) as 0 | 1 | 2 | 3;
-        return;
-      }
-    }
-    if (e.key === "d" || e.key === "D") {
-      if (!e.ctrlKey && !e.metaKey && gridMode > 0) {
-        e.preventDefault();
-        showDiagonals = !showDiagonals;
-        return;
-      }
-    }
-    if (e.key === "c" || e.key === "C") {
-      if (!e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        // Cycle through color presets
-        currentColorIndex = (currentColorIndex + 1) % colorPresets.length;
-        return;
-      }
-    }
-    if (e.key === "=" || e.key === "+") {
-      if (!e.ctrlKey && !e.metaKey && gridMode > 0) {
-        e.preventDefault();
-        gridLineWidth = Math.min(5, gridLineWidth + 1);
-        return;
-      }
-    }
-    if (e.key === "-" || e.key === "_") {
-      if (!e.ctrlKey && !e.metaKey && gridMode > 0) {
-        e.preventDefault();
-        gridLineWidth = Math.max(1, gridLineWidth - 1);
-        return;
-      }
-    }
+    // Try angle mode keys first
+    if (handleAngleModeKeys(e, keyboardContext)) return;
 
-    // Only reveal UI for playback controls, not navigation
+    // Try grid tool keys
+    if (handleGridToolKeys(e, keyboardContext)) return;
+
+    // Try navigation keys (arrow keys)
+    if (handleNavigationKeys(e, keyboardContext)) return;
+
+    // Handle navigation via arrow keys without modifiers
     switch (e.key) {
       case "ArrowLeft":
-        if (heldKeys.has("v")) {
-          // Move vertical line left
-          e.preventDefault();
-          arrowUsedWithModifier = true;
-          dragTarget = "vertical-line";
-          verticalLine2X = Math.max(0, verticalLine2X - 0.01);
-          setTimeout(() => {
-            dragTarget = null;
-          }, 100);
-        } else {
+        if (!keyboardContext.heldKeys.has("v")) {
           goToPrevious();
         }
         break;
       case "ArrowRight":
-        if (heldKeys.has("v")) {
-          // Move vertical line right
-          e.preventDefault();
-          arrowUsedWithModifier = true;
-          dragTarget = "vertical-line";
-          verticalLine2X = Math.min(1, verticalLine2X + 0.01);
-          setTimeout(() => {
-            dragTarget = null;
-          }, 100);
-        } else {
+        if (!keyboardContext.heldKeys.has("v")) {
           goToNext();
         }
         break;
-      case "ArrowUp":
-        if (heldKeys.has("h")) {
-          // Move horizontal line up
-          e.preventDefault();
-          arrowUsedWithModifier = true;
-          dragTarget = "horizontal-line";
-          horizontalLine2Y = Math.max(0, horizontalLine2Y - 0.01);
-          setTimeout(() => {
-            dragTarget = null;
-          }, 100);
-        }
-        break;
-      case "ArrowDown":
-        if (heldKeys.has("h")) {
-          // Move horizontal line down
-          e.preventDefault();
-          arrowUsedWithModifier = true;
-          dragTarget = "horizontal-line";
-          horizontalLine2Y = Math.min(1, horizontalLine2Y + 0.01);
-          setTimeout(() => {
-            dragTarget = null;
-          }, 100);
-        }
-        break;
-      case " ":
-      case "Spacebar":
-        e.preventDefault();
-        revealUI();
-        if (isPaused) {
-          resumeTimer();
-        } else {
-          pauseTimer();
-        }
-        break;
-      case "r":
-      case "R":
-        revealUI();
-        resetCurrentTimer();
-        break;
-      case "f":
-      case "F":
-        e.preventDefault();
-        revealUI();
-        toggleFullscreen();
-        break;
-      case "m":
-      case "M":
-        e.preventDefault();
-        revealUI();
-        toggleMute();
-        break;
-      case "Escape":
-        if (isFullscreen) {
-          toggleFullscreen();
-        } else {
-          exitPractice();
-        }
-        break;
     }
+
+    // Try playback control keys last
+    if (handlePlaybackKeys(e, keyboardContext)) return;
   }
 
   function handleKeyup(e: KeyboardEvent) {
-    // Handle V/H toggle on keyup (only if arrows weren't used for movement)
-    if ((e.key === "v" || e.key === "V") && !e.ctrlKey && !e.metaKey) {
-      if (!arrowUsedWithModifier) {
-        showVerticalLines = !showVerticalLines;
-        if (showVerticalLines) showPlumbTool = true;
-      }
-      arrowUsedWithModifier = false;
-    }
-    if ((e.key === "h" || e.key === "H") && !e.ctrlKey && !e.metaKey) {
-      if (!arrowUsedWithModifier) {
-        showHorizontalLines = !showHorizontalLines;
-        if (showHorizontalLines) showPlumbTool = true;
-      }
+    // Create context for keyup handler
+    const keyboardContext: KeyboardHandlerContext = {
+      angleMode,
+      currentAngleLine,
+      angleLines,
+      showPlumbTool,
+      gridMode,
+      gridLocked,
+      gridLineWidth,
+      showDiagonals,
+      currentColorIndex,
+      colorPresetsLength: colorPresets.length,
+      showSetup,
+      uiLocked,
+      isFullscreen,
+      isPaused,
+      isMuted,
+      heldKeys,
+      arrowUsedWithModifier,
+      dragTarget,
+      verticalLine2X,
+      horizontalLine2Y,
+      showVerticalLines,
+      showHorizontalLines,
+      onAngleModeChange: (v) => (angleMode = v),
+      onCurrentAngleLineChange: (v) => (currentAngleLine = v),
+      onAngleLinesChange: (v) => (angleLines = v),
+      onShowPlumbToolChange: (v) => (showPlumbTool = v),
+      onGridModeChange: (v) => (gridMode = v),
+      onShowDiagonalsChange: (v) => (showDiagonals = v),
+      onGridLineWidthChange: (v) => (gridLineWidth = v),
+      onCurrentColorIndexChange: (v) => (currentColorIndex = v),
+      onUILockedChange: (v) => (uiLocked = v),
+      onShowVerticalLinesChange: (v) => (showVerticalLines = v),
+      onShowHorizontalLinesChange: (v) => (showHorizontalLines = v),
+      onDragTargetChange: (v) => (dragTarget = v),
+      onVerticalLine2XChange: (v) => (verticalLine2X = v),
+      onHorizontalLine2YChange: (v) => (horizontalLine2Y = v),
+      onArrowUsedWithModifierChange: (v) => (arrowUsedWithModifier = v),
+    };
+
+    // Handle V/H toggle on keyup
+    if (handleLineModifierKeyUp(e, keyboardContext, arrowUsedWithModifier)) {
       arrowUsedWithModifier = false;
     }
 
