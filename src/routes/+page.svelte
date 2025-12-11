@@ -286,7 +286,7 @@
 
     // Reset page
     currentPage = 1;
-    
+
     // Reset progressive rendering when filters change
     if (itemsPerPage === "all" && filteredImages.length > 100) {
       isProgressiveRendering = true;
@@ -301,20 +301,20 @@
   // Schedule progressive loading of remaining images
   function scheduleProgressiveLoad() {
     if (!isProgressiveRendering) return;
-    
+
     // Use requestIdleCallback for better performance, fallback to setTimeout
     const loadMore = () => {
       if (progressiveRenderLimit >= filteredImages.length) {
         isProgressiveRendering = false;
         return;
       }
-      
+
       // Load 100 more images at a time
       progressiveRenderLimit = Math.min(
         progressiveRenderLimit + 100,
         filteredImages.length
       );
-      
+
       // Continue loading if there are more images
       if (progressiveRenderLimit < filteredImages.length) {
         scheduleProgressiveLoad();
@@ -322,8 +322,8 @@
         isProgressiveRendering = false;
       }
     };
-    
-    if ('requestIdleCallback' in window) {
+
+    if ("requestIdleCallback" in window) {
       requestIdleCallback(loadMore);
     } else {
       setTimeout(loadMore, 50);
@@ -498,7 +498,7 @@
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(PAGINATION_STORAGE_KEY, String(itemsPerPage));
     }
-    
+
     // Start progressive rendering if switching to "all" with many images
     if (itemsPerPage === "all" && filteredImages.length > 100) {
       isProgressiveRendering = true;
@@ -1730,7 +1730,9 @@
           {#if itemsPerPage === "all"}
             {#if isProgressiveRendering}
               <div class="flex items-center gap-2">
-                <span>Loading {progressiveRenderLimit} of {filteredImages.length} images...</span>
+                <span
+                  >Loading {progressiveRenderLimit} of {filteredImages.length} images...</span
+                >
                 <span class="loading loading-spinner loading-xs"></span>
               </div>
             {:else}
