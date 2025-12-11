@@ -87,18 +87,18 @@ jobs:
           # Get the Windows installer info
           VERSION=${{ steps.release_info.outputs.tag }}
           VERSION=${VERSION#v}
-          
+
           # Find the actual installer filename from the release
           INSTALLER=$(curl -s https://api.github.com/repos/darrenk196/draw-stack-app/releases/tags/${{ steps.release_info.outputs.tag }} | grep -o '"name":"[^"]*\.msi\.zip"' | head -1 | cut -d'"' -f4)
           SIG_FILE="${INSTALLER}.sig"
-          
+
           # Get file size
           SIZE=$(curl -sI "https://github.com/darrenk196/draw-stack-app/releases/download/${{ steps.release_info.outputs.tag }}/${INSTALLER}" | grep -i content-length | awk '{print $2}' | tr -d '\r')
-          
+
           if [ -z "$SIZE" ]; then
             SIZE=0
           fi
-          
+
           # Create latest.json
           cat > latest.json <<EOF
           {
@@ -113,7 +113,7 @@ jobs:
             }
           }
           EOF
-          
+
           cat latest.json
 
       - name: Upload latest.json to release

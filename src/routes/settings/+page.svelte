@@ -575,9 +575,7 @@
               <p class="text-sm text-warm-gray">
                 Version {APP_VERSION}
               </p>
-              <p class="text-xs text-warm-gray">
-                Auto-update test build 0.1.2
-              </p>
+              <p class="text-xs text-warm-gray">Auto-update test build 0.1.2</p>
             </div>
 
             <div class="divider"></div>

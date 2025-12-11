@@ -186,7 +186,7 @@ npm run tauri build
 
 ## License
 
-[Add your license here]
+GPL-3.0-or-later. See `LICENSE` for full terms.
 
 ## Contributing
 
