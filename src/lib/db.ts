@@ -88,6 +88,40 @@ export interface TagUsage {
   usageCount: number;
 }
 
+/**
+ * Application settings key-value pair.
+ */
+export interface AppSetting {
+  /** Setting key */
+  key: string;
+  /** Setting value (JSON stringified) */
+  value: string;
+}
+
+/**
+ * Type-safe application settings object.
+ */
+export interface AppSettings {
+  /** Default timer duration in seconds */
+  defaultTimerDuration: number;
+  /** Auto-play next image when timer ends */
+  autoPlayNextImage: boolean;
+  /** Maximum number of search results to display */
+  searchResultLimit: number;
+  /** Confirmation dialog strictness level */
+  confirmationDialogStrictness: 'always' | 'normal' | 'minimal';
+}
+
+/**
+ * Default application settings.
+ */
+export const DEFAULT_SETTINGS: AppSettings = {
+  defaultTimerDuration: 60, // 1 minute
+  autoPlayNextImage: false,
+  searchResultLimit: 100,
+  confirmationDialogStrictness: 'normal',
+};
+
 interface DrawStackDB extends DBSchema {
   packs: {
     key: string;
@@ -127,10 +161,14 @@ interface DrawStackDB extends DBSchema {
       'by-last-used': number;
     };
   };
+  settings: {
+    key: string;
+    value: AppSetting;
+  };
 }
 
 const DB_NAME = 'drawstack-db';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbInstance: IDBPDatabase<DrawStackDB> | null = null;
 let dbPromise: Promise<IDBPDatabase<DrawStackDB>> | null = null;
@@ -183,6 +221,13 @@ export async function getDB(): Promise<IDBPDatabase<DrawStackDB>> {
         }
         // Create new index on addedToLibraryAt
         imagesStore.createIndex('by-library', 'addedToLibraryAt');
+      }
+      
+      // Version 4: Add settings store for user preferences
+      if (oldVersion < 4) {
+        if (!db.objectStoreNames.contains('settings')) {
+          db.createObjectStore('settings', { keyPath: 'key' });
+        }
       }
     },
   });
@@ -787,5 +832,115 @@ export async function cleanupOrphanedData(): Promise<void> {
     console.log(`Cleaned up ${orphanedUsage.length} orphaned tag usage records and ${orphanedImageTags.length} orphaned image-tag associations`);
   } catch (error) {
     console.error('Failed to clean up orphaned data:', error);
+  }
+}
+
+// ============= Settings Operations =============
+
+/**
+ * Get all settings as a type-safe object.
+ * Returns DEFAULT_SETTINGS for any missing values.
+ */
+export async function getSettings(): Promise<AppSettings> {
+  try {
+    const db = await getDB();
+    const allSettings = await db.getAll('settings');
+    
+    const settings: AppSettings = { ...DEFAULT_SETTINGS };
+    
+    for (const setting of allSettings) {
+      try {
+        const value = JSON.parse(setting.value);
+        if (setting.key in settings) {
+          (settings as any)[setting.key] = value;
+        }
+      } catch (error) {
+        console.error(`Failed to parse setting ${setting.key}:`, error);
+      }
+    }
+    
+    return settings;
+  } catch (error) {
+    console.error('Failed to get settings:', error);
+    return DEFAULT_SETTINGS;
+  }
+}
+
+/**
+ * Get a single setting value.
+ * Returns default value if setting doesn't exist.
+ */
+export async function getSetting<K extends keyof AppSettings>(
+  key: K
+): Promise<AppSettings[K]> {
+  try {
+    const db = await getDB();
+    const setting = await db.get('settings', key);
+    
+    if (setting) {
+      return JSON.parse(setting.value);
+    }
+    
+    return DEFAULT_SETTINGS[key];
+  } catch (error) {
+    console.error(`Failed to get setting ${key}:`, error);
+    return DEFAULT_SETTINGS[key];
+  }
+}
+
+/**
+ * Update a single setting.
+ */
+export async function updateSetting<K extends keyof AppSettings>(
+  key: K,
+  value: AppSettings[K]
+): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.put('settings', {
+      key,
+      value: JSON.stringify(value),
+    });
+    console.log(`Updated setting ${key}:`, value);
+  } catch (error) {
+    console.error(`Failed to update setting ${key}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Update multiple settings at once.
+ */
+export async function updateSettings(settings: Partial<AppSettings>): Promise<void> {
+  try {
+    const db = await getDB();
+    const tx = db.transaction('settings', 'readwrite');
+    
+    for (const [key, value] of Object.entries(settings)) {
+      await tx.store.put({
+        key,
+        value: JSON.stringify(value),
+      });
+    }
+    
+    await tx.done;
+    console.log('Updated settings:', settings);
+  } catch (error) {
+    console.error('Failed to update settings:', error);
+    throw error;
+  }
+}
+
+/**
+ * Reset all settings to defaults.
+ */
+export async function resetSettings(): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.clear('settings');
+    console.log('Reset all settings to defaults');
+  } catch (error) {
+    console.error('Failed to reset settings:', error);
+    throw error;
   }
 }

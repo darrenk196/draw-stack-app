@@ -7,7 +7,7 @@
   let { children } = $props();
 
   import { onMount } from "svelte";
-  import { getLibraryImages } from "$lib/db";
+  import { getLibraryImages, getSettings, updateSettings, DEFAULT_SETTINGS } from "$lib/db";
 
   let libraryCount = $state(0);
   let showOnboarding = $state(false);
@@ -26,6 +26,35 @@
     localStorage.setItem("hasCompletedOnboarding", "true");
   }
 
+  /**
+   * One-time migration: Move settings from localStorage to IndexedDB
+   */
+  async function migrateSettingsToDatabase() {
+    try {
+      // Check if migration already done
+      const migrationKey = 'settings-migrated-to-db';
+      if (localStorage.getItem(migrationKey)) {
+        return; // Already migrated
+      }
+
+      // Load current settings from DB
+      const currentSettings = await getSettings();
+      let needsUpdate = false;
+      const updates: Partial<typeof DEFAULT_SETTINGS> = {};
+
+      // This is for future localStorage settings migration
+      // Currently we don't have any localStorage settings to migrate
+      // but this structure is ready for any future needs
+      
+      // Mark migration as complete
+      localStorage.setItem(migrationKey, 'true');
+      console.log('Settings migration check complete');
+    } catch (error) {
+      console.error('Settings migration failed:', error);
+      // Don't throw - migration failure shouldn't break the app
+    }
+  }
+
   onMount(() => {
     refreshLibraryCount();
     const handler = () => refreshLibraryCount();
@@ -42,6 +71,9 @@
 
     // Check for updates on app startup (silent, only shows if update available)
     checkForUpdatesOnStartup();
+    
+    // Migrate localStorage settings to database (one-time migration)
+    migrateSettingsToDatabase();
 
     // Listen for onboarding replay request
     const replayHandler = () => {

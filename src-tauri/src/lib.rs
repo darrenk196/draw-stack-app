@@ -437,6 +437,133 @@ fn read_file_contents(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
 }
 
+#[derive(Debug, serde::Serialize)]
+struct StorageInfo {
+    used_bytes: u64,
+    used_formatted: String,
+    total_bytes: Option<u64>,
+    total_formatted: Option<String>,
+    usage_percentage: Option<f32>,
+}
+
+#[tauri::command]
+fn get_storage_usage(app: AppHandle) -> Result<StorageInfo, String> {
+    use std::fs::metadata;
+    
+    // Get library path
+    let library_path = get_library_path(app)?;
+    let library_dir = Path::new(&library_path);
+    
+    // Calculate directory size recursively
+    fn dir_size(path: &Path) -> std::io::Result<u64> {
+        let mut size = 0u64;
+        
+        if path.is_dir() {
+            for entry in fs::read_dir(path)? {
+                let entry = entry?;
+                let path = entry.path();
+                
+                if path.is_dir() {
+                    size += dir_size(&path)?;
+                } else {
+                    size += metadata(&path)?.len();
+                }
+            }
+        }
+        
+        Ok(size)
+    }
+    
+    let used_bytes = if library_dir.exists() {
+        dir_size(library_dir).unwrap_or(0)
+    } else {
+        0
+    };
+    
+    // Get total disk space (Windows only, best effort)
+    let (total_bytes, total_formatted, usage_percentage) = if cfg!(target_os = "windows") {
+        // Try to get drive letter from library path
+        if let Some(drive) = library_path.chars().nth(0) {
+            let drive_path = format!("{}:\\", drive);
+            
+            // Use GetDiskFreeSpaceEx on Windows
+            #[cfg(target_os = "windows")]
+            {
+                use std::ffi::OsStr;
+                use std::os::windows::ffi::OsStrExt;
+                use std::ptr::null_mut;
+                
+                let wide_path: Vec<u16> = OsStr::new(&drive_path)
+                    .encode_wide()
+                    .chain(Some(0))
+                    .collect();
+                
+                let mut total: u64 = 0;
+                let mut _free: u64 = 0;
+                
+                unsafe {
+                    if winapi::um::fileapi::GetDiskFreeSpaceExW(
+                        wide_path.as_ptr(),
+                        null_mut(),
+                        &mut total as *mut _ as *mut _,
+                        &mut _free as *mut _ as *mut _,
+                    ) != 0 {
+                        let percentage = if total > 0 {
+                            Some((used_bytes as f32 / total as f32) * 100.0)
+                        } else {
+                            None
+                        };
+                        
+                        (
+                            Some(total),
+                            Some(format_bytes(total)),
+                            percentage,
+                        )
+                    } else {
+                        (None, None, None)
+                    }
+                }
+            }
+            
+            #[cfg(not(target_os = "windows"))]
+            {
+                (None, None, None)
+            }
+        } else {
+            (None, None, None)
+        }
+    } else {
+        (None, None, None)
+    };
+    
+    Ok(StorageInfo {
+        used_bytes,
+        used_formatted: format_bytes(used_bytes),
+        total_bytes,
+        total_formatted,
+        usage_percentage,
+    })
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+    const TB: u64 = GB * 1024;
+    
+    if bytes >= TB {
+        format!("{:.2} TB", bytes as f64 / TB as f64)
+    } else if bytes >= GB {
+        format!("{:.2} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.2} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.2} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} bytes", bytes)
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -459,6 +586,7 @@ pub fn run() {
             get_default_library_path,
             write_file,
             read_file_contents,
+            get_storage_usage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

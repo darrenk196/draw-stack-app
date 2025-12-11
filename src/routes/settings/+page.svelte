@@ -9,8 +9,12 @@
     resetDatabase,
     addImages,
     addTag,
+    getSettings,
+    updateSettings,
+    DEFAULT_SETTINGS,
     type Image,
     type Tag,
+    type AppSettings,
   } from "$lib/db";
   import {
     ERROR_MESSAGES,
@@ -32,16 +36,32 @@
   let importProgress = $state({ current: 0, total: 0, label: "" });
   let showImportProgress = $state(false);
 
+  // App preferences
+  let appSettings = $state<AppSettings>({ ...DEFAULT_SETTINGS });
+  
+  // Storage usage
+  interface StorageInfo {
+    used_bytes: number;
+    used_formatted: string;
+    total_bytes: number | null;
+    total_formatted: string | null;
+    usage_percentage: number | null;
+  }
+  let storageInfo = $state<StorageInfo | null>(null);
+
   const APP_VERSION = "0.1.2-beta";
 
   onMount(() => {
     loadSettings();
     loadStats();
+    loadAppSettings();
+    loadStorageUsage();
     isLoading = false;
 
     // Listen for library updates from other pages
     const handleLibraryUpdate = () => {
       loadStats();
+      loadStorageUsage();
     };
     window.addEventListener("library-updated", handleLibraryUpdate);
 
@@ -71,6 +91,36 @@
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Failed to load stats:", error);
       toast.error(`${ERROR_MESSAGES.DB_QUERY_FAILED}: ${errorMsg}`);
+    }
+  }
+
+  async function loadAppSettings() {
+    try {
+      appSettings = await getSettings();
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error("Failed to load app settings:", error);
+      toast.error(`${ERROR_MESSAGES.SETTINGS_LOAD_FAILED}: ${errorMsg}`);
+    }
+  }
+
+  async function loadStorageUsage() {
+    try {
+      storageInfo = await invoke<StorageInfo>("get_storage_usage");
+    } catch (error) {
+      console.error("Failed to load storage usage:", error);
+      // Don't show error toast - storage info is optional
+    }
+  }
+
+  async function saveAppSettings() {
+    try {
+      await updateSettings(appSettings);
+      toast.success("Preferences saved successfully");
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error("Failed to save settings:", error);
+      toast.error(`${ERROR_MESSAGES.SETTINGS_SAVE_FAILED}: ${errorMsg}`);
     }
   }
 
@@ -538,6 +588,155 @@
         </div>
       </div>
 
+      <!-- Application Preferences -->
+      <div class="glass-card card mb-6">
+        <div class="card-body space-y-4">
+          <h2 class="card-title text-xl text-warm-charcoal mb-4">
+            Application Preferences
+          </h2>
+
+          <div class="space-y-6">
+            <!-- Default Timer Duration -->
+            <div class="form-control">
+              <label class="label" for="timer-duration">
+                <span class="label-text font-medium">Default Timer Duration</span>
+              </label>
+              <div class="flex items-center gap-3">
+                <input
+                  id="timer-duration"
+                  type="number"
+                  class="input-soft w-32"
+                  min="10"
+                  max="3600"
+                  step="10"
+                  bind:value={appSettings.defaultTimerDuration}
+                />
+                <span class="text-warm-gray">seconds</span>
+              </div>
+              <div class="label">
+                <span class="label-text-alt text-warm-gray">
+                  Default duration for drawing timer sessions (10-3600 seconds)
+                </span>
+              </div>
+            </div>
+
+            <!-- Auto-play Next Image -->
+            <div class="form-control">
+              <label class="label cursor-pointer justify-start gap-3">
+                <input
+                  type="checkbox"
+                  class="checkbox checkbox-primary"
+                  bind:checked={appSettings.autoPlayNextImage}
+                />
+                <div>
+                  <span class="label-text font-medium">Auto-play Next Image</span>
+                  <div class="label-text-alt text-warm-gray mt-1">
+                    Automatically advance to next image when timer ends
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <!-- Search Result Limit -->
+            <div class="form-control">
+              <label class="label" for="search-limit">
+                <span class="label-text font-medium">Search Result Limit</span>
+              </label>
+              <select
+                id="search-limit"
+                class="select-soft w-full max-w-xs"
+                bind:value={appSettings.searchResultLimit}
+              >
+                <option value={50}>50 results</option>
+                <option value={100}>100 results</option>
+                <option value={200}>200 results</option>
+                <option value={500}>500 results</option>
+                <option value={1000}>1000 results</option>
+              </select>
+              <div class="label">
+                <span class="label-text-alt text-warm-gray">
+                  Maximum number of search results to display
+                </span>
+              </div>
+            </div>
+
+            <!-- Confirmation Dialog Strictness -->
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">Confirmation Dialogs</span>
+              </label>
+              <div class="space-y-2">
+                <label class="label cursor-pointer justify-start gap-3">
+                  <input
+                    type="radio"
+                    name="dialog-strictness"
+                    class="radio radio-primary"
+                    value="always"
+                    bind:group={appSettings.confirmationDialogStrictness}
+                  />
+                  <div>
+                    <span class="label-text">Always Ask</span>
+                    <div class="label-text-alt text-warm-gray">
+                      Confirm all actions including minor deletions
+                    </div>
+                  </div>
+                </label>
+                <label class="label cursor-pointer justify-start gap-3">
+                  <input
+                    type="radio"
+                    name="dialog-strictness"
+                    class="radio radio-primary"
+                    value="normal"
+                    bind:group={appSettings.confirmationDialogStrictness}
+                  />
+                  <div>
+                    <span class="label-text">Normal (Recommended)</span>
+                    <div class="label-text-alt text-warm-gray">
+                      Confirm important actions only
+                    </div>
+                  </div>
+                </label>
+                <label class="label cursor-pointer justify-start gap-3">
+                  <input
+                    type="radio"
+                    name="dialog-strictness"
+                    class="radio radio-primary"
+                    value="minimal"
+                    bind:group={appSettings.confirmationDialogStrictness}
+                  />
+                  <div>
+                    <span class="label-text">Minimal</span>
+                    <div class="label-text-alt text-warm-gray">
+                      Only confirm destructive actions
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <button class="action-primary gap-2" onclick={saveAppSettings}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+            Save Preferences
+          </button>
+        </div>
+      </div>
+
       <!-- Library Statistics -->
       <div class="glass-card card mb-6">
         <div class="card-body space-y-4">
@@ -556,6 +755,32 @@
               <div class="stat-value text-terracotta">{tagCount}</div>
             </div>
           </div>
+          
+          <!-- Storage Usage -->
+          {#if storageInfo}
+            <div class="divider"></div>
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-warm-gray">Storage Usage</span>
+                <span class="text-sm text-warm-charcoal">
+                  {storageInfo.used_formatted}
+                  {#if storageInfo.total_formatted}
+                    <span class="text-warm-gray">of {storageInfo.total_formatted}</span>
+                  {/if}
+                </span>
+              </div>
+              {#if storageInfo.usage_percentage !== null}
+                <progress
+                  class="progress progress-primary w-full"
+                  value={storageInfo.usage_percentage}
+                  max="100"
+                ></progress>
+                <div class="text-xs text-warm-gray mt-1 text-right">
+                  {storageInfo.usage_percentage.toFixed(1)}% used
+                </div>
+              {/if}
+            </div>
+          {/if}
         </div>
       </div>
 
