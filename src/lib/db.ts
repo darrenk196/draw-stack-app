@@ -1010,15 +1010,23 @@ export async function findDuplicateTags(): Promise<DuplicateTagGroup[]> {
  * @param sourceTagIds - Tags to merge into the target (will be deleted)
  */
 export async function mergeTags(targetTagId: string, sourceTagIds: string[]): Promise<void> {
+  console.log('[mergeTags] Starting merge operation');
+  console.log('[mergeTags] Target tag ID:', targetTagId);
+  console.log('[mergeTags] Source tag IDs:', sourceTagIds);
+  
   const db = await getDB();
   
   // Verify target tag exists
   const targetTag = await getTag(targetTagId);
+  console.log('[mergeTags] Target tag:', targetTag);
+  
   if (!targetTag) {
+    console.error('[mergeTags] Target tag not found');
     throw new Error('Target tag not found');
   }
   
   // Use a transaction to ensure atomicity
+  console.log('[mergeTags] Creating transaction...');
   const tx = db.transaction(['imageTags', 'tags', 'tagUsage'], 'readwrite');
   
   try {
@@ -1027,6 +1035,7 @@ export async function mergeTags(targetTagId: string, sourceTagIds: string[]): Pr
     
     // Get target tag usage
     const targetUsage = await tx.objectStore('tagUsage').get(targetTagId);
+    console.log('[mergeTags] Target tag usage:', targetUsage);
     if (targetUsage) {
       totalUsageCount = targetUsage.usageCount;
       latestUsage = targetUsage.lastUsed;
@@ -1034,18 +1043,29 @@ export async function mergeTags(targetTagId: string, sourceTagIds: string[]): Pr
     
     // Process each source tag
     for (const sourceTagId of sourceTagIds) {
-      if (sourceTagId === targetTagId) continue; // Skip if somehow target is in sources
+      console.log('[mergeTags] Processing source tag:', sourceTagId);
+      if (sourceTagId === targetTagId) {
+        console.log('[mergeTags] Skipping - source is same as target');
+        continue; // Skip if somehow target is in sources
+      }
       
-      // Get all images using this source tag
-      const sourceImageTags = await db.getAllFromIndex('imageTags', 'by-tag', sourceTagId);
+      // Get all images using this source tag (use transaction index)
+      const imageTagsIndex = tx.objectStore('imageTags').index('by-tag');
+      const sourceImageTags = await imageTagsIndex.getAll(sourceTagId);
+      console.log(`[mergeTags] Found ${sourceImageTags.length} image associations for source tag`);
       
       // Transfer image associations to target tag
       for (const imageTag of sourceImageTags) {
-        // Add to target tag (use put to avoid duplicates)
-        await tx.objectStore('imageTags').put({
-          imageId: imageTag.imageId,
-          tagId: targetTagId,
-        });
+        // Check if target already has this image association
+        const existingAssoc = await tx.objectStore('imageTags').get([imageTag.imageId, targetTagId]);
+        
+        // Only add if it doesn't exist
+        if (!existingAssoc) {
+          await tx.objectStore('imageTags').put({
+            imageId: imageTag.imageId,
+            tagId: targetTagId,
+          });
+        }
         
         // Remove from source tag
         await tx.objectStore('imageTags').delete([imageTag.imageId, sourceTagId]);
@@ -1053,34 +1073,41 @@ export async function mergeTags(targetTagId: string, sourceTagIds: string[]): Pr
       
       // Merge usage statistics
       const sourceUsage = await tx.objectStore('tagUsage').get(sourceTagId);
+      console.log('[mergeTags] Source tag usage:', sourceUsage);
       if (sourceUsage) {
         totalUsageCount += sourceUsage.usageCount;
         latestUsage = Math.max(latestUsage, sourceUsage.lastUsed);
       }
       
-      // Delete child tags of source tag (move them to target)
-      const childTags = await db.getAllFromIndex('tags', 'by-parent', sourceTagId);
+      // Delete child tags of source tag (move them to target) - use transaction index
+      const tagsIndex = tx.objectStore('tags').index('by-parent');
+      const childTags = await tagsIndex.getAll(sourceTagId);
+      console.log(`[mergeTags] Found ${childTags.length} child tags to move`);
       for (const child of childTags) {
         child.parentId = targetTagId;
         await tx.objectStore('tags').put(child);
       }
       
       // Delete source tag usage
+      console.log('[mergeTags] Deleting source tag usage');
       await tx.objectStore('tagUsage').delete(sourceTagId).catch(() => {});
       
       // Delete source tag
+      console.log('[mergeTags] Deleting source tag');
       await tx.objectStore('tags').delete(sourceTagId);
     }
     
     // Update target tag usage with merged statistics
+    console.log('[mergeTags] Updating target tag usage:', { totalUsageCount, latestUsage });
     await tx.objectStore('tagUsage').put({
       tagId: targetTagId,
       usageCount: totalUsageCount,
       lastUsed: latestUsage || Date.now(),
     });
     
+    console.log('[mergeTags] Committing transaction...');
     await tx.done;
-    console.log(`Merged ${sourceTagIds.length} tags into ${targetTagId}`);
+    console.log(`[mergeTags] Successfully merged ${sourceTagIds.length} tags into ${targetTagId}`);
   } catch (error) {
     console.error('Failed to merge tags:', error);
     throw error;

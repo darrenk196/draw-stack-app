@@ -113,6 +113,35 @@
   let customSessions = $state<CustomSession[]>(loadCustomSessions());
   let classroomPresets = $state<ClassroomPreset[]>([]);
 
+  /**
+   * Calculate total duration from stages
+   * @param stages - Array of session stages
+   * @returns Total duration in minutes (rounded)
+   */
+  function calculateTotalDuration(stages: SessionStage[]): number {
+    const totalSeconds = stages.reduce((sum, stage) => {
+      return sum + stage.imageCount * stage.duration;
+    }, 0);
+    return Math.round(totalSeconds / 60);
+  }
+
+  /**
+   * Format duration in minutes as a readable string
+   * @param minutes - Number of minutes
+   * @returns Formatted string (e.g., "45 min", "1h 15 min")
+   */
+  function formatDuration(minutes: number): string {
+    if (minutes < 60) {
+      return `${minutes} min`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (mins === 0) {
+      return `${hours}h`;
+    }
+    return `${hours}h ${mins} min`;
+  }
+
   function loadClassroomPresets(): ClassroomPreset[] {
     if (typeof localStorage === "undefined") return defaultClassroomPresets;
     try {
@@ -150,13 +179,11 @@
   function convertCustomSessionToPreset(
     session: CustomSession
   ): ClassroomPreset {
-    const totalMinutes = Math.ceil(
-      session.stages.reduce((sum, s) => sum + s.imageCount * s.duration, 0) / 60
-    );
+    const totalMinutes = calculateTotalDuration(session.stages);
     return {
       id: session.id,
       name: session.name,
-      totalDuration: `~${totalMinutes} min`,
+      totalDuration: formatDuration(totalMinutes),
       description: "Custom session",
       stages: session.stages,
     };
@@ -169,6 +196,7 @@
   let showSetup = $state(true);
   let setupMode = $state<"choose" | "classroom" | "quick" | "legacy">("choose");
   let selectedPreset = $state<ClassroomPreset | null>(null);
+  let editingPresetId = $state<string | null>(null); // Track which preset is being edited
   let quickConfig = $state<QuickSessionConfig>({
     selectedTags: [],
     stages: [],
@@ -226,6 +254,7 @@
   // Practice session state
   let currentIndex = $state(0);
   let isPaused = $state(false);
+  let isManuallyPaused = $state(false); // Track if user manually paused (vs auto-pause when timer ends)
   // Audio cues mute toggle (persisted)
   const TIMER_MUTE_KEY = "timerMuted";
   let isMuted = $state<boolean>(false);
@@ -245,8 +274,11 @@
   let isFullscreen = $state(false);
   let showUI = $state(true);
   let uiHideTimer: number | null = null;
-  const uiHideDelay = 2000; // ms
+  let uiActivityTimer: number | null = null;
+  const uiHideDelay = 800; // ms - quick hide for responsive feel
+  const uiInitialShowDelay = 2500; // ms - how long UI stays visible after unlock before starting auto-hide
   let uiLocked = $state(true);
+  let uiLastActivityTime = $state(0); // Track when UI was last revealed
   let showCompletion = $state(false);
   let showHelpModal = $state(false);
 
@@ -433,6 +465,12 @@
     recentTagIds = loadRecentTags();
     classroomPresets = loadClassroomPresets();
 
+    // Recalculate total durations for all presets to ensure they're accurate
+    classroomPresets = classroomPresets.map((preset) => ({
+      ...preset,
+      totalDuration: formatDuration(calculateTotalDuration(preset.stages)),
+    }));
+
     // Merge custom sessions into classroom presets
     const customPresets = customSessions.map(convertCustomSessionToPreset);
     const existingIds = new Set(classroomPresets.map((p) => p.id));
@@ -452,6 +490,12 @@
     return () => {
       if (timerInterval !== null) {
         clearInterval(timerInterval);
+      }
+      if (uiHideTimer !== null) {
+        clearTimeout(uiHideTimer);
+      }
+      if (uiActivityTimer !== null) {
+        clearInterval(uiActivityTimer);
       }
       // Ensure we exit fullscreen if active
       if (isFullscreen && document.fullscreenElement) {
@@ -584,6 +628,7 @@
 
     showSetup = false;
     currentIndex = 0;
+    isManuallyPaused = false; // Reset manual pause state
     startTimer();
     revealUI();
   }
@@ -593,7 +638,11 @@
     if (!entry) return;
 
     timeRemaining = entry.duration;
-    isPaused = false;
+    // Only resume if it wasn't manually paused
+    // If manually paused, keep it paused until user resumes
+    if (!isManuallyPaused) {
+      isPaused = false;
+    }
 
     if (timerInterval !== null) {
       clearInterval(timerInterval);
@@ -612,25 +661,27 @@
             if (allowAutoPlay) {
               goToNext();
             } else {
-              pauseTimer();
+              pauseTimer(false); // Auto-pause (not manual)
             }
           } else {
             // Session complete
             playVictory();
             showCompletion = true;
-            pauseTimer();
+            pauseTimer(false); // Auto-pause (not manual)
           }
         }
       }
     }, 1000);
   }
 
-  function pauseTimer() {
+  function pauseTimer(manual = true) {
     isPaused = true;
+    isManuallyPaused = manual; // Track if this was a manual pause
   }
 
   function resumeTimer() {
     isPaused = false;
+    isManuallyPaused = false; // Clear manual pause flag when resuming
   }
 
   function resetCurrentTimer() {
@@ -884,6 +935,7 @@
       isFullscreen,
       isPaused,
       isMuted,
+      autoPlayNextImage: appSettings.autoPlayNextImage,
       heldKeys,
       arrowUsedWithModifier,
       dragTarget,
@@ -906,6 +958,13 @@
       onVerticalLine2XChange: (v) => (verticalLine2X = v),
       onHorizontalLine2YChange: (v) => (horizontalLine2Y = v),
       onArrowUsedWithModifierChange: (v) => (arrowUsedWithModifier = v),
+      onAutoPlayNextImageChange: async (v) => {
+        appSettings.autoPlayNextImage = v;
+        await updateSettings(appSettings);
+        toast.info(
+          v ? "Auto-play next image enabled" : "Auto-play next image disabled"
+        );
+      },
       onResumeTimer: resumeTimer,
       onPauseTimer: pauseTimer,
       onRevealUI: revealUI,
@@ -959,6 +1018,8 @@
       isFullscreen,
       isPaused,
       isMuted,
+      autoPlayNextImage:
+        appSettings.autoPlayNextImage ?? DEFAULT_SETTINGS.autoPlayNextImage,
       heldKeys,
       arrowUsedWithModifier,
       dragTarget,
@@ -998,6 +1059,9 @@
         await document.documentElement.requestFullscreen();
         isFullscreen = true;
       } else {
+        // Immediately unlock UI when exiting fullscreen for smooth transition
+        uiLocked = false;
+        showUI = true;
         await document.exitFullscreen();
         isFullscreen = false;
       }
@@ -1244,6 +1308,45 @@
       return;
     }
 
+    // If editing an existing preset
+    if (editingPresetId) {
+      // Find and update the preset
+      const presetIndex = classroomPresets.findIndex(
+        (p) => p.id === editingPresetId
+      );
+      if (presetIndex !== -1) {
+        // Update the preset with new stages and recalculate total duration
+        classroomPresets[presetIndex] = {
+          ...classroomPresets[presetIndex],
+          stages: JSON.parse(JSON.stringify(quickConfig.stages)), // Deep copy
+          totalDuration: formatDuration(
+            calculateTotalDuration(quickConfig.stages)
+          ),
+        };
+        classroomPresets = [...classroomPresets]; // Trigger reactivity
+        saveClassroomPresets(classroomPresets);
+
+        // Also update custom session if it exists
+        const sessionIndex = customSessions.findIndex(
+          (s) => s.id === editingPresetId
+        );
+        if (sessionIndex !== -1) {
+          customSessions[sessionIndex] = {
+            ...customSessions[sessionIndex],
+            stages: JSON.parse(JSON.stringify(quickConfig.stages)), // Deep copy
+          };
+          customSessions = [...customSessions]; // Trigger reactivity
+          saveCustomSessions(customSessions);
+        }
+
+        const presetName = classroomPresets[presetIndex].name;
+        toast.success(`"${presetName}" updated successfully!`);
+        editingPresetId = null; // Clear editing mode
+      }
+      return;
+    }
+
+    // Otherwise, create a new session
     const sessionName = prompt("Enter a name for this session:");
     if (!sessionName || !sessionName.trim()) return;
 
@@ -1275,6 +1378,7 @@
 
   function loadPresetForEditing(preset: ClassroomPreset) {
     // Load preset stages into quick config for editing
+    editingPresetId = preset.id; // Track that we're editing this preset
     quickConfig.stages = JSON.parse(JSON.stringify(preset.stages)); // Deep copy
     quickConfig = { ...quickConfig };
     setupMode = "quick";
@@ -1360,12 +1464,36 @@
   function revealUI() {
     if (uiLocked) return; // Don't auto-hide if locked
     showUI = true;
+    uiLastActivityTime = Date.now();
+
+    // Clear any existing timers
     if (uiHideTimer !== null) {
       clearTimeout(uiHideTimer);
     }
-    uiHideTimer = window.setTimeout(() => {
-      showUI = false;
-    }, uiHideDelay);
+    if (uiActivityTimer !== null) {
+      clearInterval(uiActivityTimer);
+    }
+
+    // Start the activity timer to check for auto-hide
+    startUIActivityTimer();
+  }
+
+  function startUIActivityTimer() {
+    uiActivityTimer = window.setInterval(() => {
+      if (!uiLocked && showUI) {
+        const elapsedTime = Date.now() - uiLastActivityTime;
+        const hideAfter =
+          elapsedTime < uiInitialShowDelay ? uiInitialShowDelay : uiHideDelay;
+
+        if (elapsedTime >= hideAfter) {
+          showUI = false;
+          if (uiActivityTimer !== null) {
+            clearInterval(uiActivityTimer);
+            uiActivityTimer = null;
+          }
+        }
+      }
+    }, 100); // Check every 100ms
   }
 
   function handlePointerActivity() {
@@ -1375,10 +1503,30 @@
   function toggleUILock() {
     uiLocked = !uiLocked;
     if (uiLocked) {
+      // Locking: keep UI visible and clear any pending hide timer
       showUI = true;
       if (uiHideTimer !== null) {
         clearTimeout(uiHideTimer);
       }
+      if (uiActivityTimer !== null) {
+        clearInterval(uiActivityTimer);
+        uiActivityTimer = null;
+      }
+    } else {
+      // Unlocking: show UI immediately and start activity timer for auto-hide
+      showUI = true;
+      uiLastActivityTime = Date.now();
+
+      // Clear any existing timers
+      if (uiHideTimer !== null) {
+        clearTimeout(uiHideTimer);
+      }
+      if (uiActivityTimer !== null) {
+        clearInterval(uiActivityTimer);
+      }
+
+      // Start the activity timer
+      startUIActivityTimer();
     }
   }
 
@@ -1620,7 +1768,10 @@
             </div>
             <button
               class="btn btn-ghost btn-sm"
-              onclick={() => (setupMode = "choose")}
+              onclick={() => {
+                setupMode = "choose";
+                editingPresetId = null;
+              }}
             >
               ← Back
             </button>
@@ -2341,6 +2492,7 @@
                 practiceImages = [];
                 timerEntries = [];
                 setupMode = "choose";
+                editingPresetId = null; // Clear editing mode when canceling
               }}
             >
               Cancel
@@ -2464,7 +2616,7 @@
     <div class="h-full min-h-0 flex flex-col bg-black relative">
       <!-- Top Bar -->
       <div
-        class="absolute top-0 left-0 right-0 z-10 bg-white px-6 py-3 flex items-center justify-between border-b border-warm-beige transition-opacity duration-200"
+        class="absolute top-0 left-0 right-0 z-10 bg-white px-6 py-3 flex items-center justify-between border-b border-warm-beige transition-opacity duration-100"
         class:opacity-0={!showUI && !uiLocked}
         class:pointer-events-none={!showUI && !uiLocked}
       >
@@ -2669,6 +2821,44 @@
                 />
               </svg>
             {/if}
+          </button>
+
+          <!-- Auto-play Next Image Toggle -->
+          <button
+            class="btn btn-sm"
+            class:btn-active={appSettings.autoPlayNextImage}
+            onclick={async () => {
+              appSettings.autoPlayNextImage = !appSettings.autoPlayNextImage;
+              await updateSettings(appSettings);
+              toast.info(
+                appSettings.autoPlayNextImage
+                  ? "Auto-play next image enabled"
+                  : "Auto-play next image disabled"
+              );
+            }}
+            title={appSettings.autoPlayNextImage
+              ? "Auto-play enabled (N)"
+              : "Auto-play disabled (N)"}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
           </button>
 
           <!-- Plumb Tool Controls -->
@@ -3512,7 +3702,7 @@
 
       <!-- Bottom Controls -->
       <div
-        class="absolute bottom-0 left-0 right-0 z-10 bg-white px-6 py-4 border-t border-warm-beige transition-opacity duration-200"
+        class="absolute bottom-0 left-0 right-0 z-10 bg-white px-6 py-4 border-t border-warm-beige transition-opacity duration-100"
         class:opacity-0={!showUI && !uiLocked}
         class:pointer-events-none={!showUI && !uiLocked}
       >
@@ -3544,7 +3734,7 @@
           <!-- Play/Pause Button -->
           <button
             class="btn btn-circle btn-lg bg-terracotta hover:bg-terracotta-dark text-white border-none"
-            onclick={isPaused ? resumeTimer : pauseTimer}
+            onclick={() => (isPaused ? resumeTimer() : pauseTimer())}
             title={isPaused ? "Resume (Space)" : "Pause (Space)"}
           >
             {#if isPaused}

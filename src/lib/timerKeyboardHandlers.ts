@@ -33,6 +33,7 @@ export interface KeyboardHandlerContext {
   isFullscreen: boolean;
   isPaused: boolean;
   isMuted: boolean;
+  autoPlayNextImage: boolean;
 
   // Line control state
   heldKeys: Set<string>;
@@ -59,6 +60,7 @@ export interface KeyboardHandlerContext {
   onVerticalLine2XChange: (newValue: number) => void;
   onHorizontalLine2YChange: (newValue: number) => void;
   onArrowUsedWithModifierChange: (newValue: boolean) => void;
+  onAutoPlayNextImageChange?: (newValue: boolean) => void;
   onResumeTimer?: () => void;
   onPauseTimer?: () => void;
   onRevealUI?: () => void;
@@ -378,6 +380,15 @@ export function handlePlaybackKeys(
       e.preventDefault();
       ctx.onRevealUI?.();
       // Mute toggle handled separately
+      return true;
+
+    case "n":
+    case "N":
+      e.preventDefault();
+      ctx.onRevealUI?.();
+      ctx.onAutoPlayNextImageChange?.(
+        !ctx.autoPlayNextImage
+      );
       return true;
 
     case "Escape":

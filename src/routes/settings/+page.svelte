@@ -46,7 +46,7 @@
   let duplicateTagGroups = $state<DuplicateTagGroup[]>([]);
   let isCheckingDuplicates = $state(false);
   let isMergingTags = $state(false);
-  let selectedMergeTarget = $state<Map<string, string>>(new Map()); // normalizedName -> targetTagId
+  let selectedMergeTarget = $state<Record<string, string>>({}); // normalizedName -> targetTagId
 
   function shouldConfirm() {
     return appSettings.confirmationDialogStrictness === "always";
@@ -273,8 +273,15 @@
   }
 
   async function mergeSelectedTags(group: DuplicateTagGroup) {
-    const targetTagId = selectedMergeTarget.get(group.normalizedName);
+    console.log("mergeSelectedTags called for group:", group);
+    console.log("selectedMergeTarget object:", selectedMergeTarget);
+    console.log("Looking for normalized name:", group.normalizedName);
+
+    const targetTagId = selectedMergeTarget[group.normalizedName];
+    console.log("Target tag ID:", targetTagId);
+
     if (!targetTagId) {
+      console.error("No target tag selected");
       toast.error("Please select a tag to keep");
       return;
     }
@@ -283,13 +290,19 @@
       .filter((tag) => tag.id !== targetTagId)
       .map((tag) => tag.id);
 
+    console.log("Source tag IDs to merge:", sourceTagIds);
+
     if (sourceTagIds.length === 0) {
+      console.error("No source tags to merge");
       toast.error("No tags to merge");
       return;
     }
 
     const targetTag = group.tags.find((tag) => tag.id === targetTagId);
+    console.log("Target tag:", targetTag);
+
     if (!targetTag) {
+      console.error("Target tag not found in group");
       toast.error("Target tag not found");
       return;
     }
@@ -309,15 +322,20 @@
     }
 
     isMergingTags = true;
+    console.log("Starting merge operation...");
     try {
+      console.log("Calling mergeTags with:", { targetTagId, sourceTagIds });
       await mergeTags(targetTagId, sourceTagIds);
+      console.log("Merge completed successfully");
       toast.success(`Successfully merged tags into "${targetTag.name}"`);
 
       // Refresh duplicate list and stats
+      console.log("Refreshing duplicate list and stats...");
       await checkDuplicateTags();
       await loadStats();
 
       // Dispatch event for other pages
+      console.log("Dispatching library-updated event");
       window.dispatchEvent(new CustomEvent("library-updated"));
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -325,6 +343,7 @@
       toast.error(`Failed to merge tags: ${errorMsg}`);
     } finally {
       isMergingTags = false;
+      console.log("Merge operation finished");
     }
   }
 
@@ -336,7 +355,7 @@
 
     // Check that all groups have a target selected
     const missingTargets = duplicateTagGroups.filter(
-      (group) => !selectedMergeTarget.has(group.normalizedName)
+      (group) => !selectedMergeTarget[group.normalizedName]
     );
 
     if (missingTargets.length > 0) {
@@ -363,7 +382,7 @@
     try {
       for (const group of duplicateTagGroups) {
         try {
-          const targetTagId = selectedMergeTarget.get(group.normalizedName);
+          const targetTagId = selectedMergeTarget[group.normalizedName];
           if (!targetTagId) continue;
 
           const sourceTagIds = group.tags
@@ -1117,7 +1136,8 @@
                   class="action-primary text-sm px-4 py-2"
                   onclick={mergeAllDuplicates}
                   disabled={isMergingTags ||
-                    selectedMergeTarget.size !== duplicateTagGroups.length}
+                    Object.keys(selectedMergeTarget).length !==
+                      duplicateTagGroups.length}
                 >
                   {isMergingTags ? "Merging..." : "Merge All"}
                 </button>
@@ -1157,9 +1177,20 @@
                         </div>
                         <button
                           class="action-secondary text-sm px-3 py-1"
-                          onclick={() => mergeSelectedTags(group)}
+                          onclick={() => {
+                            console.log("Merge button clicked!");
+                            console.log(
+                              "Button state - isMergingTags:",
+                              isMergingTags
+                            );
+                            console.log(
+                              "Button state - has target:",
+                              !!selectedMergeTarget[group.normalizedName]
+                            );
+                            mergeSelectedTags(group);
+                          }}
                           disabled={isMergingTags ||
-                            !selectedMergeTarget.has(group.normalizedName)}
+                            !selectedMergeTarget[group.normalizedName]}
                         >
                           Merge
                         </button>
@@ -1180,15 +1211,21 @@
                                 type="radio"
                                 name={`merge-target-${group.normalizedName}`}
                                 value={tag.id}
-                                checked={selectedMergeTarget.get(
+                                checked={selectedMergeTarget[
                                   group.normalizedName
-                                ) === tag.id}
+                                ] === tag.id}
                                 onchange={() => {
-                                  selectedMergeTarget.set(
-                                    group.normalizedName,
-                                    tag.id
+                                  console.log("Radio button selected:", {
+                                    normalizedName: group.normalizedName,
+                                    tagId: tag.id,
+                                    tagName: tag.name,
+                                  });
+                                  selectedMergeTarget[group.normalizedName] =
+                                    tag.id;
+                                  console.log(
+                                    "Updated selectedMergeTarget:",
+                                    selectedMergeTarget
                                   );
-                                  selectedMergeTarget = selectedMergeTarget;
                                 }}
                                 class="radio radio-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                               />

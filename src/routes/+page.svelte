@@ -1570,33 +1570,31 @@
       }
     }}
   >
-    <button
-      class="absolute top-4 right-4 btn btn-circle btn-ghost text-white z-10"
-      onclick={(e) => {
-        e.stopPropagation();
-        if (isBulkTagging) {
-          closeBulkTagEditor();
-        } else {
+    {#if !isBulkTagging}
+      <button
+        class="absolute top-4 right-4 btn btn-circle btn-ghost text-white z-10"
+        onclick={(e) => {
+          e.stopPropagation();
           closeImageViewer(e);
-        }
-      }}
-      aria-label="Close"
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        class="h-6 w-6"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
+        }}
+        aria-label="Close image viewer"
       >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M6 18L18 6M6 6l12 12"
-        />
-      </svg>
-    </button>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-6 w-6"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
+    {/if}
 
     <!-- Previous Image Button -->
     {#if !isBulkTagging}
@@ -1730,6 +1728,31 @@
       class="w-80 bg-white border-l border-warm-beige h-full overflow-y-auto p-6 space-y-6"
       onclick={(e) => e.stopPropagation()}
     >
+      <!-- Close Button -->
+      <div class="flex justify-end mb-4">
+        <button
+          class="h-8 w-8 rounded-full bg-white border border-warm-beige text-warm-charcoal shadow-sm hover:bg-warm-beige/70 hover:border-warm-beige flex items-center justify-center transition-colors"
+          onclick={() => selectedImages.clear()}
+          title="Close tag menu"
+          aria-label="Close tag menu"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+
       <!-- Active Tags Section -->
       <div>
         <h3 class="text-lg font-semibold text-warm-charcoal mb-3">
