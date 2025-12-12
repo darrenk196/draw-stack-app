@@ -1,0 +1,11 @@
+{
+  "version": "1.0.4",
+  "notes": "Testing auto-updater with improved UX and visual feedback",
+  "pub_date": "2025-12-12T12:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "",
+      "url": "https://github.com/darrenk196/draw-stack-app/releases/download/v1.0.4/DrawStack_1.0.4_x64_en-US.msi"
+    }
+  }
+}
