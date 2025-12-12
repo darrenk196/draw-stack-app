@@ -27,7 +27,10 @@
     validateTag,
   } from "$lib/errors";
   import { onMount } from "svelte";
-  import { checkForUpdates } from "$lib/updater";
+  import {
+    checkForUpdatesWithProgress,
+    type UpdateProgressEvent,
+  } from "$lib/updater";
 
   let libraryPath = $state("");
   let defaultLibraryPath = $state("");
@@ -41,6 +44,25 @@
 
   // App preferences
   let appSettings = $state<AppSettings>({ ...DEFAULT_SETTINGS });
+
+  // Updater progress UI
+  type UpdateStage =
+    | "idle"
+    | "checking"
+    | "available"
+    | "downloading"
+    | "installing"
+    | "no-update"
+    | "done"
+    | "error";
+
+  let showUpdateProgress = $state(false);
+  let updateStage = $state<UpdateStage>("idle");
+  let updateMessage = $state(" ");
+  let updatePercent = $state(0);
+  let updateBytes = $state({ downloaded: 0, total: 0 });
+  let updateVersion = $state<{ current?: string; latest?: string }>({});
+  let updateError = $state<string | null>(null);
 
   // Tag consolidation
   let duplicateTagGroups = $state<DuplicateTagGroup[]>([]);
@@ -242,12 +264,86 @@
     }
   }
 
+  function formatBytes(num: number) {
+    if (!num) return "0 B";
+    const units = ["B", "KB", "MB", "GB"];
+    let n = num;
+    let i = 0;
+    while (n >= 1024 && i < units.length - 1) {
+      n /= 1024;
+      i++;
+    }
+    return `${n.toFixed(1)} ${units[i]}`;
+  }
+
+  function handleUpdateProgress(event: UpdateProgressEvent) {
+    switch (event.stage) {
+      case "checking":
+        updateStage = "checking";
+        updateMessage = event.message;
+        updatePercent = 0;
+        updateBytes = { downloaded: 0, total: 0 };
+        updateError = null;
+        break;
+      case "available":
+        updateStage = "available";
+        updateMessage = event.message;
+        updateVersion = {
+          current: event.currentVersion,
+          latest: event.latestVersion,
+        };
+        break;
+      case "downloading":
+        updateStage = "downloading";
+        updateMessage = event.message;
+        updatePercent = event.percent;
+        updateBytes = {
+          downloaded: event.bytesDownloaded,
+          total: event.totalBytes,
+        };
+        break;
+      case "installing":
+        updateStage = "installing";
+        updateMessage = event.message;
+        updatePercent = 100;
+        break;
+      case "done":
+        updateStage = "done";
+        updateMessage = event.message;
+        updateVersion = { latest: event.latestVersion };
+        break;
+      case "no-update":
+        updateStage = "no-update";
+        updateMessage = event.message;
+        updatePercent = 0;
+        break;
+      case "error":
+        updateStage = "error";
+        updateMessage = event.message;
+        updateError = event.error;
+        break;
+    }
+  }
+
   async function handleCheckForUpdates() {
+    showUpdateProgress = true;
+    updateStage = "checking";
+    updateMessage = "Checking for updates…";
+    updateError = null;
+    updatePercent = 0;
+    updateBytes = { downloaded: 0, total: 0 };
+
     try {
-      await checkForUpdates(false);
+      await checkForUpdatesWithProgress({
+        silent: false,
+        onProgress: handleUpdateProgress,
+      });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Update check failed:", error);
+      updateStage = "error";
+      updateMessage = "Failed to check for updates.";
+      updateError = errorMsg;
       toast.error(`Failed to check for updates: ${errorMsg}`);
     }
   }
@@ -270,6 +366,13 @@
     } finally {
       isCheckingDuplicates = false;
     }
+  }
+
+  function closeUpdateModal() {
+    if (updateStage === "downloading" || updateStage === "installing") {
+      return; // prevent closing mid-update to avoid confusion
+    }
+    showUpdateProgress = false;
   }
 
   async function mergeSelectedTags(group: DuplicateTagGroup) {
@@ -1600,6 +1703,86 @@
       <div class="mt-3 text-right text-sm text-warm-gray">
         {Math.round((importProgress.current / importProgress.total) * 100)}%
         complete
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Update Progress Modal -->
+{#if showUpdateProgress}
+  <div
+    class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-8"
+    role="status"
+    aria-live="polite"
+  >
+    <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-4">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 class="text-xl font-bold text-warm-charcoal">Updating Draw Stack</h3>
+          <p class="text-sm text-warm-gray">{updateMessage}</p>
+        </div>
+        <button
+          class="btn btn-circle btn-ghost btn-sm text-warm-gray hover:bg-warm-beige/30"
+          onclick={closeUpdateModal}
+          aria-label="Close update status"
+          disabled={updateStage === "downloading" || updateStage === "installing"}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <div class="text-sm font-semibold text-warm-charcoal capitalize">
+          {updateStage.replace("-", " ")}
+        </div>
+        {#if updateStage === "downloading"}
+          <div class="w-full bg-warm-beige/30 rounded-full h-3 overflow-hidden">
+            <div
+              class="bg-terracotta h-full transition-all duration-200 rounded-full"
+              style={`width: ${Math.min(updatePercent, 100).toFixed(1)}%`}
+            ></div>
+          </div>
+          <div class="text-xs text-warm-gray flex items-center justify-between">
+            <span>{updatePercent.toFixed(1)}%</span>
+            <span>
+              {formatBytes(updateBytes.downloaded)}
+              {updateBytes.total ? ` / ${formatBytes(updateBytes.total)}` : ""}
+            </span>
+          </div>
+        {:else if updateStage === "installing"}
+          <div class="w-full bg-warm-beige/30 rounded-full h-3 overflow-hidden">
+            <div class="bg-terracotta h-full w-full animate-pulse"></div>
+          </div>
+          <div class="text-xs text-warm-gray">Finishing installation…</div>
+        {:else if updateStage === "available"}
+          <div class="text-sm text-warm-gray">
+            Current: {updateVersion.current ?? ""} · Latest: {updateVersion.latest ?? ""}
+          </div>
+        {:else if updateStage === "done"}
+          <div class="text-sm text-emerald-700">Update installed. You may be prompted to restart.</div>
+        {:else if updateStage === "no-update"}
+          <div class="text-sm text-warm-gray">No update available.</div>
+        {:else if updateStage === "error"}
+          <div class="text-sm text-error">{updateError}</div>
+        {/if}
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <button
+          class="btn btn-ghost"
+          onclick={closeUpdateModal}
+          disabled={updateStage === "downloading" || updateStage === "installing"}
+        >
+          Close
+        </button>
       </div>
     </div>
   </div>
