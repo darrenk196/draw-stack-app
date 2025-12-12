@@ -1,13 +1,13 @@
 /**
  * Auto-updater utilities for Tauri application.
- * Checks for new versions, downloads updates, and handles relaunch.
- * Uses Tauri's plugin-updater for seamless app updates.
+ * Provides a streamlined update flow: check → prompt → download → install → restart
+ * Displays real-time progress for downloads and installation across all platforms.
  * 
  * @module updater
  */
 
 import { check } from '@tauri-apps/plugin-updater';
-import { ask, message } from '@tauri-apps/plugin-dialog';
+import { ask } from '@tauri-apps/plugin-dialog';
 import { relaunch } from '@tauri-apps/plugin-process';
 
 /**
@@ -20,6 +20,10 @@ export interface UpdateCheckResult {
   error?: string;
 }
 
+/**
+ * Progress events emitted during the update process.
+ * These events provide real-time feedback for UI updates.
+ */
 export type UpdateProgressEvent =
   | { stage: 'checking'; message: string }
   | { stage: 'available'; message: string; currentVersion: string; latestVersion: string }
@@ -32,111 +36,25 @@ export type UpdateProgressEvent =
 interface CheckForUpdatesOptions {
   silent?: boolean;
   onProgress?: (event: UpdateProgressEvent) => void;
+  autoRestart?: boolean; // Automatically restart after successful update
 }
 
 /**
- * Checks for application updates and prompts user to install if available.
- * Downloads and installs the update if user confirms, then offers to relaunch.
+ * Legacy update check function - deprecated in favor of checkForUpdatesWithProgress.
+ * Kept for backward compatibility.
  * 
+ * @deprecated Use checkForUpdatesWithProgress for better UX with progress feedback
  * @param silent - If true, only show UI when an update is available (default: false)
- * @returns Promise resolving to update check result with version info
- * 
- * @example
- * ```typescript
- * // Manual check with UI
- * await checkForUpdates(false);
- * 
- * // Silent check (only show if update available)
- * await checkForUpdates(true);
- * ```
  */
 export async function checkForUpdates(
   silent: boolean = false
 ): Promise<UpdateCheckResult> {
-  try {
-    const update = await check();
-    
-    if (update === null) {
-      // No update available
-      if (!silent) {
-        await message('You are already running the latest version!', {
-          title: 'No Update Available',
-          kind: 'info'
-        });
-      }
-      
-      return {
-        updateAvailable: false,
-        currentVersion: 'unknown'
-      };
-    }
-
-    // Update is available
-    const shouldUpdate = await ask(
-      `Update available: ${update.version}\n\nCurrent version: ${update.currentVersion}\n\nWould you like to download and install it now?\n\nThe app will restart after the update completes.`,
-      {
-        title: 'Update Available',
-        kind: 'info'
-      }
-    );
-
-    if (shouldUpdate) {
-      // Show download progress (this will block until download completes)
-      await message('Downloading update...', {
-        title: 'Updating',
-        kind: 'info'
-      });
-
-      // Download and install the update
-      await update.downloadAndInstall();
-
-      // Ask user if they want to restart now
-      const shouldRestart = await ask(
-        'Update installed successfully!\n\nWould you like to restart the app now?',
-        {
-          title: 'Update Complete',
-          kind: 'info'
-        }
-      );
-
-      if (shouldRestart) {
-        await relaunch();
-      }
-
-      return {
-        updateAvailable: true,
-        currentVersion: update.currentVersion,
-        latestVersion: update.version
-      };
-    }
-
-    return {
-      updateAvailable: true,
-      currentVersion: update.currentVersion,
-      latestVersion: update.version
-    };
-
-  } catch (error) {
-    console.error('Update check failed:', error);
-    
-    if (!silent) {
-      await message(`Failed to check for updates: ${error}`, {
-        title: 'Update Error',
-        kind: 'error'
-      });
-    }
-
-    return {
-      updateAvailable: false,
-      currentVersion: 'unknown',
-      error: String(error)
-    };
-  }
+  return checkForUpdatesWithProgress({ silent, autoRestart: false });
 }
 
 /**
  * Checks for updates automatically on app start in silent mode.
- * Waits 5 seconds after startup to avoid blocking initial load.
+ * Waits 3 seconds after startup to avoid blocking initial load.
  * Only shows UI if an update is available.
  * 
  * @example
@@ -146,74 +64,120 @@ export async function checkForUpdates(
  * ```
  */
 export async function checkForUpdatesOnStartup(): Promise<void> {
-  // Wait a few seconds after startup to avoid blocking initial load
+  // Wait after startup to avoid blocking initial load
   setTimeout(async () => {
-    await checkForUpdates(true);
-  }, 5000);
+    await checkForUpdatesWithProgress({ silent: true, autoRestart: false });
+  }, 3000);
 }
 
 /**
- * Check for updates with granular progress callbacks so the UI can show
- * download/installation status. Still uses built-in dialogs for confirmation
- * to avoid altering existing behavior, but surfaces progress externally.
+ * Check for updates with comprehensive progress tracking and optimal UX.
+ * 
+ * This is the recommended function for all update checks.
+ * Provides real-time feedback during download and installation phases.
+ * 
+ * Flow:
+ * 1. Check GitHub for latest release
+ * 2. If update available, prompt user with version info
+ * 3. Download with progress callbacks (percent, bytes)
+ * 4. Install update automatically
+ * 5. Restart app immediately (or prompt based on autoRestart setting)
+ * 
+ * @param options - Configuration options
+ * @param options.silent - If true, only show UI when update is available
+ * @param options.onProgress - Callback for progress updates (for custom UI)
+ * @param options.autoRestart - If true, restart immediately after install (default: true for manual checks)
+ * 
+ * @example
+ * ```typescript
+ * // Manual check from settings with progress UI
+ * await checkForUpdatesWithProgress({
+ *   silent: false,
+ *   onProgress: (event) => {
+ *     // Update your UI based on event.stage and event.percent
+ *   },
+ *   autoRestart: false // Let user choose when to restart
+ * });
+ * 
+ * // Silent background check on startup
+ * await checkForUpdatesWithProgress({ silent: true, autoRestart: true });
+ * ```
  */
 export async function checkForUpdatesWithProgress(
   options: CheckForUpdatesOptions = {}
 ): Promise<UpdateCheckResult> {
-  const { silent = false, onProgress } = options;
+  const { silent = false, onProgress, autoRestart = true } = options;
 
+  // Helper to safely emit progress events
   const emit = (event: UpdateProgressEvent) => {
     try {
       onProgress?.(event);
     } catch (err) {
-      console.error('Progress handler threw', err);
+      console.error('Progress callback error:', err);
     }
   };
 
   try {
+    // Stage 1: Checking for updates
     emit({ stage: 'checking', message: 'Checking for updates…' });
     const update = await check();
 
+    // No update available
     if (update === null) {
       emit({ stage: 'no-update', message: 'You are already on the latest version.' });
-      if (!silent) {
-        await message('You are already running the latest version!', {
-          title: 'No Update Available',
-          kind: 'info'
-        });
-      }
       return {
         updateAvailable: false,
         currentVersion: 'unknown'
       };
     }
 
+    // Stage 2: Update available - notify user
+    const versionInfo = {
+      current: update.currentVersion,
+      latest: update.version
+    };
+    
     emit({
       stage: 'available',
       message: `Update ${update.version} is available`,
-      currentVersion: update.currentVersion,
-      latestVersion: update.version
+      currentVersion: versionInfo.current,
+      latestVersion: versionInfo.latest
     });
 
+    // Prompt user to confirm update
     const shouldUpdate = await ask(
-      `Update available: ${update.version}\n\nCurrent version: ${update.currentVersion}\n\nWould you like to download and install it now?\n\nThe app will restart after the update completes.`,
+      `A new version is available!\n\n` +
+      `Current version: ${versionInfo.current}\n` +
+      `Latest version: ${versionInfo.latest}\n\n` +
+      `Would you like to download and install it now?\n\n` +
+      `The app will automatically restart after the update completes.`,
       {
         title: 'Update Available',
-        kind: 'info'
+        kind: 'info',
+        okLabel: 'Yes, Update Now',
+        cancelLabel: 'Not Now'
       }
     );
 
     if (!shouldUpdate) {
       return {
         updateAvailable: true,
-        currentVersion: update.currentVersion,
-        latestVersion: update.version
+        currentVersion: versionInfo.current,
+        latestVersion: versionInfo.latest
       };
     }
 
+    // Stage 3: Download with progress tracking
     let downloaded = 0;
     let total = 0;
-    emit({ stage: 'downloading', message: 'Starting download…', bytesDownloaded: 0, totalBytes: 0, percent: 0 });
+    
+    emit({ 
+      stage: 'downloading', 
+      message: 'Starting download…', 
+      bytesDownloaded: 0, 
+      totalBytes: 0, 
+      percent: 0 
+    });
 
     await update.downloadAndInstall((event) => {
       switch (event.event) {
@@ -222,69 +186,98 @@ export async function checkForUpdatesWithProgress(
           total = event.data?.contentLength ?? 0;
           emit({
             stage: 'downloading',
-            message: 'Downloading update…',
+            message: `Downloading update (${formatBytes(total)})…`,
             bytesDownloaded: downloaded,
             totalBytes: total,
-            percent: total > 0 ? (downloaded / total) * 100 : 0
+            percent: 0
           });
           break;
         }
         case 'Progress': {
           const chunk = event.data?.chunkLength ?? 0;
           downloaded += chunk;
+          const percent = total > 0 ? (downloaded / total) * 100 : 0;
           emit({
             stage: 'downloading',
-            message: 'Downloading update…',
+            message: `Downloading update (${formatBytes(downloaded)} / ${formatBytes(total)})…`,
             bytesDownloaded: downloaded,
             totalBytes: total,
-            percent: total > 0 ? (downloaded / total) * 100 : 0
+            percent
           });
           break;
         }
         case 'Finished': {
+          // Stage 4: Installing
           emit({
             stage: 'installing',
-            message: 'Installing update…'
+            message: 'Installing update… This may take a moment.'
           });
           break;
         }
       }
     });
 
-    emit({ stage: 'done', message: 'Update installed successfully.', latestVersion: update.version });
+    // Stage 5: Done - update installed
+    emit({ 
+      stage: 'done', 
+      message: 'Update installed successfully!', 
+      latestVersion: versionInfo.latest 
+    });
 
-    const shouldRestart = await ask(
-      'Update installed successfully!\n\nWould you like to restart the app now?',
-      {
-        title: 'Update Complete',
-        kind: 'info'
+    // Restart the app
+    if (autoRestart) {
+      // Small delay to let user see completion message
+      setTimeout(async () => {
+        await relaunch();
+      }, 1500);
+    } else {
+      // Ask user if they want to restart now
+      const shouldRestart = await ask(
+        'Update installed successfully!\n\nWould you like to restart the app now to use the new version?',
+        {
+          title: 'Update Complete',
+          kind: 'info',
+          okLabel: 'Restart Now',
+          cancelLabel: 'Restart Later'
+        }
+      );
+
+      if (shouldRestart) {
+        await relaunch();
       }
-    );
-
-    if (shouldRestart) {
-      await relaunch();
     }
 
     return {
       updateAvailable: true,
-      currentVersion: update.currentVersion,
-      latestVersion: update.version
+      currentVersion: versionInfo.current,
+      latestVersion: versionInfo.latest
     };
+
   } catch (error) {
     console.error('Update check failed:', error);
-    emit({ stage: 'error', message: 'Failed to update.', error: String(error) });
-
-    if (!silent) {
-      await message(`Failed to check for updates: ${error}`, {
-        title: 'Update Error',
-        kind: 'error'
-      });
-    }
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    
+    emit({ 
+      stage: 'error', 
+      message: 'Failed to check for updates.', 
+      error: errorMsg 
+    });
 
     return {
       updateAvailable: false,
       currentVersion: 'unknown',
-      error: String(error)
+      error: errorMsg
     };
   }
+}
+
+/**
+ * Format bytes to human-readable string (KB, MB, GB)
+ */
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }

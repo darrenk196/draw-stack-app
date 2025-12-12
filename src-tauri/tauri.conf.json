@@ -44,7 +44,7 @@
       "endpoints": [
         "https://github.com/darrenk196/draw-stack-app/releases/latest/download/latest.json"
       ],
-      "dialog": true,
+      "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFFMkUzNUIyNEFERUQ1NkYKUldSdjFkNUtzalV1SHNhcDdob0hEVEtsbGdVNUNqelpRLzNSaGNTNytvUWlHcXQxRi9qOTVCckQK",
       "windows": {
         "installMode": "passive"

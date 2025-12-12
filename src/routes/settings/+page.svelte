@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { getVersion } from "@tauri-apps/api/app";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { toast } from "$lib/toast";
   import {
@@ -84,9 +85,19 @@
   }
   let storageInfo = $state<StorageInfo | null>(null);
 
-  const APP_VERSION = "1.0.2";
+  let appVersion = $state<string>("...");
 
   onMount(() => {
+    // Load app version from Tauri config
+    getVersion()
+      .then((version) => {
+        appVersion = version;
+      })
+      .catch((error) => {
+        console.error("Failed to get app version:", error);
+        appVersion = "Unknown";
+      });
+
     loadSettings();
     loadStats();
     loadAppSettings();
@@ -337,6 +348,7 @@
       await checkForUpdatesWithProgress({
         silent: false,
         onProgress: handleUpdateProgress,
+        autoRestart: false, // Let user see completion and choose when to restart
       });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -532,7 +544,7 @@
       const tags = await getAllTags();
 
       const exportData = {
-        version: APP_VERSION,
+        version: appVersion,
         exportDate: new Date().toISOString(),
         images,
         tags,
@@ -1612,7 +1624,7 @@
             >
               <div>
                 <p class="font-semibold text-warm-charcoal">
-                  Version {APP_VERSION}
+                  Version {appVersion}
                 </p>
                 <p class="text-sm text-warm-gray">Stable release</p>
               </div>
@@ -1715,86 +1727,233 @@
     role="status"
     aria-live="polite"
   >
-    <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-5">
       <div class="flex items-start justify-between gap-4">
-        <div>
-          <h3 class="text-xl font-bold text-warm-charcoal">
-            Updating Draw Stack
+        <div class="flex-1">
+          <h3 class="text-xl font-bold text-warm-charcoal mb-1">
+            {#if updateStage === "checking"}
+              Checking for Updates
+            {:else if updateStage === "available"}
+              Update Available
+            {:else if updateStage === "downloading"}
+              Downloading Update
+            {:else if updateStage === "installing"}
+              Installing Update
+            {:else if updateStage === "done"}
+              Update Complete
+            {:else if updateStage === "no-update"}
+              Up to Date
+            {:else if updateStage === "error"}
+              Update Error
+            {/if}
           </h3>
           <p class="text-sm text-warm-gray">{updateMessage}</p>
         </div>
-        <button
-          class="btn btn-circle btn-ghost btn-sm text-warm-gray hover:bg-warm-beige/30"
-          onclick={closeUpdateModal}
-          aria-label="Close update status"
-          disabled={updateStage === "downloading" ||
-            updateStage === "installing"}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        {#if updateStage !== "downloading" && updateStage !== "installing"}
+          <button
+            class="btn btn-circle btn-ghost btn-sm text-warm-gray hover:bg-warm-beige/30 flex-shrink-0"
+            onclick={closeUpdateModal}
+            aria-label="Close update status"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
-
-      <div class="space-y-2">
-        <div class="text-sm font-semibold text-warm-charcoal capitalize">
-          {updateStage.replace("-", " ")}
-        </div>
-        {#if updateStage === "downloading"}
-          <div class="w-full bg-warm-beige/30 rounded-full h-3 overflow-hidden">
-            <div
-              class="bg-terracotta h-full transition-all duration-200 rounded-full"
-              style={`width: ${Math.min(updatePercent, 100).toFixed(1)}%`}
-            ></div>
-          </div>
-          <div class="text-xs text-warm-gray flex items-center justify-between">
-            <span>{updatePercent.toFixed(1)}%</span>
-            <span>
-              {formatBytes(updateBytes.downloaded)}
-              {updateBytes.total ? ` / ${formatBytes(updateBytes.total)}` : ""}
-            </span>
-          </div>
-        {:else if updateStage === "installing"}
-          <div class="w-full bg-warm-beige/30 rounded-full h-3 overflow-hidden">
-            <div class="bg-terracotta h-full w-full animate-pulse"></div>
-          </div>
-          <div class="text-xs text-warm-gray">Finishing installation…</div>
-        {:else if updateStage === "available"}
-          <div class="text-sm text-warm-gray">
-            Current: {updateVersion.current ?? ""} · Latest: {updateVersion.latest ??
-              ""}
-          </div>
-        {:else if updateStage === "done"}
-          <div class="text-sm text-emerald-700">
-            Update installed. You may be prompted to restart.
-          </div>
-        {:else if updateStage === "no-update"}
-          <div class="text-sm text-warm-gray">No update available.</div>
-        {:else if updateStage === "error"}
-          <div class="text-sm text-error">{updateError}</div>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
         {/if}
       </div>
 
-      <div class="flex justify-end gap-2">
-        <button
-          class="btn btn-ghost"
-          onclick={closeUpdateModal}
-          disabled={updateStage === "downloading" ||
-            updateStage === "installing"}
-        >
-          Close
-        </button>
+      <!-- Progress Section -->
+      <div class="space-y-3">
+        {#if updateStage === "checking"}
+          <div class="flex items-center justify-center gap-3 py-4">
+            <div
+              class="animate-spin rounded-full h-8 w-8 border-b-2 border-terracotta"
+            ></div>
+            <span class="text-sm text-warm-gray">Contacting GitHub...</span>
+          </div>
+        {:else if updateStage === "available"}
+          <div
+            class="bg-warm-beige/30 rounded-lg p-4 space-y-2 border border-warm-beige"
+          >
+            <div class="flex items-center gap-2">
+              <svg
+                class="h-5 w-5 text-terracotta"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span class="font-medium text-warm-charcoal">Version Info</span>
+            </div>
+            <div class="text-sm text-warm-gray pl-7">
+              <div>
+                Current: <strong>{updateVersion.current ?? "—"}</strong>
+              </div>
+              <div>
+                Latest: <strong class="text-terracotta"
+                  >{updateVersion.latest ?? "—"}</strong
+                >
+              </div>
+            </div>
+          </div>
+        {:else if updateStage === "downloading"}
+          <div class="space-y-2">
+            <div
+              class="w-full bg-warm-beige/30 rounded-full h-4 overflow-hidden"
+            >
+              <div
+                class="bg-gradient-to-r from-terracotta to-coral h-full transition-all duration-300 ease-out rounded-full flex items-center justify-end pr-2"
+                style={`width: ${Math.min(updatePercent, 100).toFixed(1)}%`}
+              >
+                {#if updatePercent > 15}
+                  <span class="text-xs font-semibold text-white"
+                    >{updatePercent.toFixed(0)}%</span
+                  >
+                {/if}
+              </div>
+            </div>
+            <div
+              class="flex items-center justify-between text-xs text-warm-gray"
+            >
+              <span>{updatePercent.toFixed(1)}% complete</span>
+              <span>
+                {formatBytes(updateBytes.downloaded)}
+                {updateBytes.total
+                  ? ` / ${formatBytes(updateBytes.total)}`
+                  : ""}
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-sm text-warm-gray pt-2">
+            <div
+              class="animate-spin rounded-full h-4 w-4 border-b-2 border-terracotta"
+            ></div>
+            <span>Downloading from GitHub releases...</span>
+          </div>
+        {:else if updateStage === "installing"}
+          <div class="space-y-3">
+            <div
+              class="w-full bg-warm-beige/30 rounded-full h-4 overflow-hidden"
+            >
+              <div
+                class="bg-gradient-to-r from-terracotta to-coral h-full w-full animate-pulse"
+              ></div>
+            </div>
+            <div class="flex items-center gap-2 text-sm text-warm-gray">
+              <div
+                class="animate-spin rounded-full h-4 w-4 border-b-2 border-terracotta"
+              ></div>
+              <span>Installing update... This may take a moment.</span>
+            </div>
+          </div>
+        {:else if updateStage === "done"}
+          <div
+            class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 space-y-2"
+          >
+            <div class="flex items-center gap-2">
+              <svg
+                class="h-6 w-6 text-emerald-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span class="font-medium text-emerald-900"
+                >Installation Successful!</span
+              >
+            </div>
+            <p class="text-sm text-emerald-700 pl-8">
+              The app will restart automatically to complete the update.
+            </p>
+          </div>
+        {:else if updateStage === "no-update"}
+          <div
+            class="bg-warm-beige/30 border border-warm-beige rounded-lg p-4 flex items-center gap-3"
+          >
+            <svg
+              class="h-6 w-6 text-sage flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div>
+              <p class="font-medium text-warm-charcoal">You're up to date!</p>
+              <p class="text-sm text-warm-gray">
+                You're running the latest version.
+              </p>
+            </div>
+          </div>
+        {:else if updateStage === "error"}
+          <div class="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+            <div class="flex items-center gap-2">
+              <svg
+                class="h-6 w-6 text-red-600 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span class="font-medium text-red-900">Update Failed</span>
+            </div>
+            {#if updateError}
+              <p class="text-sm text-red-700 pl-8 font-mono">{updateError}</p>
+            {/if}
+            <p class="text-sm text-red-600 pl-8">
+              Please check your internet connection and try again.
+            </p>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex justify-end gap-2 pt-2">
+        {#if updateStage === "error" || updateStage === "no-update"}
+          <button class="btn btn-primary" onclick={closeUpdateModal}>
+            Close
+          </button>
+        {:else if updateStage === "done"}
+          <button class="btn btn-ghost" onclick={closeUpdateModal}>
+            Restart Later
+          </button>
+        {:else if updateStage === "checking" || updateStage === "downloading" || updateStage === "installing"}
+          <div class="text-sm text-warm-gray italic">Please wait...</div>
+        {/if}
       </div>
     </div>
   </div>
