@@ -29,8 +29,10 @@
   } from "$lib/errors";
   import { onMount } from "svelte";
   import {
-    checkForUpdatesWithProgress,
-    type UpdateProgressEvent,
+    checkForUpdatesManual,
+    openDownloadLink,
+    openReleaseNotes,
+    type UpdateCheckResult,
   } from "$lib/updater";
 
   let libraryPath = $state("");
@@ -46,24 +48,10 @@
   // App preferences
   let appSettings = $state<AppSettings>({ ...DEFAULT_SETTINGS });
 
-  // Updater progress UI
-  type UpdateStage =
-    | "idle"
-    | "checking"
-    | "available"
-    | "downloading"
-    | "installing"
-    | "no-update"
-    | "done"
-    | "error";
-
-  let showUpdateProgress = $state(false);
-  let updateStage = $state<UpdateStage>("idle");
-  let updateMessage = $state(" ");
-  let updatePercent = $state(0);
-  let updateBytes = $state({ downloaded: 0, total: 0 });
-  let updateVersion = $state<{ current?: string; latest?: string }>({});
-  let updateError = $state<string | null>(null);
+  // Update check modal state
+  let showUpdateModal = $state(false);
+  let isCheckingForUpdate = $state(false);
+  let updateCheckResult = $state<UpdateCheckResult | null>(null);
 
   // Tag consolidation
   let duplicateTagGroups = $state<DuplicateTagGroup[]>([]);
@@ -287,77 +275,56 @@
     return `${n.toFixed(1)} ${units[i]}`;
   }
 
-  function handleUpdateProgress(event: UpdateProgressEvent) {
-    switch (event.stage) {
-      case "checking":
-        updateStage = "checking";
-        updateMessage = event.message;
-        updatePercent = 0;
-        updateBytes = { downloaded: 0, total: 0 };
-        updateError = null;
-        break;
-      case "available":
-        updateStage = "available";
-        updateMessage = event.message;
-        updateVersion = {
-          current: event.currentVersion,
-          latest: event.latestVersion,
-        };
-        break;
-      case "downloading":
-        updateStage = "downloading";
-        updateMessage = event.message;
-        updatePercent = event.percent;
-        updateBytes = {
-          downloaded: event.bytesDownloaded,
-          total: event.totalBytes,
-        };
-        break;
-      case "installing":
-        updateStage = "installing";
-        updateMessage = event.message;
-        updatePercent = 100;
-        break;
-      case "done":
-        updateStage = "done";
-        updateMessage = event.message;
-        updateVersion = { latest: event.latestVersion };
-        break;
-      case "no-update":
-        updateStage = "no-update";
-        updateMessage = event.message;
-        updatePercent = 0;
-        break;
-      case "error":
-        updateStage = "error";
-        updateMessage = event.message;
-        updateError = event.error;
-        break;
-    }
-  }
-
   async function handleCheckForUpdates() {
-    showUpdateProgress = true;
-    updateStage = "checking";
-    updateMessage = "Checking for updates…";
-    updateError = null;
-    updatePercent = 0;
-    updateBytes = { downloaded: 0, total: 0 };
+    isCheckingForUpdate = true;
+    showUpdateModal = true;
+    updateCheckResult = null;
 
     try {
-      await checkForUpdatesWithProgress({
-        silent: false,
-        onProgress: handleUpdateProgress,
-        autoRestart: false, // Let user see completion and choose when to restart
-      });
+      const result = await checkForUpdatesManual();
+      updateCheckResult = result;
+
+      if (!result.updateAvailable) {
+        toast.info("You're running the latest version!");
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Update check failed:", error);
-      updateStage = "error";
-      updateMessage = "Failed to check for updates.";
-      updateError = errorMsg;
       toast.error(`Failed to check for updates: ${errorMsg}`);
+      updateCheckResult = {
+        updateAvailable: false,
+        currentVersion: "unknown",
+        error: errorMsg,
+      };
+    } finally {
+      isCheckingForUpdate = false;
     }
+  }
+
+  async function downloadUpdate(url: string) {
+    try {
+      await openDownloadLink(url);
+      toast.success("Opening download in browser...");
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error("Failed to open download link:", error);
+      toast.error(`Failed to open download: ${errorMsg}`);
+    }
+  }
+
+  async function viewReleaseNotes() {
+    if (!updateCheckResult?.releaseUrl) return;
+    try {
+      await openReleaseNotes(updateCheckResult.releaseUrl);
+    } catch (error) {
+      console.error("Failed to open release notes:", error);
+      toast.error("Failed to open release notes");
+    }
+  }
+
+  function closeUpdateModal() {
+    showUpdateModal = false;
+    updateCheckResult = null;
   }
 
   async function checkDuplicateTags() {
@@ -380,13 +347,7 @@
     }
   }
 
-  function closeUpdateModal() {
-    if (updateStage === "downloading" || updateStage === "installing") {
-      return; // prevent closing mid-update to avoid confusion
-    }
-    showUpdateProgress = false;
-  }
-
+  // Removed legacy stub function
   async function mergeSelectedTags(group: DuplicateTagGroup) {
     console.log("mergeSelectedTags called for group:", group);
     console.log("selectedMergeTarget object:", selectedMergeTarget);
@@ -1262,103 +1223,107 @@
             {#if duplicateTagGroups.length > 0}
               <div class="settings-divider"></div>
               <div class="space-y-4">
-                <div class="flex items-center justify-between">
-                  <p class="text-sm font-semibold text-warm-charcoal">
-                    Found {duplicateTagGroups.length} duplicate {duplicateTagGroups.length ===
-                    1
-                      ? "group"
-                      : "groups"}
-                  </p>
-                </div>
+                <p class="text-xs text-warm-gray">
+                  Tip: Click a platform to open the installer in your browser,
+                  then run it to update. On Windows it replaces the old version;
+                  on macOS/Linux install over the existing app.
+                </p>
+                <p class="text-sm font-semibold text-warm-charcoal">
+                  Download for your platform:
+                </p>
+                <p class="text-sm font-semibold text-warm-charcoal">
+                  Found {duplicateTagGroups.length} duplicate {duplicateTagGroups.length ===
+                  1
+                    ? "group"
+                    : "groups"}
+                </p>
+              </div>
 
-                <div class="space-y-3 max-h-96 overflow-y-auto">
-                  {#each duplicateTagGroups as group}
-                    <div
-                      class="p-4 bg-warm-sand rounded-lg border border-warm-beige space-y-3 shadow-[0_10px_28px_rgba(62,57,51,0.06)]"
-                    >
-                      <div class="flex items-start justify-between">
-                        <div class="flex-1">
-                          <p class="font-semibold text-warm-charcoal mb-1">
-                            "{group.normalizedName}"
-                          </p>
-                          <p class="text-xs text-warm-gray">
-                            {group.imageCount} image{group.imageCount === 1
-                              ? ""
-                              : "s"} • {group.tags.length} duplicate{group.tags
-                              .length === 1
-                              ? ""
-                              : "s"}
-                          </p>
-                        </div>
-                        <button
-                          class="action-secondary text-sm px-3 py-1"
-                          onclick={() => {
-                            console.log("Merge button clicked!");
-                            console.log(
-                              "Button state - isMergingTags:",
-                              isMergingTags
-                            );
-                            console.log(
-                              "Button state - has target:",
-                              !!selectedMergeTarget[group.normalizedName]
-                            );
-                            mergeSelectedTags(group);
-                          }}
-                          disabled={isMergingTags ||
-                            !selectedMergeTarget[group.normalizedName]}
-                        >
-                          Merge
-                        </button>
-                      </div>
-
-                      <div class="space-y-2">
-                        <p
-                          class="text-xs font-semibold text-warm-gray uppercase"
-                        >
-                          Select tag to keep:
+              <div class="space-y-3 max-h-96 overflow-y-auto">
+                {#each duplicateTagGroups as group}
+                  <div
+                    class="p-4 bg-warm-sand rounded-lg border border-warm-beige space-y-3 shadow-[0_10px_28px_rgba(62,57,51,0.06)]"
+                  >
+                    <div class="flex items-start justify-between">
+                      <div class="flex-1">
+                        <p class="font-semibold text-warm-charcoal mb-1">
+                          "{group.normalizedName}"
                         </p>
-                        <div class="space-y-2">
-                          {#each group.tags as tag}
-                            <label
-                              class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-warm-beige/50 transition-colors"
-                            >
-                              <input
-                                type="radio"
-                                name={`merge-target-${group.normalizedName}`}
-                                value={tag.id}
-                                checked={selectedMergeTarget[
-                                  group.normalizedName
-                                ] === tag.id}
-                                onchange={() => {
-                                  console.log("Radio button selected:", {
-                                    normalizedName: group.normalizedName,
-                                    tagId: tag.id,
-                                    tagName: tag.name,
-                                  });
-                                  selectedMergeTarget[group.normalizedName] =
-                                    tag.id;
-                                  console.log(
-                                    "Updated selectedMergeTarget:",
-                                    selectedMergeTarget
-                                  );
-                                }}
-                                class="radio radio-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
-                              />
-                              <span class="text-sm">
-                                "{tag.name}"
-                                {#if tag.parentId}
-                                  <span class="text-xs text-warm-gray">
-                                    (in {tag.parentId})
-                                  </span>
-                                {/if}
-                              </span>
-                            </label>
-                          {/each}
-                        </div>
+                        <p class="text-xs text-warm-gray">
+                          {group.imageCount} image{group.imageCount === 1
+                            ? ""
+                            : "s"} • {group.tags.length} duplicate{group.tags
+                            .length === 1
+                            ? ""
+                            : "s"}
+                        </p>
+                      </div>
+                      <button
+                        class="action-secondary text-sm px-3 py-1"
+                        onclick={() => {
+                          console.log("Merge button clicked!");
+                          console.log(
+                            "Button state - isMergingTags:",
+                            isMergingTags
+                          );
+                          console.log(
+                            "Button state - has target:",
+                            !!selectedMergeTarget[group.normalizedName]
+                          );
+                          mergeSelectedTags(group);
+                        }}
+                        disabled={isMergingTags ||
+                          !selectedMergeTarget[group.normalizedName]}
+                      >
+                        Merge
+                      </button>
+                    </div>
+
+                    <div class="space-y-2">
+                      <p class="text-xs font-semibold text-warm-gray uppercase">
+                        Select tag to keep:
+                      </p>
+                      <div class="space-y-2">
+                        {#each group.tags as tag}
+                          <label
+                            class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-warm-beige/50 transition-colors"
+                          >
+                            <input
+                              type="radio"
+                              name={`merge-target-${group.normalizedName}`}
+                              value={tag.id}
+                              checked={selectedMergeTarget[
+                                group.normalizedName
+                              ] === tag.id}
+                              onchange={() => {
+                                console.log("Radio button selected:", {
+                                  normalizedName: group.normalizedName,
+                                  tagId: tag.id,
+                                  tagName: tag.name,
+                                });
+                                selectedMergeTarget[group.normalizedName] =
+                                  tag.id;
+                                console.log(
+                                  "Updated selectedMergeTarget:",
+                                  selectedMergeTarget
+                                );
+                              }}
+                              class="radio radio-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+                            />
+                            <span class="text-sm">
+                              "{tag.name}"
+                              {#if tag.parentId}
+                                <span class="text-xs text-warm-gray">
+                                  (in {tag.parentId})
+                                </span>
+                              {/if}
+                            </span>
+                          </label>
+                        {/each}
                       </div>
                     </div>
-                  {/each}
-                </div>
+                  </div>
+                {/each}
               </div>
             {:else if !isCheckingDuplicates}
               <div class="text-center py-8 text-warm-gray">
@@ -1720,8 +1685,8 @@
   </div>
 {/if}
 
-<!-- Update Progress Modal -->
-{#if showUpdateProgress}
+<!-- Update Check Modal -->
+{#if showUpdateModal}
   <div
     class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-8"
     role="status"
@@ -1731,189 +1696,59 @@
       <div class="flex items-start justify-between gap-4">
         <div class="flex-1">
           <h3 class="text-xl font-bold text-warm-charcoal mb-1">
-            {#if updateStage === "checking"}
+            {#if isCheckingForUpdate}
               Checking for Updates
-            {:else if updateStage === "available"}
-              Update Available
-            {:else if updateStage === "downloading"}
-              Downloading Update
-            {:else if updateStage === "installing"}
-              Installing Update
-            {:else if updateStage === "done"}
-              Update Complete
-            {:else if updateStage === "no-update"}
+            {:else if updateCheckResult?.updateAvailable}
+              Update Available!
+            {:else}
               Up to Date
-            {:else if updateStage === "error"}
-              Update Error
             {/if}
           </h3>
-          <p class="text-sm text-warm-gray">{updateMessage}</p>
+          <p class="text-sm text-warm-gray">
+            {#if isCheckingForUpdate}
+              Fetching latest release from GitHub...
+            {:else if updateCheckResult?.error}
+              {updateCheckResult.error}
+            {:else if updateCheckResult?.updateAvailable}
+              DrawStack {updateCheckResult.latestVersion} is now available
+            {:else}
+              You're running the latest version
+            {/if}
+          </p>
         </div>
-        {#if updateStage !== "downloading" && updateStage !== "installing"}
-          <button
-            class="btn btn-circle btn-ghost btn-sm text-warm-gray hover:bg-warm-beige/30 flex-shrink-0"
-            onclick={closeUpdateModal}
-            aria-label="Close update status"
+        <button
+          class="btn btn-circle btn-ghost btn-sm text-warm-gray hover:bg-warm-beige/30 flex-shrink-0"
+          onclick={closeUpdateModal}
+          aria-label="Close update dialog"
+          disabled={isCheckingForUpdate}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        {/if}
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
       </div>
 
-      <!-- Progress Section -->
-      <div class="space-y-3">
-        {#if updateStage === "checking"}
-          <div class="flex items-center justify-center gap-3 py-4">
+      <!-- Content Section -->
+      <div class="space-y-4">
+        {#if isCheckingForUpdate}
+          <div class="flex items-center justify-center gap-3 py-6">
             <div
               class="animate-spin rounded-full h-8 w-8 border-b-2 border-terracotta"
             ></div>
             <span class="text-sm text-warm-gray">Contacting GitHub...</span>
           </div>
-        {:else if updateStage === "available"}
-          <div
-            class="bg-warm-beige/30 rounded-lg p-4 space-y-2 border border-warm-beige"
-          >
-            <div class="flex items-center gap-2">
-              <svg
-                class="h-5 w-5 text-terracotta"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <span class="font-medium text-warm-charcoal">Version Info</span>
-            </div>
-            <div class="text-sm text-warm-gray pl-7">
-              <div>
-                Current: <strong>{updateVersion.current ?? "—"}</strong>
-              </div>
-              <div>
-                Latest: <strong class="text-terracotta"
-                  >{updateVersion.latest ?? "—"}</strong
-                >
-              </div>
-            </div>
-          </div>
-        {:else if updateStage === "downloading"}
-          <div class="space-y-2">
-            <div
-              class="w-full bg-warm-beige/30 rounded-full h-4 overflow-hidden"
-            >
-              <div
-                class="bg-gradient-to-r from-terracotta to-coral h-full transition-all duration-300 ease-out rounded-full flex items-center justify-end pr-2"
-                style={`width: ${Math.min(updatePercent, 100).toFixed(1)}%`}
-              >
-                {#if updatePercent > 15}
-                  <span class="text-xs font-semibold text-white"
-                    >{updatePercent.toFixed(0)}%</span
-                  >
-                {/if}
-              </div>
-            </div>
-            <div
-              class="flex items-center justify-between text-xs text-warm-gray"
-            >
-              <span>{updatePercent.toFixed(1)}% complete</span>
-              <span>
-                {formatBytes(updateBytes.downloaded)}
-                {updateBytes.total
-                  ? ` / ${formatBytes(updateBytes.total)}`
-                  : ""}
-              </span>
-            </div>
-          </div>
-          <div class="flex items-center gap-2 text-sm text-warm-gray pt-2">
-            <div
-              class="animate-spin rounded-full h-4 w-4 border-b-2 border-terracotta"
-            ></div>
-            <span>Downloading from GitHub releases...</span>
-          </div>
-        {:else if updateStage === "installing"}
-          <div class="space-y-3">
-            <div
-              class="w-full bg-warm-beige/30 rounded-full h-4 overflow-hidden"
-            >
-              <div
-                class="bg-gradient-to-r from-terracotta to-coral h-full w-full animate-pulse"
-              ></div>
-            </div>
-            <div class="flex items-center gap-2 text-sm text-warm-gray">
-              <div
-                class="animate-spin rounded-full h-4 w-4 border-b-2 border-terracotta"
-              ></div>
-              <span>Installing update... This may take a moment.</span>
-            </div>
-          </div>
-        {:else if updateStage === "done"}
-          <div
-            class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 space-y-2"
-          >
-            <div class="flex items-center gap-2">
-              <svg
-                class="h-6 w-6 text-emerald-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <span class="font-medium text-emerald-900"
-                >Installation Successful!</span
-              >
-            </div>
-            <p class="text-sm text-emerald-700 pl-8">
-              The app will restart automatically to complete the update.
-            </p>
-          </div>
-        {:else if updateStage === "no-update"}
-          <div
-            class="bg-warm-beige/30 border border-warm-beige rounded-lg p-4 flex items-center gap-3"
-          >
-            <svg
-              class="h-6 w-6 text-sage flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <div>
-              <p class="font-medium text-warm-charcoal">You're up to date!</p>
-              <p class="text-sm text-warm-gray">
-                You're running the latest version.
-              </p>
-            </div>
-          </div>
-        {:else if updateStage === "error"}
+        {:else if updateCheckResult?.error}
           <div class="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
             <div class="flex items-center gap-2">
               <svg
@@ -1929,31 +1764,188 @@
                   d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <span class="font-medium text-red-900">Update Failed</span>
+              <span class="font-medium text-red-900">Check Failed</span>
             </div>
-            {#if updateError}
-              <p class="text-sm text-red-700 pl-8 font-mono">{updateError}</p>
-            {/if}
-            <p class="text-sm text-red-600 pl-8">
-              Please check your internet connection and try again.
+            <p class="text-sm text-red-700 pl-8">{updateCheckResult.error}</p>
+          </div>
+        {:else if updateCheckResult?.updateAvailable}
+          <div
+            class="bg-warm-beige/30 rounded-lg p-4 space-y-2 border border-warm-beige"
+          >
+            <div class="text-sm text-warm-gray">
+              <div>
+                Current version: <strong
+                  >{updateCheckResult.currentVersion}</strong
+                >
+              </div>
+              <div>
+                Latest version: <strong class="text-terracotta"
+                  >{updateCheckResult.latestVersion}</strong
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Download Buttons -->
+          <div class="space-y-2">
+            <p class="text-sm font-semibold text-warm-charcoal">
+              Download for your platform:
             </p>
+            <div class="grid gap-2">
+              {#if updateCheckResult && updateCheckResult.downloadLinks && updateCheckResult.downloadLinks.windows}
+                <button
+                  class="action-primary text-left px-4 py-2 flex items-center justify-between"
+                  onclick={() =>
+                    downloadUpdate(updateCheckResult!.downloadLinks!.windows!)}
+                >
+                  <span class="flex items-center gap-2">
+                    <svg
+                      class="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                      />
+                    </svg>
+                    Windows (64-bit)
+                  </span>
+                  <span class="text-xs">↗</span>
+                </button>
+              {/if}
+
+              {#if updateCheckResult && updateCheckResult.downloadLinks && updateCheckResult.downloadLinks.macosIntel}
+                <button
+                  class="action-primary text-left px-4 py-2 flex items-center justify-between"
+                  onclick={() =>
+                    downloadUpdate(
+                      updateCheckResult!.downloadLinks!.macosIntel!
+                    )}
+                >
+                  <span class="flex items-center gap-2">
+                    <svg
+                      class="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                      />
+                    </svg>
+                    macOS (Intel)
+                  </span>
+                  <span class="text-xs">↗</span>
+                </button>
+              {/if}
+
+              {#if updateCheckResult && updateCheckResult.downloadLinks && updateCheckResult.downloadLinks.macosArm}
+                <button
+                  class="action-primary text-left px-4 py-2 flex items-center justify-between"
+                  onclick={() =>
+                    downloadUpdate(updateCheckResult!.downloadLinks!.macosArm!)}
+                >
+                  <span class="flex items-center gap-2">
+                    <svg
+                      class="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                      />
+                    </svg>
+                    macOS (Apple Silicon)
+                  </span>
+                  <span class="text-xs">↗</span>
+                </button>
+              {/if}
+
+              {#if updateCheckResult && updateCheckResult.downloadLinks && updateCheckResult.downloadLinks.linux}
+                <button
+                  class="action-primary text-left px-4 py-2 flex items-center justify-between"
+                  onclick={() =>
+                    downloadUpdate(updateCheckResult!.downloadLinks!.linux!)}
+                >
+                  <span class="flex items-center gap-2">
+                    <svg
+                      class="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                      />
+                    </svg>
+                    Linux (AppImage)
+                  </span>
+                  <span class="text-xs">↗</span>
+                </button>
+              {/if}
+            </div>
+          </div>
+        {:else}
+          <div
+            class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-center gap-3"
+          >
+            <svg
+              class="h-6 w-6 text-emerald-600 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div>
+              <p class="font-medium text-emerald-900">You're all set!</p>
+              <p class="text-sm text-emerald-700">
+                {updateCheckResult?.currentVersion
+                  ? `Running v${updateCheckResult.currentVersion}`
+                  : ""}
+              </p>
+            </div>
           </div>
         {/if}
       </div>
 
       <!-- Action Buttons -->
       <div class="flex justify-end gap-2 pt-2">
-        {#if updateStage === "error" || updateStage === "no-update"}
-          <button class="btn btn-primary" onclick={closeUpdateModal}>
-            Close
+        {#if updateCheckResult?.releaseUrl && updateCheckResult.updateAvailable}
+          <button
+            class="btn btn-ghost"
+            onclick={viewReleaseNotes}
+            disabled={isCheckingForUpdate}
+          >
+            Release Notes
           </button>
-        {:else if updateStage === "done"}
-          <button class="btn btn-ghost" onclick={closeUpdateModal}>
-            Restart Later
-          </button>
-        {:else if updateStage === "checking" || updateStage === "downloading" || updateStage === "installing"}
-          <div class="text-sm text-warm-gray italic">Please wait...</div>
         {/if}
+        <button
+          class="btn btn-ghost"
+          onclick={closeUpdateModal}
+          disabled={isCheckingForUpdate}
+        >
+          Close
+        </button>
       </div>
     </div>
   </div>
