@@ -84,7 +84,7 @@
   }
   let storageInfo = $state<StorageInfo | null>(null);
 
-  const APP_VERSION = "1.0.0";
+  const APP_VERSION = "1.0.2";
 
   onMount(() => {
     loadSettings();
