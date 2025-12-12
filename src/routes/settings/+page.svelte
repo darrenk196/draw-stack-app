@@ -34,6 +34,7 @@
     openReleaseNotes,
     type UpdateCheckResult,
   } from "$lib/updater";
+  import { focusTrap } from "$lib/focusTrap";
 
   let libraryPath = $state("");
   let defaultLibraryPath = $state("");
@@ -52,6 +53,7 @@
   let showUpdateModal = $state(false);
   let isCheckingForUpdate = $state(false);
   let updateCheckResult = $state<UpdateCheckResult | null>(null);
+  let showHelpModal = $state(false);
 
   // Tag consolidation
   let duplicateTagGroups = $state<DuplicateTagGroup[]>([]);
@@ -779,8 +781,9 @@
       </div>
       <div class="tooltip tooltip-left" data-tip="Settings help">
         <button
-          class="btn btn-circle action-ghost text-warm-gray"
+          class="btn btn-sm btn-circle btn-ghost text-warm-gray hover:bg-warm-beige/30"
           aria-label="Help"
+          onclick={() => (showHelpModal = true)}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -1650,6 +1653,119 @@
   </div>
 </div>
 
+<!-- Settings Help Modal -->
+{#if showHelpModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-8"
+    onclick={() => (showHelpModal = false)}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="settings-help-title"
+    tabindex="-1"
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+      onclick={(e) => e.stopPropagation()}
+      use:focusTrap
+    >
+      <div class="flex items-center justify-between mb-6">
+        <h2
+          class="text-2xl font-bold text-warm-charcoal"
+          id="settings-help-title"
+        >
+          Settings - Quick Guide
+        </h2>
+        <button
+          class="btn btn-circle btn-ghost btn-sm text-warm-gray hover:bg-warm-beige/30"
+          onclick={() => (showHelpModal = false)}
+          aria-label="Close help"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-5 text-sm text-warm-gray">
+        <section class="space-y-2">
+          <h3 class="text-lg font-semibold text-warm-charcoal">
+            Library & Backups
+          </h3>
+          <ul class="list-disc list-inside space-y-1">
+            <li>
+              Library path: use Browse to choose a folder; Reset to Default if
+              you moved files elsewhere.
+            </li>
+            <li>
+              Export/Import: use Export Library to back up tags and images
+              metadata; Import adds to your library (does not replace unless you
+              clear first).
+            </li>
+          </ul>
+        </section>
+
+        <section class="space-y-2">
+          <h3 class="text-lg font-semibold text-warm-charcoal">
+            Duplicates & Tags
+          </h3>
+          <ul class="list-disc list-inside space-y-1">
+            <li>
+              Find Duplicate Tags scans for identical names; pick a tag to keep,
+              then merge.
+            </li>
+            <li>
+              Merging moves image associations into the kept tag and cleans up
+              the rest.
+            </li>
+          </ul>
+        </section>
+
+        <section class="space-y-2">
+          <h3 class="text-lg font-semibold text-warm-charcoal">Updates</h3>
+          <ul class="list-disc list-inside space-y-1">
+            <li>Check for Updates fetches the latest release from GitHub.</li>
+            <li>
+              Click your platform to open the installer, or open the release
+              page if assets are missing.
+            </li>
+          </ul>
+        </section>
+
+        <section class="space-y-2">
+          <h3 class="text-lg font-semibold text-warm-charcoal">
+            Resets & Safety
+          </h3>
+          <ul class="list-disc list-inside space-y-1">
+            <li>
+              Clear Library deletes images/tags; use Export first if you need a
+              backup.
+            </li>
+            <li>
+              Reset App wipes all data and settings; use only if you want a
+              clean slate.
+            </li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- Import Progress Modal -->
 {#if showImportProgress}
   <div
@@ -1898,6 +2014,15 @@
                 </button>
               {/if}
             </div>
+            {#if updateCheckResult?.releaseUrl}
+              <button
+                class="btn btn-ghost justify-start px-0 text-sm"
+                onclick={viewReleaseNotes}
+                disabled={isCheckingForUpdate}
+              >
+                Open release page
+              </button>
+            {/if}
           </div>
         {:else}
           <div
