@@ -143,14 +143,16 @@ export async function openDownloadLink(url: string): Promise<void> {
   try {
     // Try using the opener plugin via invoke (Tauri v2)
     await invoke('plugin:opener|open', { path: url });
-  } catch (_) {
-    // Fallback to browser open for dev/HMR or if plugin not available
-    try {
-      window.open(url, '_blank');
-    } catch (error) {
-      console.error('Failed to open download link:', error);
-      throw error;
-    }
+  } catch (err) {
+    console.warn('Opener plugin failed, falling back to window.open', err);
+  }
+
+  // Always attempt a browser open as a safety net (helps in dev/HMR)
+  try {
+    window.open(url, '_blank');
+  } catch (error) {
+    console.error('Failed to open download link:', error);
+    throw error;
   }
 }
 
@@ -160,13 +162,15 @@ export async function openDownloadLink(url: string): Promise<void> {
 export async function openReleaseNotes(releaseUrl: string): Promise<void> {
   try {
     await invoke('plugin:opener|open', { path: releaseUrl });
-  } catch (_) {
-    try {
-      window.open(releaseUrl, '_blank');
-    } catch (error) {
-      console.error('Failed to open release page:', error);
-      throw error;
-    }
+  } catch (err) {
+    console.warn('Opener plugin failed, falling back to window.open', err);
+  }
+
+  try {
+    window.open(releaseUrl, '_blank');
+  } catch (error) {
+    console.error('Failed to open release page:', error);
+    throw error;
   }
 }
 
