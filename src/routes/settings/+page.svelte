@@ -1718,14 +1718,17 @@
     <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-4">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h3 class="text-xl font-bold text-warm-charcoal">Updating Draw Stack</h3>
+          <h3 class="text-xl font-bold text-warm-charcoal">
+            Updating Draw Stack
+          </h3>
           <p class="text-sm text-warm-gray">{updateMessage}</p>
         </div>
         <button
           class="btn btn-circle btn-ghost btn-sm text-warm-gray hover:bg-warm-beige/30"
           onclick={closeUpdateModal}
           aria-label="Close update status"
-          disabled={updateStage === "downloading" || updateStage === "installing"}
+          disabled={updateStage === "downloading" ||
+            updateStage === "installing"}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -1734,7 +1737,12 @@
             viewBox="0 0 24 24"
             stroke="currentColor"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
@@ -1764,10 +1772,13 @@
           <div class="text-xs text-warm-gray">Finishing installation…</div>
         {:else if updateStage === "available"}
           <div class="text-sm text-warm-gray">
-            Current: {updateVersion.current ?? ""} · Latest: {updateVersion.latest ?? ""}
+            Current: {updateVersion.current ?? ""} · Latest: {updateVersion.latest ??
+              ""}
           </div>
         {:else if updateStage === "done"}
-          <div class="text-sm text-emerald-700">Update installed. You may be prompted to restart.</div>
+          <div class="text-sm text-emerald-700">
+            Update installed. You may be prompted to restart.
+          </div>
         {:else if updateStage === "no-update"}
           <div class="text-sm text-warm-gray">No update available.</div>
         {:else if updateStage === "error"}
@@ -1779,7 +1790,8 @@
         <button
           class="btn btn-ghost"
           onclick={closeUpdateModal}
-          disabled={updateStage === "downloading" || updateStage === "installing"}
+          disabled={updateStage === "downloading" ||
+            updateStage === "installing"}
         >
           Close
         </button>
