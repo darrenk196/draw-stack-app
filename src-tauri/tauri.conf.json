@@ -39,6 +39,12 @@
     ]
   },
   "plugins": {
+    "shell": {
+      "open": true
+    },
+    "opener": {
+      "requireLiteralLeadingDot": false
+    },
     "updater": {
       "active": true,
       "endpoints": [

@@ -166,7 +166,7 @@
 {/if}
 
 <!-- Pagination Navigation -->
-{#if itemsPerPage !== "all" && images.length > 0}
+{#if images.length > 0 && totalPages > 1}
   <div
     class="mt-6 pt-4 border-t border-warm-beige flex items-center justify-center gap-2"
   >

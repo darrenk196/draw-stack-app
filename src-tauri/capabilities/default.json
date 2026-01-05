@@ -19,6 +19,7 @@
     "fs:allow-appdata-read-recursive",
     "fs:allow-appdata-write-recursive",
     "updater:default",
-    "process:allow-exit"
+    "process:allow-exit",
+    "shell:allow-open"
   ]
 }

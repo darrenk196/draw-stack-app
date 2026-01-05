@@ -28,12 +28,7 @@
     validateTag,
   } from "$lib/errors";
   import { onMount } from "svelte";
-  import {
-    checkForUpdatesManual,
-    openDownloadLink,
-    openReleaseNotes,
-    type UpdateCheckResult,
-  } from "$lib/updater";
+  import { openReleaseNotes } from "$lib/updater";
   import { focusTrap } from "$lib/focusTrap";
 
   let libraryPath = $state("");
@@ -49,10 +44,6 @@
   // App preferences
   let appSettings = $state<AppSettings>({ ...DEFAULT_SETTINGS });
 
-  // Update check modal state
-  let showUpdateModal = $state(false);
-  let isCheckingForUpdate = $state(false);
-  let updateCheckResult = $state<UpdateCheckResult | null>(null);
   let showHelpModal = $state(false);
 
   // Tag consolidation
@@ -278,55 +269,21 @@
   }
 
   async function handleCheckForUpdates() {
-    isCheckingForUpdate = true;
-    showUpdateModal = true;
-    updateCheckResult = null;
-
+    console.log('handleCheckForUpdates called');
+    // Simply open the GitHub releases page
+    const releaseUrl = 'https://github.com/darrenk196/draw-stack-app/releases';
+    console.log('Opening URL:', releaseUrl);
+    toast.info("Opening releases page in your browser...");
     try {
-      const result = await checkForUpdatesManual();
-      updateCheckResult = result;
-
-      if (!result.updateAvailable) {
-        toast.info("You're running the latest version!");
-      }
+      console.log('About to call openReleaseNotes');
+      await openReleaseNotes(releaseUrl);
+      console.log('openReleaseNotes completed');
     } catch (error) {
+      console.error('Error in handleCheckForUpdates:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error("Update check failed:", error);
-      toast.error(`Failed to check for updates: ${errorMsg}`);
-      updateCheckResult = {
-        updateAvailable: false,
-        currentVersion: "unknown",
-        error: errorMsg,
-      };
-    } finally {
-      isCheckingForUpdate = false;
+      console.error("Failed to open releases page:", error);
+      toast.error(`Failed to open releases page: ${errorMsg}`);
     }
-  }
-
-  async function downloadUpdate(url: string) {
-    try {
-      await openDownloadLink(url);
-      toast.success("Opening download in browser...");
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error("Failed to open download link:", error);
-      toast.error(`Failed to open download: ${errorMsg}`);
-    }
-  }
-
-  async function viewReleaseNotes() {
-    if (!updateCheckResult?.releaseUrl) return;
-    try {
-      await openReleaseNotes(updateCheckResult.releaseUrl);
-    } catch (error) {
-      console.error("Failed to open release notes:", error);
-      toast.error("Failed to open release notes");
-    }
-  }
-
-  function closeUpdateModal() {
-    showUpdateModal = false;
-    updateCheckResult = null;
   }
 
   async function checkDuplicateTags() {
@@ -1597,7 +1554,7 @@
                 <p class="text-sm text-warm-gray">Stable release</p>
               </div>
               <button
-                onclick={handleCheckForUpdates}
+                onclick={() => handleCheckForUpdates()}
                 class="action-primary gap-2"
               >
                 <svg
@@ -1801,277 +1758,4 @@
   </div>
 {/if}
 
-<!-- Update Check Modal -->
-{#if showUpdateModal}
-  <div
-    class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-8"
-    role="status"
-    aria-live="polite"
-  >
-    <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-5">
-      <div class="flex items-start justify-between gap-4">
-        <div class="flex-1">
-          <h3 class="text-xl font-bold text-warm-charcoal mb-1">
-            {#if isCheckingForUpdate}
-              Checking for Updates
-            {:else if updateCheckResult?.updateAvailable}
-              Update Available!
-            {:else}
-              Up to Date
-            {/if}
-          </h3>
-          <p class="text-sm text-warm-gray">
-            {#if isCheckingForUpdate}
-              Fetching latest release from GitHub...
-            {:else if updateCheckResult?.error}
-              {updateCheckResult.error}
-            {:else if updateCheckResult?.updateAvailable}
-              DrawStack {updateCheckResult.latestVersion} is now available
-            {:else}
-              You're running the latest version
-            {/if}
-          </p>
-        </div>
-        <button
-          class="btn btn-circle btn-ghost btn-sm text-warm-gray hover:bg-warm-beige/30 flex-shrink-0"
-          onclick={closeUpdateModal}
-          aria-label="Close update dialog"
-          disabled={isCheckingForUpdate}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
 
-      <!-- Content Section -->
-      <div class="space-y-4">
-        {#if isCheckingForUpdate}
-          <div class="flex items-center justify-center gap-3 py-6">
-            <div
-              class="animate-spin rounded-full h-8 w-8 border-b-2 border-terracotta"
-            ></div>
-            <span class="text-sm text-warm-gray">Contacting GitHub...</span>
-          </div>
-        {:else if updateCheckResult?.error}
-          <div class="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
-            <div class="flex items-center gap-2">
-              <svg
-                class="h-6 w-6 text-red-600 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <span class="font-medium text-red-900">Check Failed</span>
-            </div>
-            <p class="text-sm text-red-700 pl-8">{updateCheckResult.error}</p>
-          </div>
-        {:else if updateCheckResult?.updateAvailable}
-          <div
-            class="bg-warm-beige/30 rounded-lg p-4 space-y-2 border border-warm-beige"
-          >
-            <div class="text-sm text-warm-gray">
-              <div>
-                Current version: <strong
-                  >{updateCheckResult.currentVersion}</strong
-                >
-              </div>
-              <div>
-                Latest version: <strong class="text-terracotta"
-                  >{updateCheckResult.latestVersion}</strong
-                >
-              </div>
-            </div>
-          </div>
-
-          <!-- Download Buttons -->
-          <div class="space-y-2">
-            <p class="text-sm font-semibold text-warm-charcoal">
-              Download for your platform:
-            </p>
-            <div class="grid gap-2">
-              {#if updateCheckResult && updateCheckResult.downloadLinks && updateCheckResult.downloadLinks.windows}
-                <button
-                  class="action-primary text-left px-4 py-2 flex items-center justify-between"
-                  onclick={() =>
-                    downloadUpdate(updateCheckResult!.downloadLinks!.windows!)}
-                >
-                  <span class="flex items-center gap-2">
-                    <svg
-                      class="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      />
-                    </svg>
-                    Windows (64-bit)
-                  </span>
-                  <span class="text-xs">↗</span>
-                </button>
-              {/if}
-
-              {#if updateCheckResult && updateCheckResult.downloadLinks && updateCheckResult.downloadLinks.macosIntel}
-                <button
-                  class="action-primary text-left px-4 py-2 flex items-center justify-between"
-                  onclick={() =>
-                    downloadUpdate(
-                      updateCheckResult!.downloadLinks!.macosIntel!
-                    )}
-                >
-                  <span class="flex items-center gap-2">
-                    <svg
-                      class="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      />
-                    </svg>
-                    macOS (Intel)
-                  </span>
-                  <span class="text-xs">↗</span>
-                </button>
-              {/if}
-
-              {#if updateCheckResult && updateCheckResult.downloadLinks && updateCheckResult.downloadLinks.macosArm}
-                <button
-                  class="action-primary text-left px-4 py-2 flex items-center justify-between"
-                  onclick={() =>
-                    downloadUpdate(updateCheckResult!.downloadLinks!.macosArm!)}
-                >
-                  <span class="flex items-center gap-2">
-                    <svg
-                      class="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      />
-                    </svg>
-                    macOS (Apple Silicon)
-                  </span>
-                  <span class="text-xs">↗</span>
-                </button>
-              {/if}
-
-              {#if updateCheckResult && updateCheckResult.downloadLinks && updateCheckResult.downloadLinks.linux}
-                <button
-                  class="action-primary text-left px-4 py-2 flex items-center justify-between"
-                  onclick={() =>
-                    downloadUpdate(updateCheckResult!.downloadLinks!.linux!)}
-                >
-                  <span class="flex items-center gap-2">
-                    <svg
-                      class="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      />
-                    </svg>
-                    Linux (AppImage)
-                  </span>
-                  <span class="text-xs">↗</span>
-                </button>
-              {/if}
-            </div>
-            {#if updateCheckResult?.releaseUrl}
-              <button
-                class="btn btn-ghost justify-start px-0 text-sm"
-                onclick={viewReleaseNotes}
-                disabled={isCheckingForUpdate}
-              >
-                Open release page
-              </button>
-            {/if}
-          </div>
-        {:else}
-          <div
-            class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-center gap-3"
-          >
-            <svg
-              class="h-6 w-6 text-emerald-600 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <div>
-              <p class="font-medium text-emerald-900">You're all set!</p>
-              <p class="text-sm text-emerald-700">
-                {updateCheckResult?.currentVersion
-                  ? `Running v${updateCheckResult.currentVersion}`
-                  : ""}
-              </p>
-            </div>
-          </div>
-        {/if}
-      </div>
-
-      <!-- Action Buttons -->
-      <div class="flex justify-end gap-2 pt-2">
-        {#if updateCheckResult?.releaseUrl && updateCheckResult.updateAvailable}
-          <button
-            class="btn btn-ghost"
-            onclick={viewReleaseNotes}
-            disabled={isCheckingForUpdate}
-          >
-            Release Notes
-          </button>
-        {/if}
-        <button
-          class="btn btn-ghost"
-          onclick={closeUpdateModal}
-          disabled={isCheckingForUpdate}
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}

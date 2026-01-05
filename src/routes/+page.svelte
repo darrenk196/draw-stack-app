@@ -188,6 +188,13 @@
   let itemsPerPage = $state<number | "all">(loadItemsPerPage());
   let currentPage = $state(1);
 
+  // Search results pagination (independent from library pagination)
+  let searchResultsPage = $state(1);
+  const SEARCH_RESULTS_PER_PAGE = 100; // Results per page for search results
+
+  // Missing tag category filter
+  let selectedMissingTagCategories = $state<Set<string>>(new Set());
+
   // Sort state
   type SortOrder = "newest" | "oldest";
 
@@ -218,7 +225,11 @@
 
     // Only apply filtering if there are actual filters or search queries
     // This is an optimization: when loading all with no filters, skip the expensive filter operation
-    if (debouncedSearchQuery.trim() || activeFilters.length > 0) {
+    if (
+      debouncedSearchQuery.trim() ||
+      activeFilters.length > 0 ||
+      selectedMissingTagCategories.size > 0
+    ) {
       // Pre-build image tag paths once to avoid recalculating inside filter loop
       const imageTagPathsMap = new Map<string, string[]>();
       const imageTagNamesMap = new Map<string, string[]>();
@@ -236,8 +247,26 @@
       }
 
       images = libraryImages.filter((image) => {
+        // Safety check
+        if (!image || !image.id) return false;
+
         const imageTagPaths = imageTagPathsMap.get(image.id) || [];
         const imageTagNames = imageTagNamesMap.get(image.id) || [];
+        const imageTags = allImageTags.get(image.id) || [];
+
+        // Check missing tag categories filter
+        if (selectedMissingTagCategories.size > 0) {
+          // Image must NOT have any tags from the selected categories
+          // Use tag.parentId to determine which category a tag belongs to
+          const hasMissingCategoryTags = imageTags.some((tag) => {
+            if (!tag || !tag.parentId) return false; // Safety check
+            return selectedMissingTagCategories.has(tag.parentId);
+          });
+
+          if (hasMissingCategoryTags) {
+            return false; // Image has tags in these categories, so exclude it
+          }
+        }
 
         // Check if image matches all active filters (AND logic)
         const matchesFilters = activeFilters.every((filter) => {
@@ -277,15 +306,15 @@
       return sortOrder === "newest" ? bTime - aTime : aTime - bTime;
     });
 
-    // Only apply search result limit when actively searching or filtering
-    const hasActiveSearchOrFilter =
-      debouncedSearchQuery.trim() || activeFilters.length > 0;
-    if (hasActiveSearchOrFilter) {
-      const limit =
-        appSettings.searchResultLimit ?? DEFAULT_SETTINGS.searchResultLimit;
-      return limit && limit > 0 ? sorted.slice(0, limit) : sorted;
+    // For search results: return all results without library pagination limit
+    // The pagination will be handled separately with searchResultsPage
+    if (
+      debouncedSearchQuery.trim() ||
+      activeFilters.length > 0 ||
+      selectedMissingTagCategories.size > 0
+    ) {
+      console.log("Search/filter results:", sorted.length, "results");
     }
-
     return sorted;
   });
 
@@ -294,15 +323,71 @@
     itemsPerPage === "all" ? 1 : Math.ceil(filteredImages.length / itemsPerPage)
   );
 
+  // Search/filter result pagination
+  const hasActiveSearchOrFilter = $derived(
+    debouncedSearchQuery.trim() ||
+      activeFilters.length > 0 ||
+      selectedMissingTagCategories.size > 0
+  );
+
+  let searchResultsTotalPages = $derived(
+    hasActiveSearchOrFilter
+      ? Math.ceil(filteredImages.length / SEARCH_RESULTS_PER_PAGE)
+      : 0
+  );
+
+  let displayedSearchResults = $derived.by(() => {
+    if (!hasActiveSearchOrFilter) {
+      return [];
+    }
+    const startIndex = (searchResultsPage - 1) * SEARCH_RESULTS_PER_PAGE;
+    const endIndex = startIndex + SEARCH_RESULTS_PER_PAGE;
+    const results = filteredImages.slice(startIndex, endIndex);
+    console.log(
+      "displayedSearchResults: page",
+      searchResultsPage,
+      "start",
+      startIndex,
+      "end",
+      endIndex,
+      "count",
+      results.length,
+      "total",
+      filteredImages.length
+    );
+    return results;
+  });
+
   let displayedLibraryImages = $derived.by(() => {
+    // If we're doing a search or have filters, use search result pagination
+    if (hasActiveSearchOrFilter) {
+      console.log(
+        "displayedLibraryImages: using search results, count =",
+        displayedSearchResults.length
+      );
+      return displayedSearchResults;
+    }
+
+    // Otherwise use library pagination
     if (itemsPerPage === "all") {
       // Load all images at once - Svelte's virtual scrolling and
       // lazy loading of images handles the rendering efficiently
+      console.log(
+        "displayedLibraryImages: using all filtered, count =",
+        filteredImages.length
+      );
       return filteredImages;
     }
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    return filteredImages.slice(startIndex, endIndex);
+    const paged = filteredImages.slice(startIndex, endIndex);
+    console.log(
+      "displayedLibraryImages: using library pagination, page",
+      currentPage,
+      "count =",
+      paged.length
+    );
+    return paged;
   });
 
   // Reset to page 1 when filters change
@@ -310,9 +395,11 @@
     // Track only the dependencies that should trigger a reset
     const filterCount = activeFilters.length;
     const searchText = debouncedSearchQuery;
+    const missingTagCount = selectedMissingTagCategories.size;
 
-    // Reset page
+    // Reset pages
     currentPage = 1;
+    searchResultsPage = 1;
   });
 
   let tagCategories = $state<Array<{ name: string; tags: string[] }>>(
@@ -379,6 +466,7 @@
     const handleLibraryUpdate = () => {
       console.log("Library update event received, reloading...");
       loadLibraryImages();
+      loadAllTags(); // Reload tags to get updated tag names
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -426,7 +514,17 @@
 
   async function loadAllTags() {
     try {
+      console.log("loadAllTags: Loading all tags from database...");
       allTags = await getAllTags();
+      console.log("loadAllTags: Loaded", allTags.length, "tags");
+      // Log a few sample tags to verify names
+      const sampleTags = allTags
+        .filter((t) => t.parentId === "Pack")
+        .slice(0, 5);
+      console.log(
+        "loadAllTags: Sample Pack tags:",
+        sampleTags.map((t) => `${t.name} (${t.id})`)
+      );
     } catch (error) {
       console.error("Failed to load tags:", error);
     }
@@ -946,8 +1044,9 @@
       // Remove tag
       await removeImageTag(viewingImage.id, existingTag.id);
       imageTags = imageTags.filter((t) => t.id !== existingTag.id);
-      // Update the image tags map
+      // Update the image tags map and reassign to trigger reactivity
       allImageTags.set(viewingImage.id, imageTags);
+      allImageTags = new Map(allImageTags);
     } else {
       // Find or create tag - match by name AND category to avoid reusing deleted tags
       let tag = allTags.find(
@@ -970,8 +1069,9 @@
       // Add tag to image
       await addImageTag(viewingImage.id, tag.id);
       imageTags = [...imageTags, tag];
-      // Update the image tags map
+      // Update the image tags map and reassign to trigger reactivity
       allImageTags.set(viewingImage.id, imageTags);
+      allImageTags = new Map(allImageTags);
     }
   }
 
@@ -1192,6 +1292,62 @@
   function changeItemsPerPage(value: number | "all") {
     itemsPerPage = value;
     currentPage = 1;
+  }
+
+  // Search result pagination functions
+  function nextSearchResultsPage() {
+    console.log(
+      "nextSearchResultsPage: current =",
+      searchResultsPage,
+      "total =",
+      searchResultsTotalPages
+    );
+    if (
+      searchResultsPage < searchResultsTotalPages &&
+      searchResultsTotalPages > 0
+    ) {
+      searchResultsPage++;
+      console.log("nextSearchResultsPage: incremented to", searchResultsPage);
+    }
+  }
+
+  function previousSearchResultsPage() {
+    console.log("previousSearchResultsPage: current =", searchResultsPage);
+    if (searchResultsPage > 1) {
+      searchResultsPage--;
+      console.log(
+        "previousSearchResultsPage: decremented to",
+        searchResultsPage
+      );
+    }
+  }
+
+  function goToSearchResultsPage(page: number) {
+    console.log(
+      "goToSearchResultsPage: target =",
+      page,
+      "total =",
+      searchResultsTotalPages
+    );
+    if (searchResultsTotalPages > 0) {
+      searchResultsPage = Math.max(1, Math.min(page, searchResultsTotalPages));
+      console.log("goToSearchResultsPage: set to", searchResultsPage);
+    }
+  }
+
+  // Missing tag category filter functions
+  function toggleMissingTagCategory(categoryName: string) {
+    const newCategories = new Set(selectedMissingTagCategories);
+    if (newCategories.has(categoryName)) {
+      newCategories.delete(categoryName);
+    } else {
+      newCategories.add(categoryName);
+    }
+    selectedMissingTagCategories = newCategories;
+  }
+
+  function clearMissingTagCategories() {
+    selectedMissingTagCategories = new Set();
   }
 </script>
 
@@ -1417,12 +1573,16 @@
       {recentTags}
       {searchSuggestions}
       {selectedSuggestionIndex}
+      {tagCategories}
+      {selectedMissingTagCategories}
       onSearchInput={handleSearchInput}
       onSearchKeydown={handleSearchKeydown}
       onSuggestionSelect={selectSearchSuggestion}
       onFilterAdd={addFilter}
       onFilterRemove={removeFilter}
       onClearAllFilters={clearAllFilters}
+      onToggleMissingTagCategory={toggleMissingTagCategory}
+      onClearMissingTagCategories={clearMissingTagCategories}
       {buildTagPath}
       {allTags}
     />
@@ -1463,7 +1623,7 @@
           Go to Packs
         </a>
       </div>
-    {:else if filteredImages.length === 0 && (searchQuery.trim() || activeFilters.length > 0)}
+    {:else if filteredImages.length === 0 && (searchQuery.trim() || activeFilters.length > 0 || selectedMissingTagCategories.size > 0)}
       <div class="flex flex-col items-center justify-center h-full text-center">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -1483,7 +1643,11 @@
           No images found
         </h2>
         <p class="text-warm-gray mb-4">
-          {#if activeFilters.length > 0}
+          {#if selectedMissingTagCategories.size > 0}
+            No images found without tags in: {Array.from(
+              selectedMissingTagCategories
+            ).join(", ")}
+          {:else if activeFilters.length > 0}
             No images match the active filters
           {:else}
             No images match your search: "{searchQuery}"
@@ -1499,16 +1663,37 @@
         class="mb-4 flex items-center justify-between border-b border-warm-beige pb-4"
       >
         <div class="flex items-center gap-3">
-          <span class="text-sm text-warm-gray">Items per page:</span>
-          <select
-            class="select select-sm select-bordered"
-            bind:value={itemsPerPage}
-            onchange={handleItemsPerPageChange}
-          >
-            {#each PAGINATION.OPTIONS as option}
-              <option value={option.value}>{option.label}</option>
-            {/each}
-          </select>
+          {#if hasActiveSearchOrFilter}
+            <!-- Search Results Info -->
+            <div class="text-sm text-warm-gray">
+              {#if filteredImages.length > SEARCH_RESULTS_PER_PAGE}
+                Showing results {Math.min(
+                  (searchResultsPage - 1) * SEARCH_RESULTS_PER_PAGE + 1,
+                  filteredImages.length
+                )}-{Math.min(
+                  searchResultsPage * SEARCH_RESULTS_PER_PAGE,
+                  filteredImages.length
+                )} of {filteredImages.length}
+              {:else}
+                Showing {filteredImages.length} result{filteredImages.length !==
+                1
+                  ? "s"
+                  : ""}
+              {/if}
+            </div>
+          {:else}
+            <!-- Library Pagination Controls -->
+            <span class="text-sm text-warm-gray">Items per page:</span>
+            <select
+              class="select select-sm select-bordered"
+              bind:value={itemsPerPage}
+              onchange={handleItemsPerPageChange}
+            >
+              {#each PAGINATION.OPTIONS as option}
+                <option value={option.value}>{option.label}</option>
+              {/each}
+            </select>
+          {/if}
         </div>
         <div class="text-sm text-warm-gray">
           {#if itemsPerPage === "all"}
@@ -1522,8 +1707,67 @@
         </div>
       </div>
 
-      {#if itemsPerPage === "all" && filteredImages.length > VIRTUAL_SCROLL.THRESHOLD}
-        <!-- Virtual scrolling for large "all" lists -->
+      <!-- Top Pagination Controls -->
+      {#if (hasActiveSearchOrFilter && searchResultsTotalPages > 1) || (!hasActiveSearchOrFilter && totalPages > 1 && itemsPerPage !== "all")}
+        <div class="flex items-center justify-center gap-2 mb-4">
+          <button
+            class="btn btn-sm"
+            disabled={hasActiveSearchOrFilter
+              ? searchResultsPage === 1
+              : currentPage === 1}
+            onclick={hasActiveSearchOrFilter
+              ? previousSearchResultsPage
+              : previousPage}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+            Previous
+          </button>
+          <span class="text-sm text-warm-gray mx-4">
+            Page {hasActiveSearchOrFilter ? searchResultsPage : currentPage} of {hasActiveSearchOrFilter
+              ? searchResultsTotalPages
+              : totalPages}
+          </span>
+          <button
+            class="btn btn-sm"
+            disabled={hasActiveSearchOrFilter
+              ? searchResultsPage === searchResultsTotalPages
+              : currentPage === totalPages}
+            onclick={hasActiveSearchOrFilter ? nextSearchResultsPage : nextPage}
+          >
+            Next
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+          </button>
+        </div>
+      {/if}
+
+      {#if !hasActiveSearchOrFilter && itemsPerPage === "all" && filteredImages.length > VIRTUAL_SCROLL.THRESHOLD}
+        <!-- Virtual scrolling for large "all" lists (only when NOT searching/filtering) -->
         <VirtualImageGrid
           images={filteredImages}
           {viewMode}
@@ -1535,19 +1779,43 @@
           {allTags}
         />
       {:else}
-        <!-- Regular pagination rendering -->
+        <!-- Regular pagination rendering (always used when searching/filtering) -->
         <ImageGrid
           images={displayedLibraryImages}
           {viewMode}
           {selectedImages}
           {allImageTags}
-          {currentPage}
-          {totalPages}
+          currentPage={hasActiveSearchOrFilter
+            ? searchResultsPage
+            : currentPage}
+          totalPages={hasActiveSearchOrFilter
+            ? searchResultsTotalPages
+            : totalPages}
           {itemsPerPage}
           onImageClick={openImageViewer}
           onImageSelect={toggleImageSelectionEnhanced}
-          onNextPage={nextPage}
-          onPreviousPage={previousPage}
+          onNextPage={() => {
+            console.log(
+              "ImageGrid onNextPage called, hasActiveSearchOrFilter =",
+              hasActiveSearchOrFilter
+            );
+            if (hasActiveSearchOrFilter) {
+              nextSearchResultsPage();
+            } else {
+              nextPage();
+            }
+          }}
+          onPreviousPage={() => {
+            console.log(
+              "ImageGrid onPreviousPage called, hasActiveSearchOrFilter =",
+              hasActiveSearchOrFilter
+            );
+            if (hasActiveSearchOrFilter) {
+              previousSearchResultsPage();
+            } else {
+              previousPage();
+            }
+          }}
           {buildTagPath}
           {allTags}
         />
@@ -1570,32 +1838,6 @@
       }
     }}
   >
-    {#if !isBulkTagging}
-      <button
-        class="absolute top-4 right-4 btn btn-circle btn-ghost text-white z-10"
-        onclick={(e) => {
-          e.stopPropagation();
-          closeImageViewer(e);
-        }}
-        aria-label="Close image viewer"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="h-6 w-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M6 18L18 6M6 6l12 12"
-          />
-        </svg>
-      </button>
-    {/if}
-
     <!-- Previous Image Button -->
     {#if !isBulkTagging}
       <button
@@ -1732,9 +1974,15 @@
       <div class="flex justify-end mb-4">
         <button
           class="h-8 w-8 rounded-full bg-white border border-warm-beige text-warm-charcoal shadow-sm hover:bg-warm-beige/70 hover:border-warm-beige flex items-center justify-center transition-colors"
-          onclick={() => selectedImages.clear()}
-          title="Close tag menu"
-          aria-label="Close tag menu"
+          onclick={() => {
+            if (isBulkTagging) {
+              closeBulkTagEditor();
+            } else if (viewingImage) {
+              closeImageViewer();
+            }
+          }}
+          title="Close"
+          aria-label="Close"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

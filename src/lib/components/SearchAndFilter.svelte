@@ -1,6 +1,11 @@
 <script lang="ts">
   import type { Tag } from "$lib/db";
 
+  interface TagCategory {
+    name: string;
+    tags: string[];
+  }
+
   interface Props {
     searchQuery: string;
     activeFilters: string[];
@@ -8,12 +13,16 @@
     searchSuggestions: Tag[];
     showSearchSuggestions: boolean;
     selectedSuggestionIndex: number;
+    tagCategories: TagCategory[];
+    selectedMissingTagCategories: Set<string>;
     onSearchInput: (value: string) => void;
     onSearchKeydown: (event: KeyboardEvent) => void;
     onSuggestionSelect: (tag: Tag) => void;
     onFilterAdd: (tagPath: string) => void;
     onFilterRemove: (tagPath: string) => void;
     onClearAllFilters: () => void;
+    onToggleMissingTagCategory: (categoryName: string) => void;
+    onClearMissingTagCategories: () => void;
     buildTagPath: (tag: Tag, allTags: Tag[]) => string;
     allTags: Tag[];
   }
@@ -25,12 +34,16 @@
     searchSuggestions,
     showSearchSuggestions = $bindable(),
     selectedSuggestionIndex,
+    tagCategories,
+    selectedMissingTagCategories,
     onSearchInput,
     onSearchKeydown,
     onSuggestionSelect,
     onFilterAdd,
     onFilterRemove,
     onClearAllFilters,
+    onToggleMissingTagCategory,
+    onClearMissingTagCategories,
     buildTagPath,
     allTags,
   }: Props = $props();
@@ -142,6 +155,49 @@
       >
         Clear All
       </button>
+    </div>
+  </div>
+{/if}
+
+<!-- Missing Tag Categories Filter -->
+{#if tagCategories.length > 0}
+  <div class="mb-3">
+    <!-- svelte-ignore a11y_label_has_associated_control -->
+    <div class="text-sm text-warm-gray mb-2">Filter by Missing Tags:</div>
+    <div class="flex gap-2 flex-wrap">
+      {#each tagCategories as category}
+        <button
+          class="badge rounded-full border border-warm-beige text-warm-charcoal cursor-pointer transition-colors text-sm font-medium h-auto min-h-0 px-4 py-2.5"
+          class:bg-orange-200={selectedMissingTagCategories.has(category.name)}
+          class:border-orange-400={selectedMissingTagCategories.has(category.name)}
+          onclick={() => onToggleMissingTagCategory(category.name)}
+          title={`Show images without ${category.name} tags`}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13 10V3L4 14h7v7l9-11h-7z"
+            />
+          </svg>
+          No {category.name}
+        </button>
+      {/each}
+      {#if selectedMissingTagCategories.size > 0}
+        <button
+          class="badge rounded-full bg-warm-gray hover:bg-warm-charcoal text-white border-none cursor-pointer text-sm font-medium h-auto min-h-0 px-4 py-2.5"
+          onclick={onClearMissingTagCategories}
+        >
+          Clear
+        </button>
+      {/if}
     </div>
   </div>
 {/if}

@@ -7,7 +7,7 @@
  */
 
 import { getVersion } from '@tauri-apps/api/app';
-import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-shell';
 
 const GITHUB_REPO = 'darrenk196/draw-stack-app';
 const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -141,15 +141,7 @@ export async function checkForUpdatesManual(): Promise<UpdateCheckResult> {
  */
 export async function openDownloadLink(url: string): Promise<void> {
   try {
-    // Try using the opener plugin via invoke (Tauri v2)
-    await invoke('plugin:opener|open', { path: url });
-  } catch (err) {
-    console.warn('Opener plugin failed, falling back to window.open', err);
-  }
-
-  // Always attempt a browser open as a safety net (helps in dev/HMR)
-  try {
-    window.open(url, '_blank');
+    await open(url);
   } catch (error) {
     console.error('Failed to open download link:', error);
     throw error;
@@ -160,14 +152,12 @@ export async function openDownloadLink(url: string): Promise<void> {
  * Open the release page in the default browser
  */
 export async function openReleaseNotes(releaseUrl: string): Promise<void> {
+  console.log('openReleaseNotes called with:', releaseUrl);
   try {
-    await invoke('plugin:opener|open', { path: releaseUrl });
-  } catch (err) {
-    console.warn('Opener plugin failed, falling back to window.open', err);
-  }
-
-  try {
-    window.open(releaseUrl, '_blank');
+    // Use Tauri's shell.open to open the URL in the system's default browser
+    console.log('Calling shell.open');
+    await open(releaseUrl);
+    console.log('shell.open called successfully');
   } catch (error) {
     console.error('Failed to open release page:', error);
     throw error;

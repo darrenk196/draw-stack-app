@@ -6,6 +6,7 @@
   import {
     addImages,
     addTag,
+    updateTag,
     addImageTag,
     getAllTags,
     getLibraryImages,
@@ -296,6 +297,21 @@
       // Update the tag name in the allTags array
       packTag.name = trimmedName;
       allTags = [...allTags]; // Trigger reactivity
+      // Also persist the change to the database
+      const tagToUpdate: Tag = {
+        id: packTag.id,
+        name: trimmedName,
+        parentId: packTag.parentId,
+        createdAt: packTag.createdAt,
+      };
+      console.log("Updating tag in database:", tagToUpdate);
+      updateTag(tagToUpdate)
+        .then(() => {
+          console.log("Tag successfully updated in database");
+        })
+        .catch((error) => {
+          console.error("Failed to update tag in database:", error);
+        });
     }
   });
 
@@ -1032,28 +1048,71 @@
   async function confirmAddToLibrary() {
     try {
       const trimmedPackName = customPackName.trim();
+      if (!trimmedPackName) {
+        toast.error("Pack name is required.");
+        return;
+      }
+
       const imageCount = imagesToAdd.length; // Save count before clearing
+      const previousPackTagId = initialPackTagId;
 
-      // Get the pack tag by ID (it may have been updated in memory)
-      let packTag = allTags.find((t) => t.id === initialPackTagId);
+      // Resolve the pack tag to use (reuse by name, otherwise rename or create)
+      const tagWithSameName = allTags.find(
+        (t) => t.name === trimmedPackName && t.parentId === "Pack"
+      );
 
-      if (packTag) {
-        // Update the tag name if it changed
+      let packTag = previousPackTagId
+        ? allTags.find((t) => t.id === previousPackTagId)
+        : undefined;
+
+      if (tagWithSameName) {
+        packTag = tagWithSameName;
+      } else if (packTag) {
         if (packTag.name !== trimmedPackName) {
-          packTag.name = trimmedPackName;
-          await addTag(packTag); // This will update the existing tag in DB
+          const updatedTag = { ...packTag, name: trimmedPackName };
+          console.log("Updating tag with new name:", updatedTag);
+          await updateTag(updatedTag);
+          console.log("Tag updated successfully");
+          allTags = allTags.map((t) =>
+            t.id === updatedTag.id ? updatedTag : t
+          );
+          packTag = updatedTag;
         }
-      } else if (trimmedPackName) {
-        // Create new tag if somehow it doesn't exist
-        const tagId = generateId();
-        packTag = {
-          id: tagId,
+      } else {
+        const newTag: Tag = {
+          id: generateId(),
           name: trimmedPackName,
           parentId: "Pack",
           createdAt: Date.now(),
         };
-        await addTag(packTag);
+        await addTag(newTag);
+        allTags = [...allTags, newTag];
+        packTag = newTag;
       }
+
+      if (!packTag) {
+        throw new Error("Unable to resolve pack tag");
+      }
+
+      // Retarget all selections and image tag maps to the resolved pack tag
+      const updatedSelected = new Set(selectedTags);
+      if (previousPackTagId && previousPackTagId !== packTag.id) {
+        updatedSelected.delete(previousPackTagId);
+      }
+      updatedSelected.add(packTag.id);
+      selectedTags = updatedSelected;
+
+      const updatedImageTags = new Map(imageSpecificTags);
+      imagesToAdd.forEach((img) => {
+        const tags = new Set(updatedImageTags.get(img.id) || []);
+        if (previousPackTagId && previousPackTagId !== packTag.id) {
+          tags.delete(previousPackTagId);
+        }
+        tags.add(packTag.id);
+        updatedImageTags.set(img.id, tags);
+      });
+      imageSpecificTags = updatedImageTags;
+      initialPackTagId = packTag.id;
 
       // NOW copy images to library and add to IndexedDB
       const finalImages: Image[] = [];
@@ -1660,7 +1719,7 @@
                 />
               </svg>
               <div class="text-sm text-warm-charcoal">
-                <strong>💡 Tip:</strong> <strong>Right-click</strong> on an image
+                <strong>=��� Tip:</strong> <strong>Right-click</strong> on an image
                 to select it, then drag across others to select multiple images quickly!
               </div>
             </div>
@@ -2150,7 +2209,7 @@
             <div class="flex">
               <span
                 class="font-mono bg-warm-beige/30 text-warm-charcoal px-2 py-1 rounded-lg min-w-[140px]"
-                >← →</span
+                >G�� G��</span
               >
               <span class="ml-3 text-warm-gray">Navigate between images</span>
             </div>
