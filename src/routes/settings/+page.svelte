@@ -1582,6 +1582,37 @@
                 Built for focused study sessions: manage references, run timed
                 drills, and keep your library organized.
               </p>
+
+              <!-- Update Information Card -->
+              <div
+                class="bg-cream border-l-4 border-terracotta p-3 rounded space-y-2"
+              >
+                <p class="text-sm font-semibold text-warm-charcoal">
+                  📥 How Updates Work
+                </p>
+                <div class="text-xs text-warm-gray space-y-1">
+                  <p>
+                    <span class="font-semibold text-warm-charcoal">Step 1:</span
+                    > Click "Check for Updates" to see if a new version is available
+                  </p>
+                  <p>
+                    <span class="font-semibold text-warm-charcoal">Step 2:</span
+                    > If an update is found, a notification will appear with release
+                    notes
+                  </p>
+                  <p>
+                    <span class="font-semibold text-warm-charcoal">Step 3:</span
+                    > Your data (library, tags, images) is automatically preserved
+                    — no manual backup needed
+                  </p>
+                  <p class="text-xs text-warm-gray/80">
+                    <em
+                      >✓ The auto-updater handles installation automatically. No
+                      uninstall required!</em
+                    >
+                  </p>
+                </div>
+              </div>
               <p class="text-xs text-warm-gray">
                 Need help or want to share feedback? We’d love to hear from you.
               </p>
@@ -1601,6 +1632,7 @@
               ></div>
               <div class="text-sm text-warm-gray">
                 <span class="font-semibold text-warm-charcoal">Channel</span> · Stable
+                Release
               </div>
             </div>
           </div>

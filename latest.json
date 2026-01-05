@@ -1,7 +1,7 @@
 {
-  "version": "1.0.8",
-  "notes": "Testing auto-updater with improved UX and visual feedback",
-  "pub_date": "2025-12-12T12:00:00Z",
+  "version": "1.0.9",
+  "notes": "Fixed custom pack names not being saved when adding images to library. Custom pack names now properly persist in the database. Enhanced pack management workflow with real-time tag updates.",
+  "pub_date": "2026-01-05T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "",
