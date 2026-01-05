@@ -169,7 +169,9 @@
         <button
           class="badge rounded-full border border-warm-beige text-warm-charcoal cursor-pointer transition-colors text-sm font-medium h-auto min-h-0 px-4 py-2.5"
           class:bg-orange-200={selectedMissingTagCategories.has(category.name)}
-          class:border-orange-400={selectedMissingTagCategories.has(category.name)}
+          class:border-orange-400={selectedMissingTagCategories.has(
+            category.name
+          )}
           onclick={() => onToggleMissingTagCategory(category.name)}
           title={`Show images without ${category.name} tags`}
         >

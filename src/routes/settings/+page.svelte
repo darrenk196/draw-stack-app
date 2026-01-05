@@ -269,17 +269,17 @@
   }
 
   async function handleCheckForUpdates() {
-    console.log('handleCheckForUpdates called');
+    console.log("handleCheckForUpdates called");
     // Simply open the GitHub releases page
-    const releaseUrl = 'https://github.com/darrenk196/draw-stack-app/releases';
-    console.log('Opening URL:', releaseUrl);
+    const releaseUrl = "https://github.com/darrenk196/draw-stack-app/releases";
+    console.log("Opening URL:", releaseUrl);
     toast.info("Opening releases page in your browser...");
     try {
-      console.log('About to call openReleaseNotes');
+      console.log("About to call openReleaseNotes");
       await openReleaseNotes(releaseUrl);
-      console.log('openReleaseNotes completed');
+      console.log("openReleaseNotes completed");
     } catch (error) {
-      console.error('Error in handleCheckForUpdates:', error);
+      console.error("Error in handleCheckForUpdates:", error);
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Failed to open releases page:", error);
       toast.error(`Failed to open releases page: ${errorMsg}`);
@@ -1757,5 +1757,3 @@
     </div>
   </div>
 {/if}
-
-
