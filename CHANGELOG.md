@@ -1,5 +1,41 @@
 # DrawStack Changelog
 
+## [1.1.0] - 2026-01-31
+
+### Added
+
+- **Grayscale Mode (K)** - Toggle image to grayscale to focus on values and form without color distraction
+- **Flip/Mirror Controls**
+  - **X key** - Flip image horizontally (persists across image changes)
+  - **Y key** - Flip image vertically (persists across image changes)
+- **Zoom & Pan Features**
+  - **Ctrl+Scroll** - Zoom in/out (50%-300% range)
+  - **Middle-Click-Drag** - Pan around zoomed image
+  - **0 key** - Reset zoom and pan to defaults
+  - Zoom slider in Tools dropdown with percentage display
+  - "Reset View" button for quick reset
+- **Line Opacity Control**
+  - **[ / ] keys** - Adjust grid and V/H line opacity (10% increments)
+  - Existing opacity slider now has keyboard shortcuts for quick adjustments
+
+### Improved
+
+- **Grid and Reference Line Tracking** - Grid overlay and V/H plumb lines now follow image transforms (zoom, flip, pan) perfectly
+  - Lines stay locked to image during all transformations
+  - No more floating or misaligned overlays
+- Enhanced Tools dropdown with new "IMAGE TOOLS" section
+- Status indicators in corner show active transforms (Flipped H/V, Zoom level, Grayscale)
+- Updated help/keyboard shortcuts with all new controls
+
+### Technical
+
+- Implemented CSS transforms on image and overlays for smooth, GPU-accelerated transformations
+- Added pointer capture for smooth middle-button panning
+- Transform state resets on image navigation (zoom/pan only; flips persist)
+- Pan boundaries clamped to prevent image disappearing completely
+
+---
+
 ## [1.0.9] - 2026-01-05
 
 ### Fixed

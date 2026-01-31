@@ -1,6 +1,6 @@
 [package]
 name = "draw-stack"
-version = "1.0.9"
+version = "1.1.0"
 description = "DrawStack - Artist Reference Organizer"
 authors = ["you"]
 edition = "2021"
