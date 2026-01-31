@@ -36,6 +36,11 @@ export interface KeyboardHandlerContext {
   autoPlayNextImage: boolean;
   grayscaleMode: boolean;
 
+  // Image transform state
+  flipHorizontal: boolean;
+  flipVertical: boolean;
+  zoomLevel: number;
+
   // Line control state
   heldKeys: Set<string>;
   arrowUsedWithModifier: boolean;
@@ -44,6 +49,7 @@ export interface KeyboardHandlerContext {
   horizontalLine2Y: number;
   showVerticalLines: boolean;
   showHorizontalLines: boolean;
+  lineOpacity: number;
 
   // Callbacks for state updates
   onAngleModeChange: (newValue: boolean) => void;
@@ -57,11 +63,15 @@ export interface KeyboardHandlerContext {
   onShowUIChange: (newValue: boolean) => void;
   onShowVerticalLinesChange: (newValue: boolean) => void;
   onShowHorizontalLinesChange: (newValue: boolean) => void;
+  onLineOpacityChange?: (newValue: number) => void;
   onDragTargetChange: (newValue: string | null) => void;
   onVerticalLine2XChange: (newValue: number) => void;
   onHorizontalLine2YChange: (newValue: number) => void;
   onArrowUsedWithModifierChange: (newValue: boolean) => void;
   onGrayscaleModeChange?: (newValue: boolean) => void;
+  onFlipHorizontalChange?: (newValue: boolean) => void;
+  onFlipVerticalChange?: (newValue: boolean) => void;
+  onResetImageTransform?: () => void;
   onAutoPlayNextImageChange?: (newValue: boolean) => void;
   onResumeTimer?: () => void;
   onPauseTimer?: () => void;
@@ -238,6 +248,51 @@ export function handleGridToolKeys(
     if (!e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       ctx.onGrayscaleModeChange?.(!ctx.grayscaleMode);
+      return true;
+    }
+  }
+
+  // X key - toggle horizontal flip
+  if (e.key === "x" || e.key === "X") {
+    if (!e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      ctx.onFlipHorizontalChange?.(!ctx.flipHorizontal);
+      return true;
+    }
+  }
+
+  // Y key - toggle vertical flip
+  if (e.key === "y" || e.key === "Y") {
+    if (!e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      ctx.onFlipVerticalChange?.(!ctx.flipVertical);
+      return true;
+    }
+  }
+
+  // 0 key - reset image transform (zoom and pan)
+  if (e.key === "0") {
+    if (!e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      ctx.onResetImageTransform?.();
+      return true;
+    }
+  }
+
+  // [ key - decrease line opacity
+  if (e.key === "[") {
+    if (!e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      ctx.onLineOpacityChange?.(Math.max(0.1, ctx.lineOpacity - 0.1));
+      return true;
+    }
+  }
+
+  // ] key - increase line opacity
+  if (e.key === "]") {
+    if (!e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      ctx.onLineOpacityChange?.(Math.min(1.0, ctx.lineOpacity + 0.1));
       return true;
     }
   }

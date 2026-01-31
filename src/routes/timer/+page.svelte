@@ -318,6 +318,16 @@
   let imageElementRef = $state<HTMLImageElement | null>(null);
   let grayscaleMode = $state(false);
 
+  // Image transform state
+  let flipHorizontal = $state(false);
+  let flipVertical = $state(false);
+  let zoomLevel = $state(1.0); // 0.5 to 3.0
+  let panX = $state(0);
+  let panY = $state(0);
+  let isPanning = $state(false);
+  let panStartX = $state(0);
+  let panStartY = $state(0);
+
   // Track held keys for line movement
   let heldKeys = $state<Set<string>>(new Set());
   let arrowUsedWithModifier = $state(false);
@@ -720,6 +730,7 @@
       // Clear angle measurements when changing images
       angleLines = [];
       currentAngleLine = null;
+      resetImageTransform();
       startTimer();
     }
   }
@@ -730,6 +741,7 @@
       // Clear angle measurements when changing images
       angleLines = [];
       currentAngleLine = null;
+      resetImageTransform();
       startTimer();
     }
   }
@@ -739,6 +751,7 @@
     // Clear angle measurements when changing images
     angleLines = [];
     currentAngleLine = null;
+    resetImageTransform();
     startTimer();
   }
 
@@ -768,6 +781,13 @@
     showCompletion = false;
     currentIndex = 0;
     startTimer();
+  }
+
+  function resetImageTransform() {
+    zoomLevel = 1.0;
+    panX = 0;
+    panY = 0;
+    // Note: flips persist across images for consistent practice
   }
 
   function modifyAndRestart() {
@@ -960,6 +980,9 @@
       isMuted,
       autoPlayNextImage: appSettings.autoPlayNextImage,
       grayscaleMode,
+      flipHorizontal,
+      flipVertical,
+      zoomLevel,
       heldKeys,
       arrowUsedWithModifier,
       dragTarget,
@@ -967,6 +990,7 @@
       horizontalLine2Y,
       showVerticalLines,
       showHorizontalLines,
+      lineOpacity,
       onAngleModeChange: (v) => (angleMode = v),
       onCurrentAngleLineChange: (v) => (currentAngleLine = v),
       onAngleLinesChange: (v) => (angleLines = v),
@@ -978,11 +1002,15 @@
       onShowUIChange: (v) => (showUI = v),
       onShowVerticalLinesChange: (v) => (showVerticalLines = v),
       onShowHorizontalLinesChange: (v) => (showHorizontalLines = v),
+      onLineOpacityChange: (v) => (lineOpacity = v),
       onDragTargetChange: (v) => (dragTarget = v),
       onVerticalLine2XChange: (v) => (verticalLine2X = v),
       onHorizontalLine2YChange: (v) => (horizontalLine2Y = v),
       onArrowUsedWithModifierChange: (v) => (arrowUsedWithModifier = v),
       onGrayscaleModeChange: (v) => (grayscaleMode = v),
+      onFlipHorizontalChange: (v) => (flipHorizontal = v),
+      onFlipVerticalChange: (v) => (flipVertical = v),
+      onResetImageTransform: resetImageTransform,
       onAutoPlayNextImageChange: async (v) => {
         appSettings.autoPlayNextImage = v;
         await updateSettings(appSettings);
@@ -1046,6 +1074,9 @@
       autoPlayNextImage:
         appSettings.autoPlayNextImage ?? DEFAULT_SETTINGS.autoPlayNextImage,
       grayscaleMode,
+      flipHorizontal,
+      flipVertical,
+      zoomLevel,
       heldKeys,
       arrowUsedWithModifier,
       dragTarget,
@@ -1053,6 +1084,7 @@
       horizontalLine2Y,
       showVerticalLines,
       showHorizontalLines,
+      lineOpacity,
       onAngleModeChange: (v) => (angleMode = v),
       onCurrentAngleLineChange: (v) => (currentAngleLine = v),
       onAngleLinesChange: (v) => (angleLines = v),
@@ -3025,6 +3057,73 @@
                 </button>
 
                 <div class="divider my-0"></div>
+                <div class="text-xs font-bold opacity-60">IMAGE TOOLS</div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Flip Horizontal (X)</span>
+                    <input
+                      type="checkbox"
+                      bind:checked={flipHorizontal}
+                      class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+                    />
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Flip Vertical (Y)</span>
+                    <input
+                      type="checkbox"
+                      bind:checked={flipVertical}
+                      class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+                    />
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="label" for="zoom-slider">
+                    <span class="label-text"
+                      >Zoom: {Math.round(zoomLevel * 100)}%</span
+                    >
+                  </label>
+                  <input
+                    id="zoom-slider"
+                    type="range"
+                    min="0.5"
+                    max="3.0"
+                    step="0.1"
+                    bind:value={zoomLevel}
+                    class="range range-sm range-terracotta"
+                  />
+                  <div class="text-xs opacity-60 mt-1">
+                    Ctrl+Scroll or middle-click-drag to zoom/pan
+                  </div>
+                </div>
+
+                <button
+                  class="btn btn-sm btn-ghost"
+                  onclick={resetImageTransform}
+                  disabled={zoomLevel === 1.0 && panX === 0 && panY === 0}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Reset View (0)
+                </button>
+
+                <div class="divider my-0"></div>
                 <div class="text-xs font-bold opacity-60">GRID OVERLAY</div>
 
                 <div class="form-control">
@@ -3096,10 +3195,16 @@
                   <div><strong>A</strong> - Toggle angle mode</div>
                   <div><strong>Alt+A</strong> - Clear all angles</div>
                   <div><strong>K</strong> - Toggle grayscale</div>
+                  <div><strong>X</strong> - Flip horizontal</div>
+                  <div><strong>Y</strong> - Flip vertical</div>
+                  <div><strong>0</strong> - Reset zoom/pan</div>
+                  <div><strong>Ctrl+Scroll</strong> - Zoom in/out</div>
+                  <div><strong>Middle-Click-Drag</strong> - Pan image</div>
                   <div><strong>G</strong> - Cycle grid (off → 32 → 16 → 8)</div>
                   <div><strong>D</strong> - Toggle diagonals</div>
                   <div><strong>C</strong> - Cycle line/grid color</div>
                   <div><strong>+/-</strong> - Grid line width</div>
+                  <div><strong>[ / ]</strong> - Line opacity</div>
                   <div><strong>Delete</strong> - Remove last angle</div>
                   <div class="divider my-1"></div>
                   <div><strong>Space</strong> - Pause/Resume</div>
@@ -3166,6 +3271,48 @@
         class:left-0={showUI}
         class:right-0={showUI}
         bind:this={imageContainerRef}
+        onwheel={(e) => {
+          // Zoom with mouse wheel (Ctrl+wheel for better UX)
+          if (e.ctrlKey) {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            zoomLevel = Math.max(0.5, Math.min(3.0, zoomLevel + delta));
+          }
+        }}
+        onpointerdown={(e) => {
+          // Start panning with middle mouse button
+          if (e.button === 1) {
+            e.preventDefault();
+            isPanning = true;
+            panStartX = e.clientX - panX;
+            panStartY = e.clientY - panY;
+            if (e.currentTarget instanceof HTMLElement) {
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }
+          }
+        }}
+        onpointermove={(e) => {
+          // Pan while middle button held
+          if (isPanning) {
+            e.preventDefault();
+            panX = e.clientX - panStartX;
+            panY = e.clientY - panStartY;
+            // Clamp pan to reasonable bounds (allow some off-screen but not completely)
+            const maxPan = 500;
+            panX = Math.max(-maxPan, Math.min(maxPan, panX));
+            panY = Math.max(-maxPan, Math.min(maxPan, panY));
+          }
+        }}
+        onpointerup={(e) => {
+          // Stop panning
+          if (e.button === 1 && isPanning) {
+            e.preventDefault();
+            isPanning = false;
+            if (e.currentTarget instanceof HTMLElement) {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            }
+          }
+        }}
       >
         {#if practiceImages[currentIndex]}
           {@const currentImage = practiceImages[currentIndex]}
@@ -3174,7 +3321,7 @@
             src={convertFileSrc(currentImage.fullPath)}
             alt={currentImage.filename}
             class="max-w-full max-h-full object-contain"
-            style={grayscaleMode ? "filter: grayscale(100%)" : ""}
+            style={`transform: scale(${zoomLevel}) scaleX(${flipHorizontal ? -1 : 1}) scaleY(${flipVertical ? -1 : 1}) translate(${panX / zoomLevel}px, ${panY / zoomLevel}px); transform-origin: center center;${grayscaleMode ? " filter: grayscale(100%);" : ""}`}
             onload={() => {
               // Recalculate bounds when image loads
               if (imageElementRef && imageContainerRef) {
@@ -3194,7 +3341,11 @@
           {#if showPlumbTool && imageContainerRef && imageBounds.width > 0 && imageBounds.height > 0}
             <svg
               class="absolute pointer-events-auto"
-              style="z-index: 5; left: {imageBounds.left}px; top: {imageBounds.top}px; width: {imageBounds.width}px; height: {imageBounds.height}px;"
+              style="z-index: 5; left: {imageBounds.left}px; top: {imageBounds.top}px; width: {imageBounds.width}px; height: {imageBounds.height}px; transform: scale({zoomLevel}) scaleX({flipHorizontal
+                ? -1
+                : 1}) scaleY({flipVertical ? -1 : 1}) translate({panX /
+                zoomLevel}px, {panY /
+                zoomLevel}px); transform-origin: center center;"
               onpointermove={handlePlumbPointerMove}
               onpointerdown={handlePlumbPointerDown}
               onpointerup={handlePlumbPointerUp}
@@ -3421,7 +3572,11 @@
               Math.max(imageBounds.width, imageBounds.height) / cellCount}
             <svg
               class="absolute pointer-events-none"
-              style="z-index: 4; left: {imageBounds.left}px; top: {imageBounds.top}px; width: {imageBounds.width}px; height: {imageBounds.height}px;"
+              style="z-index: 4; left: {imageBounds.left}px; top: {imageBounds.top}px; width: {imageBounds.width}px; height: {imageBounds.height}px; transform: scale({zoomLevel}) scaleX({flipHorizontal
+                ? -1
+                : 1}) scaleY({flipVertical ? -1 : 1}) translate({panX /
+                zoomLevel}px, {panY /
+                zoomLevel}px); transform-origin: center center;"
             >
               {#if lineOutline}
                 <!-- Outline for vertical grid lines -->
@@ -3727,6 +3882,69 @@
                 />
               </svg>
               Grayscale
+            </div>
+          {/if}
+          {#if flipHorizontal}
+            <div
+              class="badge badge-sm gap-1 bg-white/90 text-warm-charcoal border-warm-beige shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                />
+              </svg>
+              Flipped H
+            </div>
+          {/if}
+          {#if flipVertical}
+            <div
+              class="badge badge-sm gap-1 bg-white/90 text-warm-charcoal border-warm-beige shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+                />
+              </svg>
+              Flipped V
+            </div>
+          {/if}
+          {#if zoomLevel !== 1.0}
+            <div
+              class="badge badge-sm gap-1 bg-white/90 text-warm-charcoal border-warm-beige shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"
+                />
+              </svg>
+              Zoom: {Math.round(zoomLevel * 100)}%
             </div>
           {/if}
         </div>
