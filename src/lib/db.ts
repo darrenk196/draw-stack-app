@@ -545,16 +545,17 @@ export async function getImagesByTags(tagIds: string[]): Promise<Image[]> {
   const db = await getDB();
   const allImages = await getLibraryImages();
   
-  // Filter images that have ALL of the specified tags
+  // Filter images that have ANY of the specified tags (OR logic)
+  // This allows users to select multiple tags and get images from any of them
   const filteredImages: Image[] = [];
   
   for (const image of allImages) {
     const imageTags = await getImageTagsByImage(image.id);
     const imageTagIds = imageTags.map(it => it.tagId);
     
-    // Check if image has all required tags
-    const hasAllTags = tagIds.every(tagId => imageTagIds.includes(tagId));
-    if (hasAllTags) {
+    // Check if image has any of the required tags
+    const hasAnyTag = tagIds.some(tagId => imageTagIds.includes(tagId));
+    if (hasAnyTag) {
       filteredImages.push(image);
     }
   }

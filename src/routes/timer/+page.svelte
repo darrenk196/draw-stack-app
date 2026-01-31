@@ -50,11 +50,13 @@
   interface QuickSessionConfig {
     selectedTags: string[];
     stages: SessionStage[];
+    description?: string;
   }
 
   interface CustomSession {
     id: string;
     name: string;
+    description?: string;
     stages: SessionStage[];
     createdAt: number;
   }
@@ -95,7 +97,7 @@
   function markTagAsRecent(tagId: string) {
     const updated = [tagId, ...recentTagIds.filter((id) => id !== tagId)].slice(
       0,
-      MAX_RECENT_TAGS
+      MAX_RECENT_TAGS,
     );
     recentTagIds = updated;
     saveRecentTags(updated);
@@ -177,14 +179,14 @@
   }
 
   function convertCustomSessionToPreset(
-    session: CustomSession
+    session: CustomSession,
   ): ClassroomPreset {
     const totalMinutes = calculateTotalDuration(session.stages);
     return {
       id: session.id,
       name: session.name,
       totalDuration: formatDuration(totalMinutes),
-      description: "Custom session",
+      description: session.description || "Custom session",
       stages: session.stages,
     };
   }
@@ -200,6 +202,7 @@
   let quickConfig = $state<QuickSessionConfig>({
     selectedTags: [],
     stages: [],
+    description: "",
   });
   let allTags = $state<any[]>([]);
   let currentStageIndex = $state(0);
@@ -273,12 +276,6 @@
   let timerInterval: number | null = null;
   let isFullscreen = $state(false);
   let showUI = $state(true);
-  let uiHideTimer: number | null = null;
-  let uiActivityTimer: number | null = null;
-  const uiHideDelay = 800; // ms - quick hide for responsive feel
-  const uiInitialShowDelay = 2500; // ms - how long UI stays visible after unlock before starting auto-hide
-  let uiLocked = $state(true);
-  let uiLastActivityTime = $state(0); // Track when UI was last revealed
   let showCompletion = $state(false);
   let showHelpModal = $state(false);
 
@@ -319,6 +316,7 @@
   let dragTarget = $state<string | null>(null);
   let imageContainerRef = $state<HTMLDivElement | null>(null);
   let imageElementRef = $state<HTMLImageElement | null>(null);
+  let grayscaleMode = $state(false);
 
   // Track held keys for line movement
   let heldKeys = $state<Set<string>>(new Set());
@@ -475,7 +473,7 @@
     const customPresets = customSessions.map(convertCustomSessionToPreset);
     const existingIds = new Set(classroomPresets.map((p) => p.id));
     const newCustomPresets = customPresets.filter(
-      (p) => !existingIds.has(p.id)
+      (p) => !existingIds.has(p.id),
     );
     if (newCustomPresets.length > 0) {
       classroomPresets = [...classroomPresets, ...newCustomPresets];
@@ -490,12 +488,6 @@
     return () => {
       if (timerInterval !== null) {
         clearInterval(timerInterval);
-      }
-      if (uiHideTimer !== null) {
-        clearTimeout(uiHideTimer);
-      }
-      if (uiActivityTimer !== null) {
-        clearInterval(uiActivityTimer);
       }
       // Ensure we exit fullscreen if active
       if (isFullscreen && document.fullscreenElement) {
@@ -542,6 +534,9 @@
         poseNumber: index + 1,
       }));
 
+      // Reorganize entries into stages by duration
+      reorganizeEntriesByDuration();
+
       console.log("Loaded images:", images.length);
     } catch (error) {
       console.error("Failed to load practice images:", error);
@@ -555,7 +550,34 @@
     if (entry) {
       entry.duration = duration;
       timerEntries = [...timerEntries]; // Trigger reactivity
+      reorganizeEntriesByDuration();
     }
+  }
+
+  /**
+   * Reorganize legacy mode entries into stages based on their durations.
+   * Groups consecutive images with the same duration into the same stage.
+   */
+  function reorganizeEntriesByDuration() {
+    if (timerEntries.length === 0) return;
+
+    let currentStageIndex = 0;
+    let currentDuration = timerEntries[0].duration;
+    let poseNumber = 1;
+
+    timerEntries.forEach((entry, index) => {
+      // If duration changed from previous entry, start a new stage
+      if (entry.duration !== currentDuration) {
+        currentStageIndex++;
+        currentDuration = entry.duration;
+      }
+      entry.stageIndex = currentStageIndex;
+      entry.poseNumber = poseNumber;
+      poseNumber++;
+    });
+
+    // Trigger reactivity
+    timerEntries = [...timerEntries];
   }
 
   function parseTimeInput(input: string): number | null {
@@ -604,6 +626,7 @@
       ...entry,
       duration,
     }));
+    reorganizeEntriesByDuration();
   }
 
   function applyCustomTimeToAll() {
@@ -931,11 +954,12 @@
       currentColorIndex,
       colorPresetsLength: colorPresets.length,
       showSetup,
-      uiLocked,
+      showUI,
       isFullscreen,
       isPaused,
       isMuted,
       autoPlayNextImage: appSettings.autoPlayNextImage,
+      grayscaleMode,
       heldKeys,
       arrowUsedWithModifier,
       dragTarget,
@@ -951,23 +975,24 @@
       onShowDiagonalsChange: (v) => (showDiagonals = v),
       onGridLineWidthChange: (v) => (gridLineWidth = v),
       onCurrentColorIndexChange: (v) => (currentColorIndex = v),
-      onUILockedChange: (v) => (uiLocked = v),
+      onShowUIChange: (v) => (showUI = v),
       onShowVerticalLinesChange: (v) => (showVerticalLines = v),
       onShowHorizontalLinesChange: (v) => (showHorizontalLines = v),
       onDragTargetChange: (v) => (dragTarget = v),
       onVerticalLine2XChange: (v) => (verticalLine2X = v),
       onHorizontalLine2YChange: (v) => (horizontalLine2Y = v),
       onArrowUsedWithModifierChange: (v) => (arrowUsedWithModifier = v),
+      onGrayscaleModeChange: (v) => (grayscaleMode = v),
       onAutoPlayNextImageChange: async (v) => {
         appSettings.autoPlayNextImage = v;
         await updateSettings(appSettings);
         toast.info(
-          v ? "Auto-play next image enabled" : "Auto-play next image disabled"
+          v ? "Auto-play next image enabled" : "Auto-play next image disabled",
         );
       },
       onResumeTimer: resumeTimer,
       onPauseTimer: pauseTimer,
-      onRevealUI: revealUI,
+      onRevealUI: undefined,
       onResetTimer: resetCurrentTimer,
       onToggleFullscreen: toggleFullscreen,
       onExitPractice: exitPractice,
@@ -1014,12 +1039,13 @@
       currentColorIndex,
       colorPresetsLength: colorPresets.length,
       showSetup,
-      uiLocked,
+      showUI,
       isFullscreen,
       isPaused,
       isMuted,
       autoPlayNextImage:
         appSettings.autoPlayNextImage ?? DEFAULT_SETTINGS.autoPlayNextImage,
+      grayscaleMode,
       heldKeys,
       arrowUsedWithModifier,
       dragTarget,
@@ -1035,7 +1061,7 @@
       onShowDiagonalsChange: (v) => (showDiagonals = v),
       onGridLineWidthChange: (v) => (gridLineWidth = v),
       onCurrentColorIndexChange: (v) => (currentColorIndex = v),
-      onUILockedChange: (v) => (uiLocked = v),
+      onShowUIChange: (v) => (showUI = v),
       onShowVerticalLinesChange: (v) => (showVerticalLines = v),
       onShowHorizontalLinesChange: (v) => (showHorizontalLines = v),
       onDragTargetChange: (v) => (dragTarget = v),
@@ -1059,8 +1085,7 @@
         await document.documentElement.requestFullscreen();
         isFullscreen = true;
       } else {
-        // Immediately unlock UI when exiting fullscreen for smooth transition
-        uiLocked = false;
+        // Show UI when exiting fullscreen for smooth transition
         showUI = true;
         await document.exitFullscreen();
         isFullscreen = false;
@@ -1112,7 +1137,7 @@
     practiceImages;
     imageElementRef;
     imageContainerRef;
-    uiLocked;
+    showUI;
 
     const updateImageBounds = () => {
       if (!imageElementRef || !imageContainerRef) {
@@ -1167,7 +1192,7 @@
         stageImages = await getImagesByTags(stage.tagIds);
         if (stageImages.length === 0) {
           toast.warning(
-            `No images found for stage ${stageIndex + 1} tags. Using all library images.`
+            `No images found for stage ${stageIndex + 1} tags. Using all library images.`,
           );
           stageImages = await getLibraryImages();
         }
@@ -1243,7 +1268,7 @@
 
       if (stageImages.length === 0) {
         toast.warning(
-          `No images found for Stage ${stageIndex + 1}. Please adjust tag filters.`
+          `No images found for Stage ${stageIndex + 1}. Please adjust tag filters.`,
         );
         return;
       }
@@ -1283,6 +1308,15 @@
     quickConfig = { ...quickConfig };
   }
 
+  function resetQuickConfig() {
+    quickConfig = {
+      selectedTags: [],
+      stages: [],
+      description: "",
+    };
+    editingPresetId = null;
+  }
+
   function removeQuickStage(index: number) {
     quickConfig.stages.splice(index, 1);
     quickConfig = { ...quickConfig };
@@ -1312,7 +1346,7 @@
     if (editingPresetId) {
       // Find and update the preset
       const presetIndex = classroomPresets.findIndex(
-        (p) => p.id === editingPresetId
+        (p) => p.id === editingPresetId,
       );
       if (presetIndex !== -1) {
         // Update the preset with new stages and recalculate total duration
@@ -1320,20 +1354,24 @@
           ...classroomPresets[presetIndex],
           stages: JSON.parse(JSON.stringify(quickConfig.stages)), // Deep copy
           totalDuration: formatDuration(
-            calculateTotalDuration(quickConfig.stages)
+            calculateTotalDuration(quickConfig.stages),
           ),
+          description:
+            quickConfig.description ||
+            classroomPresets[presetIndex].description,
         };
         classroomPresets = [...classroomPresets]; // Trigger reactivity
         saveClassroomPresets(classroomPresets);
 
         // Also update custom session if it exists
         const sessionIndex = customSessions.findIndex(
-          (s) => s.id === editingPresetId
+          (s) => s.id === editingPresetId,
         );
         if (sessionIndex !== -1) {
           customSessions[sessionIndex] = {
             ...customSessions[sessionIndex],
             stages: JSON.parse(JSON.stringify(quickConfig.stages)), // Deep copy
+            description: quickConfig.description || "",
           };
           customSessions = [...customSessions]; // Trigger reactivity
           saveCustomSessions(customSessions);
@@ -1353,6 +1391,7 @@
     const newSession: CustomSession = {
       id: Date.now().toString(),
       name: sessionName.trim(),
+      description: quickConfig.description || "",
       stages: JSON.parse(JSON.stringify(quickConfig.stages)), // Deep copy
       createdAt: Date.now(),
     };
@@ -1372,6 +1411,7 @@
 
   function loadCustomSession(session: CustomSession) {
     quickConfig.stages = JSON.parse(JSON.stringify(session.stages)); // Deep copy
+    quickConfig.description = session.description || "";
     quickConfig = { ...quickConfig };
     toast.success(`Loaded session "${session.name}"`);
   }
@@ -1380,6 +1420,7 @@
     // Load preset stages into quick config for editing
     editingPresetId = preset.id; // Track that we're editing this preset
     quickConfig.stages = JSON.parse(JSON.stringify(preset.stages)); // Deep copy
+    quickConfig.description = preset.description || "";
     quickConfig = { ...quickConfig };
     setupMode = "quick";
     toast.info(`Editing "${preset.name}" - make changes and save when done`);
@@ -1462,72 +1503,11 @@
   }
 
   function revealUI() {
-    if (uiLocked) return; // Don't auto-hide if locked
-    showUI = true;
-    uiLastActivityTime = Date.now();
-
-    // Clear any existing timers
-    if (uiHideTimer !== null) {
-      clearTimeout(uiHideTimer);
-    }
-    if (uiActivityTimer !== null) {
-      clearInterval(uiActivityTimer);
-    }
-
-    // Start the activity timer to check for auto-hide
-    startUIActivityTimer();
-  }
-
-  function startUIActivityTimer() {
-    uiActivityTimer = window.setInterval(() => {
-      if (!uiLocked && showUI) {
-        const elapsedTime = Date.now() - uiLastActivityTime;
-        const hideAfter =
-          elapsedTime < uiInitialShowDelay ? uiInitialShowDelay : uiHideDelay;
-
-        if (elapsedTime >= hideAfter) {
-          showUI = false;
-          if (uiActivityTimer !== null) {
-            clearInterval(uiActivityTimer);
-            uiActivityTimer = null;
-          }
-        }
-      }
-    }, 100); // Check every 100ms
-  }
-
-  function handlePointerActivity() {
-    if (!showSetup && !uiLocked) revealUI();
+    // No-op: UI is now controlled by simple toggle
   }
 
   function toggleUILock() {
-    uiLocked = !uiLocked;
-    if (uiLocked) {
-      // Locking: keep UI visible and clear any pending hide timer
-      showUI = true;
-      if (uiHideTimer !== null) {
-        clearTimeout(uiHideTimer);
-      }
-      if (uiActivityTimer !== null) {
-        clearInterval(uiActivityTimer);
-        uiActivityTimer = null;
-      }
-    } else {
-      // Unlocking: show UI immediately and start activity timer for auto-hide
-      showUI = true;
-      uiLastActivityTime = Date.now();
-
-      // Clear any existing timers
-      if (uiHideTimer !== null) {
-        clearTimeout(uiHideTimer);
-      }
-      if (uiActivityTimer !== null) {
-        clearInterval(uiActivityTimer);
-      }
-
-      // Start the activity timer
-      startUIActivityTimer();
-    }
+    showUI = !showUI;
   }
 
   // Audio functions using Web Audio API
@@ -1549,7 +1529,7 @@
       gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(
         0.01,
-        audioContext.currentTime + 0.3
+        audioContext.currentTime + 0.3,
       );
 
       oscillator.start(audioContext.currentTime);
@@ -1581,14 +1561,14 @@
 
         oscillator.frequency.setValueAtTime(
           freq,
-          audioContext.currentTime + time
+          audioContext.currentTime + time,
         );
         oscillator.type = "sine";
 
         gainNode.gain.setValueAtTime(0.2, audioContext.currentTime + time);
         gainNode.gain.exponentialRampToValueAtTime(
           0.01,
-          audioContext.currentTime + time + 0.4
+          audioContext.currentTime + time + 0.4,
         );
 
         oscillator.start(audioContext.currentTime + time);
@@ -1600,13 +1580,7 @@
   }
 </script>
 
-<svelte:window
-  onkeydown={handleKeydown}
-  onkeyup={handleKeyup}
-  onmousemove={handlePointerActivity}
-  onmousedown={handlePointerActivity}
-  ontouchstart={handlePointerActivity}
-/>
+<svelte:window onkeydown={handleKeydown} onkeyup={handleKeyup} />
 
 <div
   class={`${isFullscreen ? "h-screen w-screen" : "h-full"} flex flex-col bg-cream`}
@@ -1795,7 +1769,7 @@
                           class="badge badge-outline rounded-full border-warm-beige text-warm-gray"
                           >{preset.stages.reduce(
                             (sum, s) => sum + s.imageCount,
-                            0
+                            0,
                           )} poses</span
                         >
                       </div>
@@ -1903,7 +1877,10 @@
             </div>
             <button
               class="btn btn-ghost btn-sm"
-              onclick={() => (setupMode = "choose")}
+              onclick={() => {
+                setupMode = "choose";
+                resetQuickConfig();
+              }}
             >
               ← Back
             </button>
@@ -2009,19 +1986,19 @@
                       <button
                         class="btn btn-sm rounded-full transition-colors"
                         class:bg-terracotta={quickConfig.selectedTags.includes(
-                          tag.id
+                          tag.id,
                         )}
                         class:text-white={quickConfig.selectedTags.includes(
-                          tag.id
+                          tag.id,
                         )}
                         class:border-none={quickConfig.selectedTags.includes(
-                          tag.id
+                          tag.id,
                         )}
                         class:btn-ghost={!quickConfig.selectedTags.includes(
-                          tag.id
+                          tag.id,
                         )}
                         class:text-warm-charcoal={!quickConfig.selectedTags.includes(
-                          tag.id
+                          tag.id,
                         )}
                         onclick={() => toggleQuickTag(tag.id)}
                       >
@@ -2042,19 +2019,19 @@
                       <button
                         class="btn btn-sm rounded-full transition-colors"
                         class:bg-terracotta={quickConfig.selectedTags.includes(
-                          tag.id
+                          tag.id,
                         )}
                         class:text-white={quickConfig.selectedTags.includes(
-                          tag.id
+                          tag.id,
                         )}
                         class:border-none={quickConfig.selectedTags.includes(
-                          tag.id
+                          tag.id,
                         )}
                         class:btn-ghost={!quickConfig.selectedTags.includes(
-                          tag.id
+                          tag.id,
                         )}
                         class:text-warm-charcoal={!quickConfig.selectedTags.includes(
-                          tag.id
+                          tag.id,
                         )}
                         onclick={() => toggleQuickTag(tag.id)}
                       >
@@ -2098,12 +2075,12 @@
                         <span class="badge badge-sm ml-2"
                           >{category.tags.length}</span
                         >
-                        {#if category.tags.some( (t) => quickConfig.selectedTags.includes(t.id) )}
+                        {#if category.tags.some( (t) => quickConfig.selectedTags.includes(t.id), )}
                           <span
                             class="badge rounded-full bg-terracotta text-white border-none badge-sm ml-1"
                           >
                             {category.tags.filter((t) =>
-                              quickConfig.selectedTags.includes(t.id)
+                              quickConfig.selectedTags.includes(t.id),
                             ).length} selected
                           </span>
                         {/if}
@@ -2114,19 +2091,19 @@
                             <button
                               class="btn btn-xs rounded-full transition-colors"
                               class:bg-terracotta={quickConfig.selectedTags.includes(
-                                tag.id
+                                tag.id,
                               )}
                               class:text-white={quickConfig.selectedTags.includes(
-                                tag.id
+                                tag.id,
                               )}
                               class:border-none={quickConfig.selectedTags.includes(
-                                tag.id
+                                tag.id,
                               )}
                               class:btn-ghost={!quickConfig.selectedTags.includes(
-                                tag.id
+                                tag.id,
                               )}
                               class:text-warm-charcoal={!quickConfig.selectedTags.includes(
-                                tag.id
+                                tag.id,
                               )}
                               onclick={() => toggleQuickTag(tag.id)}
                             >
@@ -2288,7 +2265,7 @@
                             <div class="flex flex-wrap gap-1 mt-1">
                               {#each stage.tagIds.slice(0, 3) as tagId}
                                 {@const tag = allTags.find(
-                                  (t) => t.id === tagId
+                                  (t) => t.id === tagId,
                                 )}
                                 {#if tag}
                                   <span
@@ -2323,19 +2300,19 @@
                                     <button
                                       class="btn btn-xs rounded-full transition-colors"
                                       class:bg-terracotta={stage.tagIds?.includes(
-                                        tag.id
+                                        tag.id,
                                       )}
                                       class:text-white={stage.tagIds?.includes(
-                                        tag.id
+                                        tag.id,
                                       )}
                                       class:border-none={stage.tagIds?.includes(
-                                        tag.id
+                                        tag.id,
                                       )}
                                       class:btn-ghost={!stage.tagIds?.includes(
-                                        tag.id
+                                        tag.id,
                                       )}
                                       class:text-warm-charcoal={!stage.tagIds?.includes(
-                                        tag.id
+                                        tag.id,
                                       )}
                                       onclick={() =>
                                         toggleStageTag(index, tag.id)}
@@ -2358,12 +2335,12 @@
                                     class="collapse-title text-xs min-h-0 py-1.5 px-2"
                                   >
                                     {category.name}
-                                    {#if category.tags.some( (t) => stage.tagIds?.includes(t.id) )}
+                                    {#if category.tags.some( (t) => stage.tagIds?.includes(t.id), )}
                                       <span
                                         class="badge rounded-full bg-terracotta text-white border-none badge-xs ml-1"
                                       >
                                         {category.tags.filter((t) =>
-                                          stage.tagIds?.includes(t.id)
+                                          stage.tagIds?.includes(t.id),
                                         ).length}
                                       </span>
                                     {/if}
@@ -2374,19 +2351,19 @@
                                         <button
                                           class="btn btn-xs rounded-full transition-colors"
                                           class:bg-terracotta={stage.tagIds?.includes(
-                                            tag.id
+                                            tag.id,
                                           )}
                                           class:text-white={stage.tagIds?.includes(
-                                            tag.id
+                                            tag.id,
                                           )}
                                           class:border-none={stage.tagIds?.includes(
-                                            tag.id
+                                            tag.id,
                                           )}
                                           class:btn-ghost={!stage.tagIds?.includes(
-                                            tag.id
+                                            tag.id,
                                           )}
                                           class:text-warm-charcoal={!stage.tagIds?.includes(
-                                            tag.id
+                                            tag.id,
                                           )}
                                           onclick={() =>
                                             toggleStageTag(index, tag.id)}
@@ -2417,6 +2394,26 @@
                   {/each}
                 </div>
               {/if}
+            </div>
+          </div>
+
+          <!-- Session Description (for saving) -->
+          <div
+            class="card bg-warm-beige border border-warm-beige rounded-2xl mb-6"
+          >
+            <div class="card-body">
+              <h3 class="card-title text-lg text-warm-charcoal mb-3">
+                Session Description (Optional)
+              </h3>
+              <p class="text-sm text-warm-gray mb-4">
+                Add a description to help you remember what this session is for.
+              </p>
+              <textarea
+                class="textarea textarea-bordered bg-white text-warm-charcoal placeholder-warm-gray focus:outline-none focus:border-terracotta"
+                placeholder="e.g., Quick gesture practice, Portfolio studies, Anatomy focus, etc."
+                rows="3"
+                bind:value={quickConfig.description}
+              ></textarea>
             </div>
           </div>
 
@@ -2617,8 +2614,8 @@
       <!-- Top Bar -->
       <div
         class="absolute top-0 left-0 right-0 z-10 bg-white px-6 py-3 flex items-center justify-between border-b border-warm-beige transition-opacity duration-100"
-        class:opacity-0={!showUI && !uiLocked}
-        class:pointer-events-none={!showUI && !uiLocked}
+        class:opacity-0={!showUI}
+        class:pointer-events-none={!showUI}
       >
         <!-- Progress -->
         <div class="flex flex-col gap-1">
@@ -2781,16 +2778,14 @@
             </ul>
           </div>
 
-          <!-- Lock UI Toggle -->
+          <!-- Toggle UI Visibility -->
           <button
             class="btn btn-sm"
-            class:btn-active={uiLocked}
+            class:btn-active={showUI}
             onclick={toggleUILock}
-            title={uiLocked
-              ? "Unlock UI (auto-hide enabled)"
-              : "Lock UI (always visible)"}
+            title={showUI ? "Hide UI (press L)" : "Show UI (press L)"}
           >
-            {#if uiLocked}
+            {#if showUI}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-5 w-5"
@@ -2802,7 +2797,12 @@
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                 />
               </svg>
             {:else}
@@ -2817,7 +2817,7 @@
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
-                  d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"
+                  d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-4.753 4.753m4.753-4.753L3.596 3.039m10.318 10.318L21 21"
                 />
               </svg>
             {/if}
@@ -2833,7 +2833,7 @@
               toast.info(
                 appSettings.autoPlayNextImage
                   ? "Auto-play next image enabled"
-                  : "Auto-play next image disabled"
+                  : "Auto-play next image disabled",
               );
             }}
             title={appSettings.autoPlayNextImage
@@ -2933,7 +2933,16 @@
                   </label>
                 </div>
 
-                <div class="divider my-0"></div>
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Grayscale (K)</span>
+                    <input
+                      type="checkbox"
+                      bind:checked={grayscaleMode}
+                      class="checkbox checkbox-lg border-2 border-black bg-white checked:border-black checked:bg-terracotta [--chkbg:#d46a4e] [--chkfg:#ffffff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+                    />
+                  </label>
+                </div>
 
                 <div class="form-control">
                   <label class="label cursor-pointer">
@@ -3086,6 +3095,7 @@
                   <div><strong>H</strong> - Toggle horizontal lines</div>
                   <div><strong>A</strong> - Toggle angle mode</div>
                   <div><strong>Alt+A</strong> - Clear all angles</div>
+                  <div><strong>K</strong> - Toggle grayscale</div>
                   <div><strong>G</strong> - Cycle grid (off → 32 → 16 → 8)</div>
                   <div><strong>D</strong> - Toggle diagonals</div>
                   <div><strong>C</strong> - Cycle line/grid color</div>
@@ -3150,11 +3160,11 @@
       <!-- Image Display -->
       <div
         class="absolute flex items-center justify-center overflow-hidden"
-        class:inset-0={!uiLocked}
-        class:top-[73px]={uiLocked}
-        class:bottom-[205px]={uiLocked}
-        class:left-0={uiLocked}
-        class:right-0={uiLocked}
+        class:inset-0={!showUI}
+        class:top-[73px]={showUI}
+        class:bottom-[205px]={showUI}
+        class:left-0={showUI}
+        class:right-0={showUI}
         bind:this={imageContainerRef}
       >
         {#if practiceImages[currentIndex]}
@@ -3164,6 +3174,7 @@
             src={convertFileSrc(currentImage.fullPath)}
             alt={currentImage.filename}
             class="max-w-full max-h-full object-contain"
+            style={grayscaleMode ? "filter: grayscale(100%)" : ""}
             onload={() => {
               // Recalculate bounds when image loads
               if (imageElementRef && imageContainerRef) {
@@ -3538,8 +3549,8 @@
       {#if showPlumbTool || gridMode > 0}
         <div
           class="absolute z-20 flex flex-col gap-2 items-end pointer-events-none"
-          class:bottom-[220px]={uiLocked}
-          class:bottom-4={!uiLocked}
+          class:bottom-[220px]={!showUI}
+          class:bottom-4={showUI}
           class:right-4={true}
         >
           {#if showVerticalLines}
@@ -3697,14 +3708,35 @@
               Grid Locked
             </div>
           {/if}
+          {#if grayscaleMode}
+            <div
+              class="badge badge-sm gap-1 bg-white/90 text-warm-charcoal border-warm-beige shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.658 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                />
+              </svg>
+              Grayscale
+            </div>
+          {/if}
         </div>
       {/if}
 
       <!-- Bottom Controls -->
       <div
         class="absolute bottom-0 left-0 right-0 z-10 bg-white px-6 py-4 border-t border-warm-beige transition-opacity duration-100"
-        class:opacity-0={!showUI && !uiLocked}
-        class:pointer-events-none={!showUI && !uiLocked}
+        class:opacity-0={!showUI}
+        class:pointer-events-none={!showUI}
       >
         <!-- Main Controls -->
         <div class="flex items-center justify-center gap-3 mb-4">
@@ -3875,13 +3907,13 @@
           <span>R Reset</span>
           <span>F Fullscreen</span>
           <span>M Mute</span>
-          <span>L Lock UI</span>
+          <span>L Toggle UI</span>
           <span>Esc Exit</span>
         </div>
       </div>
 
-      <!-- Minimal overlay when UI hidden (not shown when locked) -->
-      {#if !showUI && !uiLocked}
+      <!-- Minimal overlay when UI hidden -->
+      {#if !showUI}
         <div class="absolute top-3 left-3 z-20">
           <div
             class="px-3 py-1 rounded bg-white/90 text-warm-charcoal shadow text-sm font-mono font-semibold"

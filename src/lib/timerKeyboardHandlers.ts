@@ -29,11 +29,12 @@ export interface KeyboardHandlerContext {
 
   // UI state
   showSetup: boolean;
-  uiLocked: boolean;
+  showUI: boolean;
   isFullscreen: boolean;
   isPaused: boolean;
   isMuted: boolean;
   autoPlayNextImage: boolean;
+  grayscaleMode: boolean;
 
   // Line control state
   heldKeys: Set<string>;
@@ -53,13 +54,14 @@ export interface KeyboardHandlerContext {
   onShowDiagonalsChange: (newValue: boolean) => void;
   onGridLineWidthChange: (newValue: number) => void;
   onCurrentColorIndexChange: (newValue: number) => void;
-  onUILockedChange: (newValue: boolean) => void;
+  onShowUIChange: (newValue: boolean) => void;
   onShowVerticalLinesChange: (newValue: boolean) => void;
   onShowHorizontalLinesChange: (newValue: boolean) => void;
   onDragTargetChange: (newValue: string | null) => void;
   onVerticalLine2XChange: (newValue: number) => void;
   onHorizontalLine2YChange: (newValue: number) => void;
   onArrowUsedWithModifierChange: (newValue: boolean) => void;
+  onGrayscaleModeChange?: (newValue: boolean) => void;
   onAutoPlayNextImageChange?: (newValue: boolean) => void;
   onResumeTimer?: () => void;
   onPauseTimer?: () => void;
@@ -140,11 +142,11 @@ export function handleAngleModeKeys(
     }
   }
 
-  // L key - toggle UI lock
+  // L key - toggle UI visibility
   if (e.key === "l" || e.key === "L") {
     if (!e.ctrlKey && !e.metaKey) {
       e.preventDefault();
-      ctx.onUILockedChange(!ctx.uiLocked);
+      ctx.onShowUIChange(!ctx.showUI);
       return true;
     }
   }
@@ -227,6 +229,15 @@ export function handleGridToolKeys(
     if (!e.ctrlKey && !e.metaKey && ctx.gridMode > 0) {
       e.preventDefault();
       ctx.onGridLineWidthChange(Math.max(1, ctx.gridLineWidth - 1));
+      return true;
+    }
+  }
+
+  // K key - toggle grayscale mode
+  if (e.key === "k" || e.key === "K") {
+    if (!e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      ctx.onGrayscaleModeChange?.(!ctx.grayscaleMode);
       return true;
     }
   }
